@@ -37,11 +37,10 @@ jobs:
             exit 1
           fi
 
-      - name: Write config.js from the publishable-key secret
+      - name: Write live config.js and the demo site
         env:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: |
-          node -e 'const fs=require("fs"); const key=String(process.env.SUPABASE_PUBLISHABLE_KEY||"").trim(); const live=key.length>20; fs.writeFileSync("config.js","window.HOTELHQ_CONFIG="+JSON.stringify({supabaseUrl:"https://clxvmtbmveusrbxacnxe.supabase.co",supabaseKey:key,mode:live?"live":"demo"})+";\n");'
+        run: node tools/pages-config.js
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

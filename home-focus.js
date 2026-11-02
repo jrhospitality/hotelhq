@@ -722,8 +722,11 @@
     actions.forEach(function (btn) { grid.appendChild(btn); });
     section.appendChild(grid);
   }
+  function signedIn() {
+    return typeof meUser === "function" && !!meUser();
+  }
   function fold() {
-    if (folding || typeof S === "undefined" || S.tab !== "home") return;
+    if (folding || typeof S === "undefined" || S.tab !== "home" || !signedIn()) return;
     var app = document.getElementById("app");
     if (!app || app.querySelector("#hhqFocus")) return;
     folding = true;
@@ -783,7 +786,7 @@
     } finally { folding = false; }
   }
   function tidy() {
-    if (folding || typeof S === "undefined" || S.tab !== "home") return;
+    if (folding || typeof S === "undefined" || S.tab !== "home" || !signedIn()) return;
     var app = document.getElementById("app");
     var body = document.getElementById("hhqMoreBody");
     if (!app || !body || !document.getElementById("hhqFocus")) return;

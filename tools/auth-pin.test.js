@@ -19,6 +19,25 @@ assert.strictEqual(auth.isLiveKey("sb_publishable_" + "a".repeat(20)), true);
 assert.strictEqual(auth.allowsNetwork("demo"), false);
 assert.strictEqual(auth.allowsNetwork("live"), true);
 
+const hotelStaff = { id: "fd", name: "Jordan", hotel: "MSPWE", active: true };
+const corporate = { id: "corp", name: "Alex", hotel: null, active: true };
+const otherHotel = { id: "fd2", name: "Kim", hotel: "MSPAM", active: true };
+const shared = { id: "float", name: "Rae", hotel: "MSPAM", extra_hotels: ["MSPWE"], active: true };
+const inactive = { id: "old", name: "Pat", hotel: "MSPWE", active: false };
+assert.deepStrictEqual(
+  [hotelStaff, corporate, otherHotel, shared, inactive].filter((u) => auth.listedForSite(u, "MSPWE", "live")).map((u) => u.id),
+  ["fd", "corp", "float"]
+);
+assert.deepStrictEqual(
+  [hotelStaff, corporate, otherHotel, shared].filter((u) => auth.listedForSite(u, "MSPWE", "demo")).map((u) => u.id),
+  ["fd", "float"]
+);
+assert.deepStrictEqual(
+  [hotelStaff, corporate].filter((u) => auth.listedForSite(u, "CORP", "live")).map((u) => u.id),
+  ["corp"]
+);
+assert.strictEqual(auth.listedForSite(inactive, "MSPWE", "live"), false);
+
 const corp = { id: "corp", role: "Above Property", hotel: null };
 const gm = { id: "gm", role: "GM", hotel: "MSPWE" };
 const agm = { id: "agm", role: "AGM", hotel: "MSPWE" };

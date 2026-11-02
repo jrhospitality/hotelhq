@@ -1,6 +1,6 @@
-// Copy of the committed placeholder. Live sign-in needs a publishable key
-// supplied outside git: the SUPABASE_PUBLISHABLE_KEY GitHub secret, or a
-// local edit you do not commit.
+// Copy of the committed placeholder. The root site is live only after
+// GitHub Pages writes SUPABASE_PUBLISHABLE_KEY into config.js. Demo stays
+// at /hotelhq/demo/. Do not commit a real key.
 window.HOTELHQ_CONFIG = {
   supabaseUrl: "https://clxvmtbmveusrbxacnxe.supabase.co",
   supabaseKey: "",

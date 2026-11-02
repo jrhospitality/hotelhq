@@ -99,6 +99,9 @@ test("service worker keeps push and never caches personal API data", () => {
   assert.equal(mode("https://jrhospitality.github.io/hotelhq/index.html", { range: "bytes=0-1" }), "bypass");
   assert.equal(mode("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"), "bypass");
   assert.equal(mode("https://jrhospitality.github.io/hotelhq/sw.js"), "bypass");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/demo/"), "bypass");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/demo/index.html"), "bypass");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/demo/config.js"), "bypass");
   assert.equal(mode("https://jrhospitality.github.io/hotelhq/index.html"), "network-first");
   assert.equal(mode("https://jrhospitality.github.io/hotelhq/", { navigate: true }), "network-first");
   assert.equal(mode("https://jrhospitality.github.io/hotelhq/data/labor.json"), "network-first");

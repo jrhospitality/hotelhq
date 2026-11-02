@@ -43,7 +43,17 @@
     return mode === "live";
   }
 
-  const api = { isLiveKey, isPin, pinRejected, canResetPin, allowsNetwork, RETIRED };
+  function listedForSite(user, site, mode) {
+    if (!user || user.active === false) return false;
+    const corporate = user.hotel == null || user.hotel === "";
+    if (site === "CORP") return corporate;
+    const extras = Array.isArray(user.extra_hotels) ? user.extra_hotels : [];
+    const here = user.hotel === site || extras.indexOf(site) >= 0;
+    if (mode === "live" && corporate) return true;
+    return !!here;
+  }
+
+  const api = { isLiveKey, isPin, pinRejected, canResetPin, allowsNetwork, listedForSite, RETIRED };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HQAuth = api;
 })(typeof window !== "undefined" ? window : globalThis);

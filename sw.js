@@ -1,8 +1,10 @@
-/* HotelHQ service worker. Register with scope /hotelhq/.
+/* HotelHQ service worker. The root worker is registered with scope /hotelhq/.
+   The demo copy is registered with scope /hotelhq/demo/. The root worker does
+   not satisfy /hotelhq/demo/ from the live shell.
    The ack action opens /hotelhq/?ack=<alert_id> and does not call the API.
    Shell caching is network-first and versioned. Supabase and other personal API
    responses are never written to the cache. Bump CACHE_VERSION when cache rules change. */
-var CACHE_VERSION = "hotelhq-shell-v17";
+var CACHE_VERSION = "hotelhq-shell-v18";
 var SHELL = [
   "./",
   "./index.html",
@@ -46,6 +48,14 @@ var SHELL = [
   "./vendor/dicebear/core.min.js"
 ];
 
+function isForeignDemo(url) {
+  var path = (url && url.pathname) || "";
+  var scope = "";
+  try { scope = new URL(self.registration.scope).pathname; } catch (e) { scope = ""; }
+  if (scope.indexOf("/demo/") !== -1) return false;
+  return /\/demo(\/|$)/.test(path);
+}
+
 function isPersonalApi(url) {
   var host = String(url.hostname || "").toLowerCase();
   if (host === "supabase.co" || host.slice(-12) === ".supabase.co") return true;
@@ -67,6 +77,7 @@ function cacheMode(url, opts) {
     try { parsed = new URL(String(url), opts.origin || "https://jrhospitality.github.io"); }
     catch (e) { return "bypass"; }
   }
+  if (isForeignDemo(parsed)) return "bypass";
   if (isPersonalApi(parsed)) return "bypass";
   var origin = opts.origin || (self.location && self.location.origin) || "";
   if (!origin || parsed.origin !== origin) return "bypass";
