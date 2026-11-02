@@ -1,8 +1,8 @@
-/* HotelHQ service worker. Register with scope /JR-staff-page/.
-   The ack action opens /JR-staff-page/?ack=<alert_id> and does not call the API.
+/* HotelHQ service worker. Register with scope /hotelhq/.
+   The ack action opens /hotelhq/?ack=<alert_id> and does not call the API.
    Shell caching is network-first and versioned. Supabase and other personal API
    responses are never written to the cache. Bump CACHE_VERSION when cache rules change. */
-var CACHE_VERSION = "hotelhq-shell-v15";
+var CACHE_VERSION = "hotelhq-shell-v16";
 var SHELL = [
   "./",
   "./index.html",
@@ -63,7 +63,7 @@ function cacheMode(url, opts) {
   if (opts.range) return "bypass";
   var parsed = url;
   if (!parsed || !parsed.hostname) {
-    try { parsed = new URL(String(url), opts.origin || "https://jbhakta1988.github.io"); }
+    try { parsed = new URL(String(url), opts.origin || "https://jrhospitality.github.io"); }
     catch (e) { return "bypass"; }
   }
   if (isPersonalApi(parsed)) return "bypass";
@@ -173,7 +173,7 @@ function absUrl(url) {
 
 function appUrl(alertId) {
   var origin = new URL(self.registration.scope).origin;
-  var u = new URL("/JR-staff-page/", origin);
+  var u = new URL("/hotelhq/", origin);
   if (alertId != null && alertId !== "") u.searchParams.set("ack", String(alertId));
   return u.href;
 }
