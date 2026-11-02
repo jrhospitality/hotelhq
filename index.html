@@ -499,6 +499,7 @@ function mapDirectoryRow(r){
   const row={id:String(id),user_id:r.user_id||(live?String(id):null),email:live?null:(r.email||null),name:r.name,pin:live?"":(r.pin||""),role:ROLE_FROM_DB[r.role]||r.role||"",hotel:hotel||null,shift:r.shift||"AM",days:Array.isArray(r.days)?r.days:DAYS,active:r.active!==false,he_employee_id:r.he_employee_id||null,language:(r.language==="en"||r.language==="es")?r.language:"",pin_reset_required:r.pin_reset_required===true,extra_hotels:Array.isArray(r.extra_hotels)?r.extra_hotels:[]};
   if(r.show_more_expanded===true||r.show_more_expanded===false)row.show_more_expanded=r.show_more_expanded===true;
   if(Array.isArray(r.home_tiles)||r.home_tiles===null)row.home_tiles=r.home_tiles;
+  if(r.avatar&&typeof r.avatar==="object")row.avatar=r.avatar;
   return row;
 }
 let directoryError="";
@@ -811,6 +812,7 @@ async function applySessionProfile(){
   else Object.assign(local,{name:row.name,role:row.role,hotel:row.hotel,user_id:uid,he_employee_id:row.he_employee_id,active:row.active,language:(data.language==="en"||data.language==="es")?data.language:(local.language||""),pin_reset_required:data.pin_reset_required===true,pin:""});
   if(data.show_more_expanded===true||data.show_more_expanded===false)local.show_more_expanded=data.show_more_expanded===true;
   if(Array.isArray(data.home_tiles)||data.home_tiles===null)local.home_tiles=data.home_tiles;
+  if(data.avatar&&typeof data.avatar==="object"){local.avatar=data.avatar;if(window.HHQAv&&HHQAv.remember)HHQAv.remember(local.id,data.avatar)}
   if(local.language==="en"||local.language==="es"){LANG=local.language;document.documentElement.lang=LANG==="es"?"es":"en";const map=userLangs();map[local.id]=LANG;sset(USER_LANG_KEY,JSON.stringify(map))}
   applyUserMore(local);
   S.uid=local.id;
@@ -1833,7 +1835,7 @@ function boardCard(r){
 }
 function roomAssignCard(){
   const d=D();
-  return `<div class="card"><h3>Room assignments</h3><button class="btn" style="width:100%;margin-bottom:8px" onclick="autoHK()">⚡ Auto-assign dirty rooms to on-shift housekeepers</button><small>On shift: ${onS("Housekeeper").map(s=>s.n).join(", ")||"—"} · balanced by credits (checkout VD/OOO=1, stayover OD=0.5), kept on the same floor where possible.</small><div style="margin:6px 0">${onS("Housekeeper").map(s=>{const a=d.rooms.filter(x=>x.hk==s.n&&["dirty","progress","reclean","cleaned"].includes(roomFlow(x))).length;return `<span class="pill OC" style="margin:2px"><span class="raw">${escH(s.n)}</span>: <span class="raw">${a}</span></span>`}).join("")}</div><table class="assign"><tr><th>Room</th><th>Status</th><th>Attendant</th>${canSetHkPriority()?"<th>Priority</th>":""}</tr>${d.rooms.filter(x=>roomFlow(x)==="dirty"||roomFlow(x)==="reclean"||roomFlow(x)==="progress").map(x=>`<tr><td class="raw">${x.n}</td><td>${flowLabel(x.flow)}</td><td><select aria-label="Attendant" onchange="asg(${x.n},this.value)">${[...new Set([x.hk,...onS("Housekeeper").map(s=>s.n)].filter(Boolean))].map(a=>`<option ${a==x.hk?"selected":""}>${escH(a)}</option>`).join("")}</select></td>${hkPriCell(x)}</tr>`).join("")}</table></div>`;
+  return `<div class="card"><h3>Room assignments</h3><button class="btn" style="width:100%;margin-bottom:8px" onclick="autoHK()">⚡ Auto-assign dirty rooms to on-shift housekeepers</button><small>On shift: ${onS("Housekeeper").map(s=>s.n).join(", ")||"—"} · balanced by credits (checkout VD/OOO=1, stayover OD=0.5), kept on the same floor where possible.</small><div style="margin:6px 0">${onS("Housekeeper").map(s=>{const a=d.rooms.filter(x=>x.hk==s.n&&["dirty","progress","reclean","cleaned"].includes(roomFlow(x))).length;return `<span class="pill OC" style="margin:2px"><span class="raw">${escH(s.n)}</span>: <span class="raw">${a}</span></span>`}).join("")}</div><table class="assign"><tr><th>Room</th><th>Status</th><th>Attendant</th>${canSetHkPriority()?"<th>Priority</th>":""}</tr>${d.rooms.filter(x=>roomFlow(x)==="dirty"||roomFlow(x)==="reclean"||roomFlow(x)==="progress").map(x=>`<tr><td class="raw">${x.n}</td><td>${flowLabel(x.flow)}</td><td><span class="hhq-asg">${window.HHQAv&&HHQAv.html?HHQAv.html(x.hk,28):""}<select aria-label="Attendant" onchange="asg(${x.n},this.value)">${[...new Set([x.hk,...onS("Housekeeper").map(s=>s.n)].filter(Boolean))].map(a=>`<option ${a==x.hk?"selected":""}>${escH(a)}</option>`).join("")}</select></span></td>${hkPriCell(x)}</tr>`).join("")}</table></div>`;
 }
 function clockOffset(min){return new Date(Date.now()+min*60000).toLocaleTimeString(localeTag(),{hour:"numeric",minute:"2-digit"})}
 function ensureRoomBoard(d){
@@ -4127,10 +4129,7 @@ function dbOpts(c){const r={seed:c.seed||"x"},m=window.DBMETA&&DBMETA[c.style];
 const cache={};
 function uri(c){if(!ensure(c.style))return "";const k=JSON.stringify(c);if(cache[k])return cache[k];let u="";try{u=DB.createAvatar(DB.styles[c.style],dbOpts(c)).toDataUri()}catch(e){u=""}return cache[k]=u}
 window.avConfig=n=>n?rnd("mate_"+n):mine();
-window.avHTML=function(name,sz,cfg){if(gamifyOff()&&!name&&!cfg)return initialsHTML((meUser()||{}).name,sz);const c=cfg||avConfig(name),b=ROLEB.find(x=>x[0]==c.role),f=FRAMES.find(x=>x[0]==(c.frame||""))||FRAMES[0],p=PINS.find(x=>x[0]==c.pin),u=uri(c);
-  const rb=c.frame=="rainbow"?"background-image:"+bgCss(c.bg).split(",#")[0]+",conic-gradient(#f94144,#f9c74f,#90be6d,#577590,#9b5de5,#f94144);":"";
-  const ini=escH(String(name||((meUser()||{}).name)||"?").charAt(0));
-  return `<span class=av style="position:relative;display:inline-block;flex:none;width:${sz}px;height:${sz}px"><span style="display:block;width:100%;height:100%;border-radius:50%;box-sizing:border-box;overflow:hidden;background:${bgCss(c.bg)};border:${f[3]};${rb}box-shadow:0 1px 4px #0003">${u?`<img alt="" src="${u}" style="width:100%;height:100%;display:block">`:`<span style="display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-weight:700;font-size:${sz*.4}px;color:#1f2a44">${ini}</span>`}</span>${b&&b[3]&&sz>=28?`<span style="position:absolute;right:-3px;bottom:-3px;background:#fff;border-radius:50%;font-size:${Math.max(10,sz*.28)}px;line-height:1;padding:2px;box-shadow:0 1px 3px #0004">${b[3]}</span>`:""}${p&&p[3]&&sz>=28?`<span style="position:absolute;left:-3px;top:-3px;font-size:${Math.max(10,sz*.28)}px;line-height:1">${p[3]}</span>`:""}</span>`};
+window.avHTML=function(name,sz,cfg){if(window.HHQAv&&HHQAv.html)return HHQAv.html(name,sz,cfg);return initialsHTML(name||((meUser()||{}).name),sz)};
 window.avLevelUp=function(){const rm=matchMedia("(prefers-reduced-motion: reduce)").matches,el=document.createElement("div");el.innerHTML=avHTML(null,120);el.style.cssText="position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:9999;pointer-events:none";document.body.appendChild(el);
   if(!rm&&el.animate)el.animate([{transform:"translate(-50%,-50%) scale(.3)",opacity:0},{transform:"translate(-50%,-60%) scale(1.15) rotate(-6deg)",opacity:1,offset:.4},{transform:"translate(-50%,-55%) scale(1) rotate(4deg)",opacity:1,offset:.7},{transform:"translate(-50%,-50%) scale(.9)",opacity:0}],{duration:1800,easing:"ease-out"});setTimeout(()=>el.remove(),rm?1200:1800)};
 // ---------- builder ----------

@@ -46,13 +46,31 @@
     return BY_ID[id] || BY_ID.initials;
   }
   function mapChoice(saved) {
-    if (!saved || typeof saved !== "object") return { icon: "initials", accent: "slate" };
+    if (saved == null || saved === "") return { icon: "initials", accent: "" };
+    if (typeof saved === "number" || typeof saved === "boolean") return { icon: "initials", accent: "" };
+    if (typeof saved === "string") {
+      var text = saved.trim();
+      if (!text || /^https?:/i.test(text) || text.indexOf("data:") === 0 || text.indexOf("<") >= 0) return { icon: "initials", accent: "" };
+      if (BY_ID[text]) return { icon: text, accent: BY_ID[text].accent };
+      var mapped = PIN_ICON[text] || STYLE_ICON[text] || ROLE_ICON[text];
+      if (mapped) return { icon: mapped, accent: choiceOf(mapped).accent };
+      return { icon: "initials", accent: "" };
+    }
+    if (typeof saved !== "object") return { icon: "initials", accent: "" };
     if (saved.v === 2 && (saved.icon === "initials" || BY_ID[saved.icon])) {
       var keep = choiceOf(saved.icon);
-      return { icon: keep.id, accent: ACCENTS[saved.accent] ? saved.accent : keep.accent };
+      return { icon: keep.id, accent: saved.icon === "initials" ? "" : (ACCENTS[saved.accent] ? saved.accent : keep.accent) };
     }
+    if (saved.v === 2) return { icon: "initials", accent: "" };
     var icon = PIN_ICON[saved.pin] || ROLE_ICON[saved.role] || STYLE_ICON[saved.style] || "initials";
-    return { icon: icon, accent: choiceOf(icon).accent };
+    return { icon: icon, accent: icon === "initials" ? "" : choiceOf(icon).accent };
+  }
+  function accentFor(name) {
+    var keys = Object.keys(ACCENTS);
+    var hash = 0;
+    var text = String(name || "");
+    for (var i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+    return keys[hash % keys.length];
   }
   function initialsOf(name) {
     var parts = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -70,22 +88,62 @@
     return HHQIcons.svg(name).replace('width="1em"', 'width="' + size + '"').replace('height="1em"', 'height="' + size + '"');
   }
   function badgeHtml(choice, name, size) {
-    choice = choiceOf(choice && choice.icon);
+    var picked = mapChoice(choice && choice.icon ? choice : { icon: "initials" });
+    if (choice && choice.icon) picked = mapChoice(choice.icon === "initials" || BY_ID[choice.icon] ? { v: 2, icon: choice.icon, accent: choice.accent } : choice.icon);
     size = Math.max(24, Math.min(96, Number(size) || 36));
-    var color = ACCENTS[choice.accent] || ACCENTS.slate;
+    var icon = picked.icon === "initials" ? "" : iconSvg(picked.icon, Math.round(size * 0.52));
+    if (!icon) picked = { icon: "initials", accent: "" };
+    var accent = picked.icon === "initials" || !ACCENTS[picked.accent] ? accentFor(name) : picked.accent;
+    var color = ACCENTS[accent] || ACCENTS.slate;
     var radius = size >= 48 ? 14 : 10;
-    var inner = choice.icon
-      ? iconSvg(choice.icon, Math.round(size * 0.52))
-      : '<b style="font-size:' + Math.round(size * 0.36) + 'px;letter-spacing:-.03em">' + esc(initialsOf(name)) + "</b>";
-    return '<span class="hhq-av" style="width:' + size + "px;height:" + size + "px;border-radius:" + radius + "px;background:color-mix(in srgb," + color + " 14%,#fff);color:" + color + '">' + inner + "</span>";
+    var inner = icon || ('<b style="font-size:' + Math.round(size * 0.36) + 'px;letter-spacing:-.03em">' + esc(initialsOf(name)) + "</b>");
+    return '<span class="hhq-av" role="img" aria-label="' + esc(initialsOf(name)) + '" style="width:' + size + "px;height:" + size + "px;border-radius:" + radius + "px;background:color-mix(in srgb," + color + " 14%,#fff);color:" + color + '">' + inner + "</span>";
+  }
+  function pack(choice, previous) {
+    var icon = choiceOf(choice && choice.icon).id;
+    var accent = icon === "initials" ? "" : choiceOf(icon).accent;
+    var next = { v: 2, icon: icon, accent: accent };
+    if (previous && previous.v !== 2) next.legacy = previous;
+    else if (previous && previous.legacy) next.legacy = previous.legacy;
+    return next;
+  }
+  function commitSave(opts) {
+    opts = opts || {};
+    var prev;
+    try { prev = opts.read ? opts.read() : null; } catch (e) { prev = null; }
+    try {
+      if (opts.write) opts.write(opts.next);
+    } catch (writeErr) {
+      return Promise.resolve({ ok: false, error: "local", rolledBack: false });
+    }
+    if (!opts.remote) return Promise.resolve({ ok: true, stored: opts.next });
+    var tries = opts.attempts || 3;
+    var attempt = 0;
+    function run() {
+      return Promise.resolve().then(function () { return opts.remote(opts.next); }).then(function () {
+        return { ok: true, stored: opts.next };
+      }, function () {
+        attempt += 1;
+        if (attempt >= tries) {
+          try { if (opts.write) opts.write(prev); } catch (e2) {}
+          return { ok: false, error: "save", rolledBack: true };
+        }
+        var pause = opts.wait ? opts.wait(attempt) : null;
+        return Promise.resolve(pause).then(run);
+      });
+    }
+    return run();
   }
 
   var api = {
     ACCENTS: ACCENTS,
     OPTIONS: OPTIONS,
     mapChoice: mapChoice,
+    accentFor: accentFor,
     initialsOf: initialsOf,
-    badgeHtml: badgeHtml
+    badgeHtml: badgeHtml,
+    pack: pack,
+    commitSave: commitSave
   };
   root.HHQAv = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -107,12 +165,15 @@
     });
     return exact || loose;
   }
-  function storedChoice(id) {
-    return mapChoice(readRaw(id));
+  function storedChoice(id, profile) {
+    var raw = readRaw(id);
+    if (raw) return mapChoice(raw);
+    if (profile) return mapChoice(profile);
+    return { icon: "initials", accent: "" };
   }
   function mineChoice() {
     var me = typeof meUser === "function" ? meUser() : null;
-    return storedChoice(me && me.id);
+    return storedChoice(me && me.id, me && me.avatar);
   }
   function html(name, size, cfg) {
     var choice;
@@ -120,7 +181,7 @@
     if (cfg) choice = mapChoice(cfg);
     else if (name) {
       var user = userByName(name);
-      choice = user ? storedChoice(user.id) : { icon: "initials", accent: "slate" };
+      choice = user ? storedChoice(user.id, user.avatar) : { icon: "initials", accent: "" };
       label = user ? user.name : name;
     } else {
       var me = typeof meUser === "function" ? meUser() : null;
@@ -141,36 +202,78 @@
   };
 
   var draft = null;
+  var dirty = false;
+  var saveError = "";
   function pickerHtml() {
     var me = typeof meUser === "function" ? meUser() : null;
-    if (!draft) draft = Object.assign({ v: 2 }, mineChoice());
+    if (!dirty) draft = Object.assign({ v: 2 }, mineChoice());
     var name = me && me.name;
     var buttons = OPTIONS.map(function (opt) {
       var on = draft.icon === opt.id;
-      return '<button type="button" class="av-opt' + (on ? " on" : "") + '" onclick="HHQAvPick(\'' + opt.id + '\')" aria-pressed="' + on + '">' +
+      return '<button type="button" role="radio" class="av-opt' + (on ? " on" : "") + '" onclick="HHQAvPick(\'' + opt.id + '\')" aria-checked="' + on + '" aria-label="' + esc(L(opt.en, opt.es)) + '">' +
         badgeHtml(opt, name, 56) + "<small>" + esc(L(opt.en, opt.es)) + "</small></button>";
     }).join("");
+    var err = saveError ? '<p class="av-err" role="alert">' + esc(L("Could not save your avatar. It was not changed. Try again.", "No se pudo guardar tu avatar. No cambió. Inténtalo de nuevo.")) + "</p>" : "";
     return '<div class="hhq-av-pick" id="hhqAvPick"><h2>' + esc(L("Avatar", "Avatar")) + "</h2>" +
       '<div class="card av-now">' + badgeHtml(draft, name, 72) + "<div><b>" + esc(name || "") + "</b><br><small>" + esc(L("Choose a badge. Initials are the default.", "Elige una insignia. Las iniciales son el predeterminado.")) + "</small></div></div>" +
-      '<div class="av-grid">' + buttons + "</div>" +
+      '<div class="av-grid" role="radiogroup" aria-label="' + esc(L("Avatar", "Avatar")) + '">' + buttons + "</div>" +
+      err +
       '<button type="button" class="btn" style="width:100%;margin-top:12px" onclick="HHQAvSave()">' + esc(L("Save", "Guardar")) + "</button></div>";
   }
   root.HHQAvPick = function (id) {
     if (!BY_ID[id]) return;
+    dirty = true;
     draft = { v: 2, icon: id, accent: BY_ID[id].accent };
     if (typeof render === "function") render();
   };
+  function writeRaw(id, value) {
+    var key = keyFor(id);
+    if (value == null) {
+      localStorage.removeItem(key);
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(value));
+  }
   root.HHQAvSave = function () {
     var me = typeof meUser === "function" ? meUser() : null;
-    if (!me) return;
-    var prev = readRaw(me.id);
-    var next = { v: 2, icon: draft.icon, accent: draft.accent };
-    if (prev && prev.v !== 2) next.legacy = prev;
-    else if (prev && prev.legacy) next.legacy = prev.legacy;
-    try { localStorage.setItem(keyFor(me.id), JSON.stringify(next)); } catch (e) {}
-    if (root.sb && sb.rpc) sb.rpc("set_my_avatar", { p: next }).catch(function () {});
-    draft = null;
-    if (typeof go === "function") go("home");
+    if (!me || !draft) return;
+    var next = pack(draft, readRaw(me.id));
+    var remote = null;
+    if (typeof useRemote === "function" && useRemote() && root.sb && sb.rpc) {
+      remote = function (payload) {
+        return sb.rpc("set_my_avatar", { p: payload }).then(function (res) {
+          if (res && res.error) throw res.error;
+        });
+      };
+    }
+    commitSave({
+      next: next,
+      read: function () { return readRaw(me.id); },
+      write: function (value) {
+        writeRaw(me.id, value);
+        me.avatar = value;
+      },
+      remote: remote,
+      attempts: 3,
+      wait: function (n) { return new Promise(function (resolve) { setTimeout(resolve, 200 * n); }); }
+    }).then(function (result) {
+      if (!result.ok) {
+        saveError = result.error || "save";
+        dirty = false;
+        draft = Object.assign({ v: 2 }, mineChoice());
+        if (typeof render === "function") render();
+        return;
+      }
+      saveError = "";
+      dirty = false;
+      draft = null;
+      if (typeof go === "function") go("home");
+      else if (typeof render === "function") render();
+    });
+  };
+  api.remember = function (id, raw) {
+    if (!id || raw == null) return;
+    try { writeRaw(id, raw); } catch (e) {}
   };
   if (typeof V !== "undefined") {
     V.avatar = pickerHtml;
@@ -231,7 +334,8 @@
   if (typeof render === "function") {
     var prev = render;
     root.render = function () {
-      var out = prev.apply(this, arguments);
+      try { if (typeof S !== "undefined" && S.tab !== "avatar") dirty = false; } catch (e0) {}
+    var out = prev.apply(this, arguments);
       try { paintChrome(); } catch (e) {}
       return out;
     };
@@ -242,7 +346,7 @@
     ".hhq-av{display:inline-flex;align-items:center;justify-content:center;flex:none;box-sizing:border-box;line-height:0}",
     ".hhq-av svg{width:52%;height:52%;display:block}",
     ".hhq-you{display:inline-flex;align-items:center;gap:6px;flex:none}",
-    ".hhq-av-btn{padding:0;border:0;background:transparent;min-height:36px;width:36px}",
+    ".hhq-av-btn{padding:0;border:0;background:transparent;min-width:44px;min-height:44px;width:44px;border-radius:12px}",
     ".hhq-pts-badge{display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:0 10px;border-radius:999px;border:1px solid #e6e8ee;background:#fff;color:#1c1f26;font-weight:750}",
     ".hhq-pts-badge svg{width:16px;height:16px;color:#b45309}",
     "#hbar .hhq-you{margin-right:4px}",
@@ -250,8 +354,11 @@
     "#sav .hhq-you{width:100%}",
     ".av-now{display:flex;align-items:center;gap:12px}",
     ".av-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}",
-    ".av-opt{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;border:1px solid #e6e8ee;border-radius:14px;background:#fff;min-height:96px}",
+    ".av-opt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px 4px;border:1px solid #e6e8ee;border-radius:14px;background:#fff;min-height:96px;min-width:44px}",
     ".av-opt.on{border-color:#1d4ed8;box-shadow:0 0 0 3px rgba(29,78,216,.18)}",
+    ".av-opt:focus-visible,.hhq-av-btn:focus-visible,.hhq-pts-badge:focus-visible{outline:3px solid #1d4ed8;outline-offset:2px}",
+    ".av-err{color:#9a3412;font-weight:750;margin:8px 0 0}",
+    ".hhq-asg{display:inline-flex;align-items:center;gap:6px}",
     ".av-opt small{font-size:11px;font-weight:700;line-height:1.2;text-align:center}",
     "#qotd.card{background:#fff;border:1px solid #e6e8ee}",
     "#hhqPts .card{background:#fff}",
