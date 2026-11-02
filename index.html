@@ -689,16 +689,9 @@ async function syncRooms(hotel,before,after){
     if(row.sb_id){const res=await dbUpdate("rooms",row.sb_id,{hk_status:body.hk_status,fo_status:body.fo_status,status:body.status});if(res.source!=="supabase")failed=true}
     else{const res=await dbInsert("rooms",body);if(res.source==="supabase"&&res.data&&res.data.id)row.sb_id=res.data.id;else failed=true}
     const oldSig=was?parseRoomSig(was.sig):{hk:"",pri:"normal",flow:""};
-    if(oldSig.flow!==body.status){
-      const entry=(S.h[hotel].statusLog||[]).find(x=>String(x.room)===String(row.n)&&x.status===body.status&&!x.synced);
-      if(entry){
-        const res=await dbInsert("room_status_log",{hotel_id:hotel,room_number:String(row.n),status:body.status,previous_status:entry.previous_status||null,note:entry.note||"",actor:entry.actor||""});
-        if(res.source==="supabase")entry.synced=true;else failed=true;
-      }
-    }
     const oldPri=oldSig.pri,oldHk=oldSig.hk;
-    if(row.hk&&(String(row.hk||"")!==String(oldHk||"")||hkPri(row)!==oldPri)){
-      const asg={hotel_id:hotel,department:"housekeeping",work_date:ld(),room_number:String(row.n),status:"assigned",clean_type:row.s||null,priority:hkPri(row)};
+    if(row.hk&&(String(row.hk||"")!==String(oldHk||"")||hkPri(row)!==oldPri||oldSig.flow!==body.status)){
+      const asg={hotel_id:hotel,department:"housekeeping",work_date:ld(),room_number:String(row.n),status:window.HHQRooms?HHQRooms.assignmentStatus(row):"assigned",clean_type:row.s||null,priority:hkPri(row)};
       const who=userByName(String(row.hk).replace(" (EX)",""));
       if(who&&isUuid(who.user_id))asg.assignee=who.user_id;
       if(row.asg_id){const res=await dbUpdate("hk_assignments",row.asg_id,asg);if(res.source!=="supabase")failed=true}
@@ -1729,16 +1722,17 @@ function flowToast(status,r){
   if(status==="ooo") return t("Room {n} is out of order.",{n});
   return t("Room {n} is dirty.",{n});
 }
-// Status changes write rooms.status and one room_status_log row.
+// Status changes write rooms.hk_status, rooms.fo_status, and rooms.status.
 // Demo mode stores that write in the local data cache and shows a toast.
-// Live mode updates rooms and inserts room_status_log through dbUpdate/dbInsert.
+// Live mode updates rooms through dbUpdate/dbInsert. The room_status_log table
+// belongs to a room turn, so this screen does not insert a log row.
 function persistRoomStatus(hotel,row,prev,note,actor){
   const status=roomFlow(row);
   const roomRow={id:row.sb_id||("local-room-"+hotel+"-"+row.n),hotel_id:hotel,department:"housekeeping",room_number:String(row.n),floor:Math.floor(Number(row.n)/100)||null,hk_status:row.s||null,fo_status:row.s||null,status};
   const logRow={hotel_id:hotel,room_number:String(row.n),status,previous_status:prev||null,note:note||"",actor:actor||""};
   if(!useRemote()){dbCachePut("rooms",roomRow);dbCachePut("room_status_log",Object.assign({id:"local-rlog-"+hotel+"-"+row.n+"-"+Date.now()},logRow));return}
   const write=row.sb_id?dbUpdate("rooms",row.sb_id,{hk_status:roomRow.hk_status,fo_status:roomRow.fo_status,status}):dbInsert("rooms",roomRow).then(res=>{if(res&&res.data&&res.data.id)row.sb_id=res.data.id;return res});
-  Promise.resolve(write).then(()=>dbInsert("room_status_log",logRow));
+  return write;
 }
 function setRoomFlow(n,status,extra){
   const d=D(),r=d.rooms.find(x=>x.n==n);
@@ -5465,4 +5459,5 @@ const css=document.createElement("style");css.textContent=`
 <script src="ihg-inspect.js"></script>
 <script src="expected-done.js"></script>
 <script src="avatars.js"></script>
-<script src="home-focus.js"></script></body></html>
+<script src="home-focus.js"></script>
+<script src="room-live.js"></script></body></html>
