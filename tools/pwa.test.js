@@ -20,9 +20,9 @@ test("manifest is installable for the GitHub Pages subpath", () => {
   const manifest = JSON.parse(read("manifest.webmanifest").toString("utf8"));
   assert.equal(manifest.name, "HotelHQ");
   assert.equal(manifest.short_name, "HotelHQ");
-  assert.equal(manifest.id, "/JR-staff-page/");
-  assert.equal(manifest.start_url, "/JR-staff-page/");
-  assert.equal(manifest.scope, "/JR-staff-page/");
+  assert.equal(manifest.id, "/hotelhq/");
+  assert.equal(manifest.start_url, "/hotelhq/");
+  assert.equal(manifest.scope, "/hotelhq/");
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.background_color, "#14365d");
   assert.equal(manifest.theme_color, "#14365d");
@@ -60,7 +60,7 @@ test("apple touch icon is 180 and the page advertises iOS install metadata", () 
   assert.match(guide, /Install guide/);
   assert.match(guide, /Guía de instalación/);
   assert.match(guide, /install-qr\.svg/);
-  assert.match(guide, /https:\/\/jbhakta1988\.github\.io\/JR-staff-page\//);
+  assert.match(guide, /https:\/\/jrhospitality\.github\.io\/hotelhq\//);
   const prompt = read("pwa-install.js").toString("utf8");
   assert.match(prompt, /beforeinstallprompt/);
   assert.match(prompt, /display-mode: standalone/);
@@ -72,8 +72,8 @@ test("service worker keeps push and never caches personal API data", () => {
   const events = {};
   const self = {
     addEventListener(type, fn) { (events[type] = events[type] || []).push(fn); },
-    location: { origin: "https://jbhakta1988.github.io" },
-    registration: { scope: "https://jbhakta1988.github.io/JR-staff-page/" },
+    location: { origin: "https://jrhospitality.github.io" },
+    registration: { scope: "https://jrhospitality.github.io/hotelhq/" },
     skipWaiting() {},
     clients: { claim() { return Promise.resolve(); } }
   };
@@ -89,20 +89,20 @@ test("service worker keeps push and never caches personal API data", () => {
     Promise
   });
   vm.runInContext(read("sw.js").toString("utf8"), context, { filename: "sw.js" });
-  const origin = "https://jbhakta1988.github.io";
+  const origin = "https://jrhospitality.github.io";
   const mode = (url, extra) => context.cacheMode(url, Object.assign({ origin }, extra));
   assert.equal(mode("https://clxvmtbmveusrbxacnxe.supabase.co/rest/v1/profiles?select=*"), "bypass");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/rest/v1/profiles"), "bypass");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/?apikey=secret"), "bypass");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/index.html", { authorization: "Bearer x" }), "bypass");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/index.html", { method: "POST" }), "bypass");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/index.html", { range: "bytes=0-1" }), "bypass");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/rest/v1/profiles"), "bypass");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/?apikey=secret"), "bypass");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/index.html", { authorization: "Bearer x" }), "bypass");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/index.html", { method: "POST" }), "bypass");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/index.html", { range: "bytes=0-1" }), "bypass");
   assert.equal(mode("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"), "bypass");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/sw.js"), "bypass");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/index.html"), "network-first");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/", { navigate: true }), "network-first");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/data/labor.json"), "network-first");
-  assert.equal(mode("https://jbhakta1988.github.io/JR-staff-page/data/qotd.json"), "network-first");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/sw.js"), "bypass");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/index.html"), "network-first");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/", { navigate: true }), "network-first");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/data/labor.json"), "network-first");
+  assert.equal(mode("https://jrhospitality.github.io/hotelhq/data/qotd.json"), "network-first");
   assert.equal(context.CACHE_VERSION.startsWith("hotelhq-shell-"), true);
   assert.ok(context.SHELL.includes("./index.html"));
   assert.ok(context.SHELL.includes("./manifest.webmanifest"));

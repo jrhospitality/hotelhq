@@ -880,7 +880,7 @@
     return {
       title: alert.titleEn,
       body: alert.bodyEn + "\n" + alert.bodyEs,
-      url: "/JR-staff-page/" + meet,
+      url: "/hotelhq/" + meet,
       tag: alert.id,
       lang: "en",
       kind: alert.kind

@@ -1,5 +1,7 @@
 HotelHQ — JR Hospitality staff portal
 
+The site is [https://jrhospitality.github.io/hotelhq/](https://jrhospitality.github.io/hotelhq/).
+
 Demo mode is the default. It uses example names and example PINs, never calls Supabase, and cannot see real staff or hotel data.
 
 Live sign-in uses Supabase Auth. The PIN is the password. The publishable key is not stored in git. See `config.js` and `supabase/seed/corporate_account.sql`.

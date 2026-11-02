@@ -14,7 +14,7 @@ NAVY = (20, 54, 93, 255)
 GOLD = (249, 199, 79, 255)
 WHITE = (255, 255, 255, 255)
 FONT = "/usr/share/fonts/truetype/macos/Inter-Bold.ttf"
-SITE = "https://jbhakta1988.github.io/JR-staff-page/"
+SITE = "https://jrhospitality.github.io/hotelhq/"
 
 
 def font(size):
