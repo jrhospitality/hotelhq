@@ -145,7 +145,8 @@
     var items = [];
     try {
       var w = ((D().wk || {})[pk("Weekly")]) || {};
-      Object.values(QUORE.walk).forEach(function (list) {
+      var areas = typeof walkAreas === "function" ? walkAreas() : QUORE.walk;
+      Object.values(areas).forEach(function (list) {
         list.forEach(function (x) {
           var v = w[enOf(x)] || {};
           items.push({ status: v.na ? "na" : (v.d ? "done" : "open") });
