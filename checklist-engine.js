@@ -131,7 +131,7 @@
   }
   function gmTally() {
     var items = [];
-    ["Daily", "Weekly", "Monthly"].forEach(function (per) {
+    ["Daily", "Weekly", "Monthly", "Quarterly"].forEach(function (per) {
       try {
         ITEMS().filter(function (x) { return x.grp === "GM " + per; }).forEach(function (it) {
           var m = metaBag()[pk(it.per) + "|" + it.key] || {};
