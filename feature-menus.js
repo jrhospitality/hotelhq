@@ -13,9 +13,11 @@
     meet: "meetings",
     meetings: "meetings",
     beo: "meetings",
-    mr: "meetings"
+    mr: "meetings",
+    naudit: "night_audit"
   };
   var DESK = ["Front Desk", "AGM", "GM", "Above Property", "JR Corporate"];
+  var AUDIT = ["GM", "AGM", "Above Property"];
   var SHUTTLE = ["MSPAM", "MSPMS"];
 
   function norm(role) {
@@ -33,6 +35,7 @@
     if (feature === "parking" || feature === "meetings") {
       if (DESK.indexOf(role) < 0) return false;
     }
+    if (feature === "night_audit" && AUDIT.indexOf(role) < 0) return false;
     if (typeof featureOn === "function" && featureOn(hotel, feature) === false) return false;
     return true;
   }
