@@ -71,7 +71,13 @@ Deno.serve(async (req) => {
       return json(401, { error: "pin" });
     }
     await admin.rpc("note_pin_success", { p_user: userId });
-    return json(200, { access_token: session.access_token, refresh_token: session.refresh_token });
+    const profile = await admin.from("profiles").select("pin_reset_required").eq("user_id", userId).maybeSingle();
+    const pinReset = !profile.error && !!profile.data && profile.data.pin_reset_required === true;
+    return json(200, {
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      pin_reset_required: pinReset
+    });
   }
 
   if (action === "reset") {

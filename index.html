@@ -33,6 +33,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 4px;b
 .li input[type=checkbox]{width:26px;height:26px;min-height:0}img.prev{max-width:100%;border-radius:8px;margin-top:6px}img.prev[hidden]{display:none}.photo-pick{position:relative;display:flex;align-items:center;gap:10px;min-height:48px;padding:8px 14px;border:2px dashed #14365d;border-radius:10px;background:#eef3fa;color:#14365d;font-weight:700;cursor:pointer;overflow:hidden}.photo-pick:active{background:#dbe6f4}.photo-pick:focus-within{outline:3px solid #14365d55}.photo-pick .pp-ic{display:inline-flex;flex:none}.photo-pick .pp-tx{display:flex;flex-direction:column;min-width:0}.photo-pick .pp-tx small{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#444}.photo-pick .pp-tx small:empty{display:none}.photo-pick input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0}.bar{height:10px;background:#14365d;border-radius:5px}
 .login h2{margin-top:8px}.login .step{font-size:13px;font-weight:700;margin:14px 0 6px;color:#14365d}
 .demo-banner{background:#f9c74f;color:#14365d;border-radius:10px;padding:10px 12px;font-weight:700;margin:8px 0 12px}
+.demo-banner small{display:block;margin-top:6px;font-weight:650}
+.live-note{margin:8px 0 12px;font-size:14px}
 .mode-row{display:flex;gap:8px;margin:8px 0}.mode-row button{flex:1}
 .once-pin{font-size:40px;letter-spacing:8px;text-align:center;font-weight:800;margin:12px 0;font-variant-numeric:tabular-nums}
 .sites{display:flex;flex-direction:column;gap:8px}.sites button{width:100%;min-height:72px;text-align:left;font-weight:700;font-size:16px;line-height:1.3;white-space:normal;background:#fff;border:2px solid #c5cbd6;padding:10px 12px}
@@ -364,6 +366,7 @@ table.rt tr.rt-r:nth-child(even) td{background:var(--zebra)}
 .ux-sheet,.hesheet{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
 #uxHelpBtn{background:var(--accent);color:#fff}
 .demo-banner{background:var(--warn-bg);color:var(--ink);border:1px solid var(--warn-line)}
+.demo-banner small{display:block;margin-top:6px;font-weight:650}
 .sites button{background:var(--surface);border:1px solid var(--line);border-radius:12px}
 .sites button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 @media (min-width:1024px){
@@ -403,8 +406,8 @@ body.sb-mini #side .sb-top{padding:8px}
 <script src="hotel-scope.js"></script>
 <script>
 const HOTELS={MSPWE:"MSPWE · HIE&S Golden Valley",MSPAM:"MSPAM · Hampton Inn & Suites MSP Airport/MOA",MSPMS:"MSPMS · SpringHill Suites MSP Airport/MOA"};
-// Example directory only. Demo mode uses this list and never calls Supabase.
-// Live mode loads names from the pin-auth edge function. Do not put real staff here.
+// Example directory only. Demo mode at /hotelhq/demo/ uses this list and never calls Supabase.
+// Live mode loads names from the pin-auth edge function, including JR Corporate. Do not put real staff here.
 // hotel null = Above Property (JR Corporate). Shuttle drivers exist only at MSPAM and MSPMS.
 // active:false hides a person from sign-in. Missing active means active.
 const DAYS=[0,1,2,3,4,5,6];
@@ -443,22 +446,28 @@ const EXAMPLE_USERS=[
 {id:"mspms-ba",name:"Joy Bennett",pin:"4170",role:"Breakfast Attendant",hotel:"MSPMS",shift:"AM",days:DAYS},
 {id:"mspms-bar",name:"Nora Blake",pin:"4190",role:"Bartender",hotel:"MSPMS",shift:"PM",days:DAYS}
 ];
-// Demo mode is the default and never calls Supabase. Live mode needs the
-// publishable key in config.js (empty in git; GitHub Pages fills it from a secret).
+// The committed file is demo mode with an empty key. GitHub Pages writes mode
+// "live" and SUPABASE_PUBLISHABLE_KEY for the root site, and a separate demo
+// config for /hotelhq/demo/. Demo mode never calls Supabase.
 const HQCFG=window.HOTELHQ_CONFIG||{};
 const SB_URL=HQCFG.supabaseUrl||"https://clxvmtbmveusrbxacnxe.supabase.co";
 const SB_KEY=String(HQCFG.supabaseKey||"").trim();
 let authMode="demo";
 let USE_SUPABASE=false;
 function liveReady(){return !!(window.HQAuth&&HQAuth.isLiveKey(SB_KEY))}
+function applyConfigMode(){
+  const mode=String((HQCFG&&HQCFG.mode)||"").trim();
+  if(mode==="live"&&liveReady()){authMode="live";USE_SUPABASE=true;loginModeChoice="live";return}
+  if(mode==="live"){authMode="live";USE_SUPABASE=false;loginModeChoice="broken";return}
+  authMode="demo";USE_SUPABASE=false;loginModeChoice="demo";
+}
 const STAFF_EMAIL_DOMAIN="staff.jrhospitality.local";
 const SB_JS="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
 const DB_CACHE="jrportal_db_cache";
-// TODO(directory): anon cannot read profiles, and public has no staff view.
-// Public functions are only set_my_language and acknowledge_alert. The name list
-// has to load before sign-in, so until a security-definer RPC or view returns
-// id, name, hotel_id, role, active, loadUsers() keeps EXAMPLE_USERS.
-const DIRECTORY_SOURCES=[{kind:"rpc",name:"staff_directory"},{kind:"view",name:"staff_directory"},{kind:"view",name:"public_profiles"}];
+// Live names come from the pin-auth directory action, which calls
+// staff_sign_in_directory with the service role. That list includes the chosen
+// hotel and JR Corporate (hotel_id null). Demo mode never calls it.
+const DIRECTORY_SOURCES=[{kind:"rpc",name:"staff_sign_in_directory"}];
 const ROLE_FROM_DB={above_property:"Above Property",gm:"GM",agm:"AGM",front_desk:"Front Desk",hk_lead:"Housekeeping",housekeeper:"Housekeeper",maintenance:"Maintenance",shuttle_driver:"Shuttle Driver",house_person:"House Person",laundry:"Laundry Attendant",breakfast:"Breakfast Attendant"};
 const ROLE_TO_DB={"Above Property":"above_property",GM:"gm",AGM:"agm","Front Desk":"front_desk",Housekeeping:"hk_lead",Housekeeper:"housekeeper",Maintenance:"maintenance","Shuttle Driver":"shuttle_driver","House Person":"house_person","Laundry Attendant":"laundry","Breakfast Attendant":"breakfast"};
 const DEPT_FOR_ROLE={"Front Desk":"front_desk",Housekeeping:"housekeeping",Housekeeper:"housekeeping",Maintenance:"maintenance","Shuttle Driver":"shuttle","House Person":"house_person","Laundry Attendant":"laundry","Breakfast Attendant":"breakfast",GM:"management",AGM:"management","Above Property":"management"};
@@ -504,7 +513,7 @@ function mapDirectoryRow(r){
 }
 let directoryError="";
 async function loadLiveDirectory(){
-  if(authMode!=="live"||!window.HQAuth||!HQAuth.allowsNetwork(authMode))throw new Error("demo");
+  if(authMode!=="live"||!USE_SUPABASE||!window.HQAuth||!HQAuth.allowsNetwork("live"))throw new Error("demo");
   await ensureSb();
   const res=await fetch(SB_URL+"/functions/v1/pin-auth",{method:"POST",headers:{"content-type":"application/json",apikey:SB_KEY,authorization:"Bearer "+SB_KEY},body:JSON.stringify({action:"directory"})});
   const body=await res.json().catch(()=>({}));
@@ -514,8 +523,9 @@ async function loadLiveDirectory(){
 }
 function loadUsers(){
   const example=exampleUsers();
+  if(loginModeChoice==="broken"){directorySource="example";directoryError="";return Promise.resolve([])}
   if(authMode!=="live"){directorySource="example";directoryError="";return Promise.resolve(example)}
-  return loadLiveDirectory().then(rows=>{directoryError="";return rows}).catch(()=>{directorySource="example";directoryError="Could not load the staff directory.";return []});
+  return loadLiveDirectory().then(rows=>{directoryError="";return rows}).catch(()=>{directorySource="supabase";directoryError="Could not load the staff directory.";return []});
 }
 async function dbSelect(table,opts){
   opts=opts||{};
@@ -802,7 +812,7 @@ async function applySessionProfile(){
   row.user_id=uid;row.id=row.id||uid;
   let local=USERS.find(u=>u.user_id===uid||u.id===uid||u.id===row.id);
   if(!local){USERS.push(row);local=row}
-  else Object.assign(local,{name:row.name,role:row.role,hotel:row.hotel,user_id:uid,he_employee_id:row.he_employee_id,active:row.active,language:(data.language==="en"||data.language==="es")?data.language:(local.language||""),pin_reset_required:data.pin_reset_required===true,pin:""});
+  else Object.assign(local,{name:row.name,role:row.role,hotel:row.hotel,user_id:uid,he_employee_id:row.he_employee_id,active:row.active,language:(data.language==="en"||data.language==="es")?data.language:(local.language||""),pin_reset_required:data.pin_reset_required===true||local.pin_reset_required===true,pin:""});
   if(data.show_more_expanded===true||data.show_more_expanded===false)local.show_more_expanded=data.show_more_expanded===true;
   if(Array.isArray(data.home_tiles)||data.home_tiles===null)local.home_tiles=data.home_tiles;
   if(data.avatar&&typeof data.avatar==="object"){local.avatar=data.avatar;if(window.HHQAv&&HHQAv.remember)HHQAv.remember(local.id,data.avatar)}
@@ -1010,7 +1020,11 @@ Object.assign(I18N.es,{
 "JR Corporate":"JR Corporativo",
 "Inactive":"Inactivo",
 "Use demo mode":"Usar modo demo",
-"Use staff sign in":"Usar entrada del personal"
+"Use staff sign in":"Usar entrada del personal",
+"Open the example demo":"Abrir el demo de ejemplo",
+"Go to staff sign-in":"Ir a la entrada del personal",
+"Live sign-in is not configured. The publishable key is missing, so this page will not show example staff.":"La entrada real no está configurada. Falta la clave publicable, así que esta página no muestra personal de ejemplo.",
+"This list is this hotel plus JR Corporate.":"Esta lista es este hotel más JR Corporativo."
 });
 const LANG_KEY="jrportal_lang";
 const USER_LANG_KEY="jrportal_user_lang";
@@ -1346,8 +1360,22 @@ function swPut(key,val){
 function rememberPushLang(){
   swPut("lang",LANG==="es"?"es":"en").catch(function(){});
 }
+function onDemoPath(){
+  const path=location.pathname||"/";
+  return path.indexOf("/demo/")>=0||/\/demo\/?$/.test(path);
+}
+function livePath(){
+  if(!onDemoPath())return "./";
+  const path=location.pathname||"/";
+  const i=path.indexOf("/demo/");
+  if(i>=0)return path.slice(0,i+1);
+  return "../";
+}
 function appScope(){
   const path=location.pathname||"/";
+  const demo="/demo/";
+  const d=path.indexOf(demo);
+  if(d>=0) return path.slice(0,d+demo.length);
   const mark="/hotelhq/";
   const i=path.indexOf(mark);
   if(i>=0) return path.slice(0,i+mark.length);
@@ -1915,35 +1943,44 @@ let loginSite="",loginQ="",loginUid="",loginPin="",loginErr="",loginBoot=false;
 let setPinMode="",setPinA="",setPinB="",teamUid="",resetReveal=null;
 function savedSite(){const v=sget(LAST_SITE)||"";return LOGIN_SITES.some(s=>s[0]===v)?v:""}
 function posOf(u){return u.role==="Housekeeping"?"HK Lead":(u.role||"")}
-function peopleAt(site){return USERS.filter(u=>{if(u.active===false)return false;if(site==="CORP")return !u.hotel;return u.hotel===site||(Array.isArray(u.extra_hotels)&&u.extra_hotels.indexOf(site)>=0)}).slice().sort((a,b)=>a.name.localeCompare(b.name,localeTag()))}
+function peopleAt(site){
+  const mode=authMode==="live"?"live":"demo";
+  return USERS.filter(u=>window.HQAuth&&HQAuth.listedForSite(u,site,mode)).slice().sort((a,b)=>{
+    const ac=a.hotel?0:1,bc=b.hotel?0:1;
+    if(ac!==bc)return ac-bc;
+    return a.name.localeCompare(b.name,localeTag());
+  });
+}
 function staffOptions(){
   const q=loginQ.trim().toLowerCase();
   const rows=peopleAt(loginSite).filter(u=>{const pos=posOf(u);return !q||(u.name+" "+pos+" "+roleName(pos)).toLowerCase().includes(q)});
-  return `<option value="">${escH(t("Select name"))}</option>`+rows.map(u=>{const demo=authMode!=="live"&&u.pin?` — ${t("demo PIN")} ${u.pin}`:"";return `<option value="${escH(u.id)}"${u.id===loginUid?" selected":""}>${escH(u.name)} — ${escH(roleName(posOf(u)))}${escH(demo)}</option>`}).join("");
+  return `<option value="">${escH(t("Select name"))}</option>`+rows.map(u=>{const demo=authMode!=="live"&&u.pin?` — ${t("demo PIN")} ${u.pin}`:"";const corp=authMode==="live"&&!u.hotel&&loginSite!=="CORP"?" — JR Corporate":"";return `<option value="${escH(u.id)}"${u.id===loginUid?" selected":""}>${escH(u.name)} — ${escH(roleName(posOf(u)))}${escH(corp)}${escH(demo)}</option>`}).join("");
 }
 let loginModeChoice="";
-function chooseMode(mode){
-  if(mode==="live"&&!liveReady()){loginModeChoice="need-key";authMode="demo";USE_SUPABASE=false;renderLogin();return}
-  loginModeChoice=mode;
-  authMode=mode==="live"?"live":"demo";
-  USE_SUPABASE=authMode==="live";
-  S.uid="";sbSession=null;sbPush=false;loginUid="";loginPin="";loginQ="";loginErr="";
-  loadUsers().then(list=>{USERS=Array.isArray(list)?list:[];renderLogin()}).catch(()=>{USERS=[];renderLogin()});
+function bothLang(en,es){
+  if(LANG==="es")return `<span class="raw">${escH(es)}</span><br><small class="raw">${escH(en)}</small>`;
+  return `${escH(en)}<br><small class="raw">${escH(es)}</small>`;
 }
 function renderLogin(){
   clearSessionChrome();
-  if(!loginBoot){loginSite=savedSite();loginBoot=true;if(!loginModeChoice)loginModeChoice=liveReady()?"live":"demo"}
-  if(!loginModeChoice)loginModeChoice=authMode==="live"?"live":"demo";
+  if(!loginBoot){loginSite=savedSite();loginBoot=true}
+  if(!loginModeChoice)applyConfigMode();
   $("hdr").hidden=true;$("hpanel").hidden=true;$("nav").innerHTML="";
   document.body.style.paddingBottom="16px";
-  const demo=authMode!=="live";
+  const demo=loginModeChoice==="demo";
+  const broken=loginModeChoice==="broken";
   const sites=LOGIN_SITES.map(([id,label])=>`<button type="button" class="${id===loginSite?"on":""}" aria-pressed="${id===loginSite}" onclick="pickHotel('${id}')">${escH(label)}</button>`).join("");
-  const emptyLive=loginSite&&!demo&&!peopleAt(loginSite).length;
-  const who=loginSite?`<p class="step">2. Your name</p><input id="loginFind" autocomplete="off" placeholder="Type to filter" aria-label="Filter names" value="${escH(loginQ)}" oninput="filterLogin(this.value)"><select id="loginWho" aria-label="Employee" onchange="pickUser(this.value)">${staffOptions()}</select>${emptyLive?`<p class="warn">No staff accounts yet.</p>`:""}<p class="step">3. PIN</p><div class="dots" id="pinDots" aria-label="PIN">${loginPin?"•".repeat(loginPin.length):"••••••"}</div><div class="kp" aria-label="PIN keypad">${["1","2","3","4","5","6","7","8","9"].map(n=>`<button type="button" onclick="pinKey('${n}')">${n}</button>`).join("")}<button type="button" class="wide" onclick="pinKey('b')" aria-label="Delete">⌫</button><button type="button" onclick="pinKey('0')">0</button><button type="button" class="wide" onclick="pinKey('c')" aria-label="Clear">Clear</button><button type="button" class="btn" style="grid-column:1 / -1;min-height:64px;font-size:18px" onclick="signIn()">Sign in</button></div><p id="loginErr" class="bad">${escH(loginErr)}</p>`:`<p style="font-size:14px">Choose a hotel to see its staff.</p>`;
-  const banner=loginModeChoice==="need-key"?'<p class="demo-banner">Live sign-in needs the publishable key in config.js. Demo mode stays on until then.</p>':demo?'<p class="demo-banner">DEMO — example names and PINs. This mode never contacts Supabase and cannot see real staff or hotel data.</p>':'<p class="demo-banner">Staff sign in. Your PIN is checked by Supabase and is not stored in this page.</p>';
-  const modes=`<div class="mode-row"><button type="button" class="${demo?"on":""}" onclick="chooseMode('demo')">Demo mode</button><button type="button" class="${!demo?"on":""}" onclick="chooseMode('live')">Staff sign in</button></div>`;
+  const emptyLive=loginSite&&!demo&&!broken&&!peopleAt(loginSite).length;
+  const corpNote=loginSite&&loginSite!=="CORP"&&!demo&&!broken?'<p class="live-note">This list is this hotel plus JR Corporate.</p>':"";
+  const who=broken?"":(loginSite?`<p class="step">2. Your name</p><input id="loginFind" autocomplete="off" placeholder="Type to filter" aria-label="Filter names" value="${escH(loginQ)}" oninput="filterLogin(this.value)"><select id="loginWho" aria-label="Employee" onchange="pickUser(this.value)">${staffOptions()}</select>${corpNote}${emptyLive?`<p class="warn">No staff accounts yet.</p>`:""}<p class="step">3. PIN</p><div class="dots" id="pinDots" aria-label="PIN">${loginPin?"•".repeat(loginPin.length):"••••••"}</div><div class="kp" aria-label="PIN keypad">${["1","2","3","4","5","6","7","8","9"].map(n=>`<button type="button" onclick="pinKey('${n}')">${n}</button>`).join("")}<button type="button" class="wide" onclick="pinKey('b')" aria-label="Delete">⌫</button><button type="button" onclick="pinKey('0')">0</button><button type="button" class="wide" onclick="pinKey('c')" aria-label="Clear">Clear</button><button type="button" class="btn" style="grid-column:1 / -1;min-height:64px;font-size:18px" onclick="signIn()">Sign in</button></div><p id="loginErr" class="bad">${escH(loginErr)}</p>`:`<p style="font-size:14px">Choose a hotel to see its staff.</p>`);
+  const enDemo="DEMO — example names and PINs. This mode never contacts Supabase and cannot see real staff or hotel data.";
+  const enLive="Staff sign in. Your PIN is checked by Supabase and is not stored in this page.";
+  const enBroken="Live sign-in is not configured. The publishable key is missing, so this page will not show example staff.";
+  const banner=demo?`<p class="demo-banner" role="status">${bothLang(enDemo,I18N.es[enDemo])}</p>`:broken?`<p class="demo-banner" role="status">${bothLang(enBroken,I18N.es[enBroken])}</p>`:`<p class="live-note" role="status">${bothLang(enLive,I18N.es[enLive])}</p>`;
+  const jump=demo?`<p class="demo-link"><a href="${escH(livePath())}">Go to staff sign-in</a></p>`:`<p class="demo-link"><a href="demo/">Open the example demo</a></p>`;
   const errDir=directoryError?`<p class="warn">${escH(t(directoryError))}</p>`:"";
-  $("app").innerHTML=trHtml(`<div class="card login">${langSwitch()}${demo?'<span class="ex">EXAMPLE</span>':""}<img src="hotelhq-wordmark.svg" alt="HotelHQ" style="display:block;height:40px;margin:6px 0"><h2>HotelHQ staff sign in</h2>${banner}${modes}${errDir}<p class="step">1. Hotel</p><div class="sites">${sites}</div>${who}</div>`);
+  const form=broken?"":`<p class="step">1. Hotel</p><div class="sites">${sites}</div>${who}`;
+  $("app").innerHTML=trHtml(`<div class="card login">${langSwitch()}${demo?'<span class="ex">EXAMPLE</span>':""}<img src="hotelhq-wordmark.svg" alt="HotelHQ" style="display:block;height:40px;margin:6px 0"><h2>HotelHQ staff sign in</h2>${banner}${jump}${errDir}${form}</div>`);
 }
 function pickHotel(id){
   if(!LOGIN_SITES.some(s=>s[0]===id))return;
@@ -1981,17 +2018,18 @@ function enterApp(u){
 }
 async function signIn(){
   const u=USERS.find(x=>x.id===loginUid&&x.active!==false);
-  const siteOk=!!u&&(loginSite==="CORP"?!u.hotel:(u.hotel===loginSite||(Array.isArray(u.extra_hotels)&&u.extra_hotels.indexOf(loginSite)>=0)));
+  const siteOk=!!u&&window.HQAuth&&HQAuth.listedForSite(u,loginSite,authMode==="live"?"live":"demo");
   if(!u||!siteOk){loginErr="Select your name, then enter the PIN.";loginPin="";renderLogin();return}
   if(!window.HQAuth||!HQAuth.isPin(loginPin)){loginErr="Enter the 4 to 6 digit PIN.";loginPin="";renderLogin();return}
   if(authMode==="live"){
-    if(!window.HQAuth.allowsNetwork("live")){loginErr="Could not reach sign-in.";loginPin="";renderLogin();return}
+    if(!USE_SUPABASE||!window.HQAuth.allowsNetwork("live")){loginErr="Could not reach sign-in.";loginPin="";renderLogin();return}
     try{
       await ensureSb();
       const res=await fetch(SB_URL+"/functions/v1/pin-auth",{method:"POST",headers:{"content-type":"application/json",apikey:SB_KEY,authorization:"Bearer "+SB_KEY},body:JSON.stringify({action:"sign-in",user_id:u.user_id||u.id,pin:loginPin})});
       const body=await res.json().catch(()=>({}));
       if(res.status===429){loginErr="Too many PIN tries. Wait 15 minutes.";loginPin="";renderLogin();return}
       if(!res.ok||!body.access_token||!body.refresh_token){loginErr="PIN doesn't match.";loginPin="";renderLogin();return}
+      if(body.pin_reset_required===true)u.pin_reset_required=true;
       const set=await sb.auth.setSession({access_token:body.access_token,refresh_token:body.refresh_token});
       if(set.error||!set.data.session){loginErr="Could not reach sign-in.";loginPin="";renderLogin();return}
       sbSession=set.data.session;sbPush=false;
@@ -3719,11 +3757,14 @@ V.equip=equipPage;
 V.team=teamPage;
 V.sched=schedPage;
 loadLang();
-if(liveReady()&&HQCFG.mode!=="demo"){authMode="live";USE_SUPABASE=true;loginModeChoice="live"}
+applyConfigMode();
 document.getElementById("app").innerHTML='<div class="card">'+t("Loading staff directory…")+'</div>';
 (async()=>{
   try{
-    if(USE_SUPABASE){try{await ensureSb();const {data}=await sb.auth.getSession();sbSession=data.session||null}catch(e){Ssync="Supabase did not load. Example data is still on this device.";authMode="demo";USE_SUPABASE=false;loginModeChoice="need-key"}}
+    if(USE_SUPABASE){
+      try{await ensureSb()}catch(e){directoryError="Could not reach sign-in.";sb=null;USE_SUPABASE=false}
+      if(sb){try{const {data}=await sb.auth.getSession();sbSession=data.session||null}catch(e){sbSession=null}}
+    }
     rememberPushLang();registerPushWorker();
     const list=await loadUsers();
     USERS=Array.isArray(list)?list:[];
