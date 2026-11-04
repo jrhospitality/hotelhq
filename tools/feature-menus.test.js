@@ -40,7 +40,7 @@ test("the menu migration adds switches without deleting rows", () => {
   const dir = path.join(__dirname, "../supabase/migrations");
   const names = fs.readdirSync(dir).filter((name) => name.endsWith(".sql")).sort();
   const checks = names.filter((name) => fs.readFileSync(path.join(dir, name), "utf8").includes("hotel_features_feature_check"));
-  assert.equal(checks[checks.length - 1], "20261113_night_audit.sql");
+  assert.equal(checks[checks.length - 1], "20261114_guest_comments.sql");
   assert.ok(names.indexOf("20261104_lead_responses.sql") > names.indexOf("20261103_feature_menus.sql"));
   assert.match(sql, /'parking', 'sales_leads', 'greetings', 'guest_scores'/);
   assert.match(sql, /'shuttle', 'meetings', 'winter'/);
