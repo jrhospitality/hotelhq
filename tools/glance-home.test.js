@@ -79,9 +79,13 @@ test("needs attention links to existing screens and leaves reservation activity 
     labor: { variance: 3, actual: 20, plan: 17 },
     reservations: null
   });
-  assert.deepEqual(items.map((item) => item.id), ["audit", "comments", "orders", "labor", "reservations"]);
-  assert.deepEqual(items.map((item) => item.go), ["naudit", "gcomm", "wo", "lcmd", "fc"]);
+  assert.deepEqual(items.map((item) => item.id), ["audit", "comments", "orders", "labor", "reservations", "training", "inspections", "licenses"]);
+  assert.deepEqual(items.map((item) => item.go), ["naudit", "gcomm", "wo", "lcmd", "fc", "train", "inspx", "permits"]);
   assert.equal(items[4].tone, "none");
+  assert.equal(items[5].tone, "none");
+  assert.equal(glance.attentionCopy(items[5], "en").detail, "No data yet");
+  assert.equal(glance.attentionCopy(items[6], "es").detail, "Aún no hay datos");
+  assert.equal(glance.attentionCopy(items[7], "en").detail, "No data yet");
   assert.match(glance.attentionCopy(items[0], "en").detail, /Overdue/);
   assert.match(glance.attentionCopy(items[0], "en").detail, /10:00 AM CT/);
   assert.match(glance.attentionCopy(items[1], "es").detail, /sin atender/);
@@ -93,6 +97,27 @@ test("needs attention links to existing screens and leaves reservation activity 
   assert.equal(clear[1].tone, "good");
   assert.equal(clear[2].tone, "good");
   assert.match(glance.attentionCopy(clear[2], "es").detail, /Ninguna atrasada/);
+  const flagged = glance.attention({
+    training: { expired: 2, dueSoon: 1 },
+    inspections: { overdue: 1, open: 2, upcoming: 1 },
+    licenses: { expired: 1, due30: 1, due60: 0, due90: 2 }
+  });
+  assert.equal(flagged[5].tone, "bad");
+  assert.equal(flagged[6].tone, "bad");
+  assert.equal(flagged[7].tone, "bad");
+  assert.match(glance.attentionCopy(flagged[5], "en").detail, /2 expired/);
+  assert.match(glance.attentionCopy(flagged[5], "en").detail, /due within 30 days/);
+  assert.match(glance.attentionCopy(flagged[5], "es").detail, /vencidas/);
+  assert.match(glance.attentionCopy(flagged[6], "en").detail, /1 overdue/);
+  assert.match(glance.attentionCopy(flagged[6], "es").detail, /inspecciones por vencer/);
+  assert.match(glance.attentionCopy(flagged[7], "en").detail, /within 90 days/);
+  assert.equal(glance.toneTraining({ expired: 0, dueSoon: 1 }), "watch");
+  assert.equal(glance.toneInspections({ overdue: 0, open: 0, upcoming: 0 }), "good");
+  assert.equal(glance.toneLicenses(null), "none");
+  const hidden = glance.hotelHtml({ code: "MSPWE", training: { expired: 1, dueSoon: 0 } }, "en", { hide: ["inspections", "licenses"] });
+  assert.match(hidden, /go\('train'\)/);
+  assert.equal(hidden.includes("go('inspx')"), false);
+  assert.equal(hidden.includes("go('permits')"), false);
 });
 
 test("corporate rows are one short value per cell and a hotel page stays on that hotel", () => {

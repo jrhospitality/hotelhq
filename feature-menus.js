@@ -15,11 +15,17 @@
     beo: "meetings",
     mr: "meetings",
     naudit: "night_audit",
-    gcomm: "guest_comments"
+    gcomm: "guest_comments",
+    train: "training",
+    inspx: "inspections",
+    ifix: "inspections",
+    permits: "licenses"
   };
   var DESK = ["Front Desk", "AGM", "GM", "Above Property", "JR Corporate"];
   var AUDIT = ["GM", "AGM", "Above Property"];
   var COMMENTS = ["GM", "AGM", "Above Property", "Housekeeping", "Housekeeper"];
+  var TRAIN = ["GM", "AGM", "Above Property", "JR Corporate"];
+  var DOCS = ["GM", "Above Property", "JR Corporate"];
   var SHUTTLE = ["MSPAM", "MSPMS"];
 
   function norm(role) {
@@ -39,6 +45,13 @@
     }
     if (feature === "night_audit" && AUDIT.indexOf(role) < 0) return false;
     if (feature === "guest_comments" && COMMENTS.indexOf(role) < 0) return false;
+    if (id === "ifix") {
+      if (DOCS.indexOf(role) >= 0) return false;
+      if (typeof featureOn === "function" && featureOn(hotel, "inspections") === false) return false;
+      return true;
+    }
+    if (feature === "training" && TRAIN.indexOf(role) < 0) return false;
+    if ((feature === "inspections" || feature === "licenses") && DOCS.indexOf(role) < 0) return false;
     if (typeof featureOn === "function" && featureOn(hotel, feature) === false) return false;
     return true;
   }
