@@ -4,7 +4,10 @@
    An associate sees only action items assigned to them, and can mark those fixed.
    The assistant import stores awaiting_parse and does not keep the report body.
    Parsed actions are accepted only when the caller already extracted them.
-   Live mode loads this file and does not add a menu. */
+   Live tables are public.compliance_inspections, public.compliance_inspection_actions,
+   and public.compliance_inspection_imports. public.inspections is room inspections
+   and this screen does not read or write it.
+   Live mode loads this file and does not add a menu. Demo mode does not call the database. */
 (function (root) {
   "use strict";
 
