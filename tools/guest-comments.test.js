@@ -280,7 +280,7 @@ test("the Medallia stub waits, and live mode does not turn the screen on", () =>
   const src = fs.readFileSync(path.join(root, "guest-comments.js"), "utf8");
   assert.match(html, /guest-comments\.js/);
   assert.match(sw, /guest-comments\.js/);
-  assert.match(sw, /hotelhq-shell-v20/);
+  assert.match(sw, /hotelhq-shell-v21/);
   assert.match(home, /GuestComments\.homeHtml/);
   assert.match(src, /!\s*demoUi\(\)/);
   global.HotelFeatures = {
