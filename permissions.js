@@ -53,7 +53,10 @@
     "winter.check": ["GM", "AGM", "Maintenance"],
     "winter.snow": ["GM", "AGM", "Maintenance", "Front Desk"],
     "winter.dates": ["Above Property"],
-    "scores.leader": ["GM", "AGM", "Above Property"]
+    "scores.leader": ["GM", "AGM", "Above Property"],
+    "training.see": ["GM", "AGM", "Above Property"],
+    "inspections.manage": ["GM", "Above Property"],
+    "licenses.manage": ["GM", "Above Property"]
   };
 
   var SHUTTLE_HOTELS = ["MSPAM", "MSPMS"];

@@ -12,7 +12,7 @@
     { id: "maintenance", en: "Maintenance", es: "Mantenimiento", accent: "#92400e", ids: ["wo", "pm", "equip", "pmsch", "walk", "inv", "order", "logs", "qimp", "winter"] },
     { id: "sales", en: "Sales & Events", es: "Ventas y eventos", accent: "#6d28d9", ids: ["slead", "sleads", "meetings"] },
     { id: "team", en: "Team", es: "Equipo", accent: "#166534", ids: ["team", "my", "sched", "line", "pts", "goals", "qotd", "fun", "celebr", "about", "avatar", "avcredits", "photos", "onb"] },
-    { id: "admin", en: "Admin & Reports", es: "Administración y reportes", accent: "#334155", ids: ["labor", "lstd", "lplan", "lcmd", "onclock", "trreq", "fc", "health", "score", "gscores", "naudit", "gcomm", "gmc", "rules", "crep", "audit", "alog", "settings"] }
+    { id: "admin", en: "Admin & Reports", es: "Administración y reportes", accent: "#334155", ids: ["labor", "lstd", "lplan", "lcmd", "onclock", "trreq", "fc", "health", "score", "gscores", "naudit", "gcomm", "train", "inspx", "ifix", "permits", "gmc", "rules", "crep", "audit", "alog", "settings"] }
   ];
 
   var ICONS = {
@@ -25,7 +25,7 @@
     avcredits: "file", comp: "mail", gi: "alert", recs: "map", rushq: "zap", brief: "newspaper",
     lplan: "calendar", lstd: "clipboard", trreq: "grad", lcmd: "bars", onclock: "clock", onb: "grad", winter: "snow",
     meetings: "calendar", alog: "list", parking: "car", slead: "handshake", sleads: "handshake",
-    floors: "map", gscores: "bars", naudit: "clipboardCheck", gcomm: "mail", settings: "gear", ckhub: "clipboardCheck", greq: "bell",
+    floors: "map", gscores: "bars", naudit: "clipboardCheck", gcomm: "mail", train: "grad", inspx: "clipboardCheck", ifix: "check", permits: "file", settings: "gear", ckhub: "clipboardCheck", greq: "bell",
     find: "search", logs: "clipboard", notice: "pin", dc: "broom", crep: "bars", audit: "eye",
     qimp: "inbox", help: "help", dbrief: "newspaper", hcmp: "building", issue: "alert"
   };

@@ -211,6 +211,24 @@
     return String(Math.round(Number(n)));
   }
 
+  function toneTraining(bag) {
+    if (!bag) return "none";
+    if (Number(bag.expired) > 0) return "bad";
+    if (Number(bag.dueSoon) > 0) return "watch";
+    return "good";
+  }
+  function toneInspections(bag) {
+    if (!bag) return "none";
+    if (Number(bag.overdue) > 0) return "bad";
+    if (Number(bag.open) > 0 || Number(bag.upcoming) > 0) return "watch";
+    return "good";
+  }
+  function toneLicenses(bag) {
+    if (!bag) return "none";
+    if (Number(bag.expired) > 0) return "bad";
+    if (Number(bag.due30) > 0 || Number(bag.due60) > 0 || Number(bag.due90) > 0) return "watch";
+    return "good";
+  }
   function attention(input) {
     input = input || {};
     var labor = input.labor || null;
@@ -224,7 +242,10 @@
       { id: "comments", go: "gcomm", tone: toneComments(input.comments), comments: input.comments },
       { id: "orders", go: "wo", tone: toneOverdue(input.overdueWo), overdueWo: input.overdueWo },
       { id: "labor", go: "lcmd", tone: laborTone, punches: punches, labor: labor },
-      { id: "reservations", go: "fc", tone: input.reservations ? "watch" : "none", reservations: input.reservations || null }
+      { id: "reservations", go: "fc", tone: input.reservations ? "watch" : "none", reservations: input.reservations || null },
+      { id: "training", go: "train", tone: toneTraining(input.training), training: input.training || null },
+      { id: "inspections", go: "inspx", tone: toneInspections(input.inspections), inspections: input.inspections || null },
+      { id: "licenses", go: "permits", tone: toneLicenses(input.licenses), licenses: input.licenses || null }
     ];
   }
   function attentionCopy(item, lang) {
@@ -233,7 +254,10 @@
       comments: ["Guest comments", "Comentarios de huéspedes"],
       orders: ["Overdue work orders", "Órdenes atrasadas"],
       labor: ["Punches and labor", "Marcajes y labor"],
-      reservations: ["Reservation activity", "Actividad de reservas"]
+      reservations: ["Reservation activity", "Actividad de reservas"],
+      training: ["Training expirations", "Vencimientos de capacitación"],
+      inspections: ["Inspections", "Inspecciones"],
+      licenses: ["Licenses and permits", "Licencias y permisos"]
     }[item.id] || ["", ""];
     var detail = tx(lang, NO_DATA.en, NO_DATA.es);
     if (item.id === "audit" && item.audit && item.audit.status) {
@@ -266,6 +290,21 @@
       detail = (bag.booked || 0) + " " + tx(lang, "new", "nuevas") + " · " +
         (bag.cancelled || 0) + " " + tx(lang, "cancellations", "cancelaciones") + " · " +
         (bag.changed || 0) + " " + tx(lang, "changes", "cambios");
+    } else if (item.id === "training" && item.training) {
+      var train = item.training;
+      detail = Number(train.expired) || Number(train.dueSoon)
+        ? (train.expired || 0) + " " + tx(lang, "expired", "vencidas") + " · " + (train.dueSoon || 0) + " " + tx(lang, "due within 30 days", "por vencer en 30 días")
+        : tx(lang, "None expiring", "Ninguna por vencer");
+    } else if (item.id === "inspections" && item.inspections) {
+      var visit = item.inspections;
+      detail = Number(visit.overdue) || Number(visit.open) || Number(visit.upcoming)
+        ? (visit.overdue || 0) + " " + tx(lang, "overdue", "atrasados") + " · " + (visit.open || 0) + " " + tx(lang, "open", "abiertos") + " · " + (visit.upcoming || 0) + " " + tx(lang, "inspections due", "inspecciones por vencer")
+        : tx(lang, "None open", "Ninguno abierto");
+    } else if (item.id === "licenses" && item.licenses) {
+      var permit = item.licenses;
+      detail = Number(permit.expired) || Number(permit.due30) || Number(permit.due60) || Number(permit.due90)
+        ? (permit.expired || 0) + " " + tx(lang, "expired", "vencidos") + " · " + (permit.due30 || 0) + " " + tx(lang, "within 30 days", "en 30 días") + " · " + (permit.due60 || 0) + " " + tx(lang, "within 60 days", "en 60 días") + " · " + (permit.due90 || 0) + " " + tx(lang, "within 90 days", "en 90 días")
+        : tx(lang, "None expiring", "Ninguno por vencer");
     }
     return { title: tx(lang, title[0], title[1]), detail: detail };
   }
@@ -363,7 +402,8 @@
         "</span><span class=\"glance-sub\">" + esc(tx(lang, "Benchmark", "Referencia") + " " + (bench || "—")) + "</span>"
       : "<b class=\"glance-num glance-soft\">" + esc(missing) + "</b><span class=\"glance-lbl\">" + esc(tx(lang, "Guest scores", "Calificaciones")) + "</span>";
     var scoreTile = tile((ytd || mtd) ? scoreTone(score) : "none", "glance-score", "gcomm", scoreInner);
-    var items = attention(snapshot).map(function (item) {
+    var hidden = opts.hide || [];
+    var items = attention(snapshot).filter(function (item) { return hidden.indexOf(item.id) < 0; }).map(function (item) {
       var copy = attentionCopy(item, lang);
       return "<button type=\"button\" class=\"glance-row glance-" + item.tone + "\" onclick=\"go('" + item.go + "')\">" +
         "<span class=\"glance-dot\" aria-hidden=\"true\"></span>" +
@@ -435,6 +475,9 @@
     toneOcc: toneOcc,
     toneOpenWo: toneOpenWo,
     toneAudit: toneAudit,
+    toneTraining: toneTraining,
+    toneInspections: toneInspections,
+    toneLicenses: toneLicenses,
     scoreTone: scoreTone,
     roomTone: roomTone,
     signedHours: signedHours,
@@ -552,8 +595,19 @@
       comments: comments,
       punches: punches,
       audit: auditStatus ? { status: auditStatus, due: due } : null,
-      reservations: null
+      reservations: null,
+      training: complianceBag(code, "training", "Training", "jrportal_training_v1"),
+      inspections: complianceBag(code, "inspections", "Inspections", "jrportal_inspections_v1"),
+      licenses: complianceBag(code, "licenses", "Licenses", "jrportal_licenses_v1")
     };
+  }
+  function complianceBag(code, feature, apiName, storageKey) {
+    var api = root[apiName];
+    if (!api || !api.buildDemo || !api.attentionOf || !featureOn(code, feature)) return null;
+    var today = api.todayOf ? api.todayOf(new Date()) : "";
+    var model = api.buildDemo(new Date().toISOString());
+    if (api.applySaved) model = api.applySaved(model, readSaved(storageKey));
+    return api.attentionOf(model, code, today);
   }
   function renderGlance() {
     var input = mountInput();
@@ -578,12 +632,13 @@
     var audit = auditModel();
     var lang = langNow();
     var html = "";
+    var hide = alias(input.authRole) === "AGM" ? ["inspections", "licenses"] : [];
     if (layout === "corporate") {
       html = corporateHtml(allowed.map(function (code) {
         return corporateRow(snapshotOf(code, guests, audit), lang);
       }), lang);
     } else if (current) {
-      html = hotelHtml(snapshotOf(current, guests, audit), lang, { back: auth === "Above Property" && drilled });
+      html = hotelHtml(snapshotOf(current, guests, audit), lang, { back: auth === "Above Property" && drilled, hide: hide });
     }
     if (!html) return;
     hero.classList.add("glance-on");
