@@ -147,6 +147,10 @@ test("brand import stays waiting and does not invent completions", () => {
   assert.equal(JSON.stringify(model.imports).includes("file body"), false);
   assert.equal(tr.ingestBrand(model, "MSPAM", gm, NOW).ok, false);
   assert.equal(tr.ingestBrand(model, "MSPMS", corp, NOW).status, "awaiting_import");
+  const quiet = tr.buildDemo(NOW);
+  quiet.imports = [];
+  assert.match(tr.pageHtml(quiet, gm, { lang: "en", today: TODAY, hotel: "MSPWE" }), /Brand feed is not connected/);
+  assert.match(tr.pageHtml(model, gm, { lang: "en", today: TODAY, hotel: "MSPWE" }), /Brand import is waiting/);
   const kept = tr.applySaved(tr.buildDemo(NOW), tr.userOverlay(model, tr.buildDemo(NOW)));
   assert.equal(kept.records.length, before);
   const plan = tr.reminderPlan(model, gm, TODAY);

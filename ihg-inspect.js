@@ -369,10 +369,7 @@
       var roster = attendants(hotel);
       var missing = stillNeeded(rowsFor(hotel), roster, day);
       var gapBody = "";
-      var demoRoster = true;
-      try { if (typeof authMode !== "undefined" && authMode === "live") demoRoster = false; } catch (e) {}
-      if (demoRoster && root.HOTELHQ_CONFIG && String(root.HOTELHQ_CONFIG.mode) === "live") demoRoster = false;
-      if (!roster.length && demoRoster) gapBody = "<p>" + esc(L("Room attendant list is not connected. This is not an all-clear.", "La lista de camaristas no está conectada. Esto no es un todo en orden.")) + "</p>";
+      if (!roster.length) gapBody = "<p>" + esc(L("Room attendant list is not connected. This is not an all-clear.", "La lista de camaristas no está conectada. Esto no es un todo en orden.")) + "</p>";
       else if (missing.length) gapBody = "<ul>" + missing.map(function (name) { return "<li>" + esc(name) + "</li>"; }).join("") + "</ul>";
       else gapBody = "<p>" + esc(L("Every room attendant has one this week.", "Cada camarista ya tiene una esta semana.")) + "</p>";
       gap = "<div class=\"card ihg-gap\"><h3>" + esc(L("Still needs an inspection this week", "Todavía falta una inspección esta semana")) + "</h3><p>" + esc(L("Week", "Semana") + " " + week.index + " · " + week.start + " – " + week.end) + "</p>" + gapBody + "</div>";

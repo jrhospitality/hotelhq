@@ -212,6 +212,11 @@ test("live mode does not turn the screen on, and the migration is additive", () 
   assert.match(sw, /hotelhq-shell-v22/);
   assert.match(home, /NightAudit\.homeHtml/);
   assert.match(src, /!\s*demoUi\(\)/);
+  const logic = src.slice(src.indexOf("function hasReport"), src.indexOf("function streak"));
+  assert.match(logic, /return "no_report"/);
+  assert.equal(/authMode|HOTELHQ_CONFIG/.test(logic), false);
+  assert.equal(na.badgeStatus("no_report", "en"), "No report yet");
+  assert.equal(na.badgeStatus("overdue", "en"), "Overdue");
   assert.match(sql, /enable row level security/);
   assert.match(sql, /private\.is_above\(\)/);
   assert.match(sql, /private\.my_role\(\) in \('gm', 'agm'\)/);
