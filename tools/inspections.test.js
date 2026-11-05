@@ -143,9 +143,17 @@ test("live mode stays off and the migration keeps AGM out of the report tables",
   assert.match(sw, /\.\/inspections\.js/);
   assert.match(sql, /awaiting_parse/);
   assert.match(sql, /private\.docs_allowed/);
-  assert.match(sql, /private\.my_role\(\) = 'gm'/);
+  assert.match(sql, /\(private\.my_role\(\)\)::text = 'gm'/);
   assert.match(sql, /complete_inspection_action/);
   assert.match(sql, /source in \('manual', 'import'\)/);
+  assert.match(sql, /public\.compliance_inspections/);
+  assert.match(sql, /public\.compliance_inspection_actions/);
+  assert.match(sql, /public\.compliance_inspection_imports/);
+  assert.match(sql, /leaves public\.inspections unchanged/);
+  assert.match(sql, /\(private\.my_role\(\)\)::text/);
+  assert.match(sql, /v_folder in \('reports', 'licenses'\)/);
+  assert.doesNotMatch(sql, /create table if not exists public\.inspections\b/);
+  assert.doesNotMatch(sql, /alter table public\.inspections\b/);
   assert.doesNotMatch(sql, /drop table/i);
   assert.doesNotMatch(sql, /delete from/i);
   assert.equal(sql.includes("sb_publishable_"), false);
