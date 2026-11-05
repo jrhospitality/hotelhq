@@ -995,7 +995,7 @@
         return "<div class=\"sh-guest\" id=\"shRow-" + esc(row.id) + "\">" + guestLine(row, lang) + "</div>";
       }).join("");
     }).join("") : "<p>" + esc(label("No sign-ups yet.", lang)) + "</p>") + agg + "</section>";
-    var ride = canConfigure(actor.role) ? renderRidership(state, day, lang) : "";
+    var ride = canConfigure(actor.role) ? renderRidership(state, day, lang, actor) : "";
     var setup = canConfigure(actor.role) ? "<button type=\"button\" class=\"btn2\" id=\"shConfig\" onclick=\"shScreen('config')\">" + esc(label("Open settings", lang)) + "</button>" : "";
     var reset = state.origin === "example" ? "<button type=\"button\" class=\"btn2\" onclick=\"shReset()\">" + esc(label("Reset sample data", lang)) + "</button>" : "";
     var codes = trackHotels(state, actor.role, hotel).map(function (h, i) {
@@ -1073,8 +1073,12 @@
     }).join("") : "<div class=\"card\"><p>" + esc(label("No sign-ups yet.", lang)) + "</p></div>";
     return "<p class=\"sh-note\">" + esc(hotelName(home, lang)) + "</p>" + codes + body;
   }
-  function renderRidership(state, day, lang) {
+  function renderRidership(state, day, lang, actor) {
     var rows = ridership(state, day);
+    if (!seesEveryHotel(actor && actor.role)) {
+      var own = actor && actor.hotel;
+      rows = rows.filter(function (row) { return row.hotel === own; });
+    }
     var body = rows.length ? "<table class=\"sh-t\"><tr><th>" + esc(label("Hotel", lang)) + "</th><th>" + esc(label("Destination", lang)) + "</th><th>" + esc(label("Signed up", lang)) + "</th><th>" + esc(label("Rode", lang)) + "</th></tr>" + rows.map(function (r) {
       return "<tr><td>" + esc(r.hotel) + "</td><td>" + esc(destName(r.destination, lang)) + "</td><td>" + r.signedUp + "</td><td>" + r.rode + "</td></tr>";
     }).join("") + "</table>" : "<p>" + esc(label("No rides recorded today.", lang)) + "</p>";

@@ -237,8 +237,10 @@
   }
   function attentionOf(model, hotel, today) {
     if (HOTELS.indexOf(hotel) < 0) return null;
+    var rows = recordsFor(model, hotel);
+    if (!rows.length) return null;
     var bag = { expired: 0, dueSoon: 0 };
-    recordsFor(model, hotel).forEach(function (row) {
+    rows.forEach(function (row) {
       var status = statusOf(row, today);
       if (status === "expired") bag.expired += 1;
       else if (status === "due_soon") bag.dueSoon += 1;
@@ -596,7 +598,9 @@
     var waiting = (model.imports || []).some(function (row) { return row.hotel === hotel && row.status === "awaiting_import"; });
     var feed = "<p class=\"tr-note\" id=\"trFeed\">" + esc(waiting
       ? tx(lang, "Brand import is waiting. Completions stay manual until the brand file arrives. The file itself is not stored.", "La importación de marca está en espera. Los cursos se marcan a mano hasta que llegue el archivo. El archivo no se guarda.")
-      : tx(lang, "No brand file is waiting.", "No hay archivo de marca en espera.")) + "</p>" +
+      : (demoUi()
+        ? tx(lang, "Brand feed is not connected. This is not an all-clear.", "La marca no está conectada. Esto no es un todo en orden.")
+        : tx(lang, "No brand file is waiting.", "No hay archivo de marca en espera."))) + "</p>" +
       (canEdit(actor, hotel) ? "<button type=\"button\" class=\"btn2\" onclick=\"trImport()\">" + esc(tx(lang, "Check brand import", "Revisar importación")) + "</button>" : "");
     var body = view.personId ? personHtml(model, view.personId, actor, today, lang) : (tab === "requirements" ? requirementsHtml(model, hotel, actor, lang) : peopleHtml(model, hotel, today, lang));
     var board = !view.personId && hotels.length > 1 && tab === "people" ? boardHtml(model, today, lang) : "";

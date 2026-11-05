@@ -149,8 +149,10 @@
   }
   function attentionOf(model, hotel, today) {
     if (HOTELS.indexOf(hotel) < 0) return null;
+    var rows = (model.licenses || []).filter(function (row) { return row.hotel === hotel; });
+    if (!rows.length) return null;
     var bag = { expired: 0, due30: 0, due60: 0, due90: 0 };
-    (model.licenses || []).forEach(function (row) {
+    rows.forEach(function (row) {
       if (row.hotel !== hotel) return;
       var status = statusOf(row, today);
       if (status === "expired") bag.expired += 1;
@@ -162,7 +164,7 @@
   }
   function board(model, today) {
     return HOTELS.map(function (hotel) {
-      var counts = attentionOf(model, hotel, today);
+      var counts = attentionOf(model, hotel, today) || { expired: 0, due30: 0, due60: 0, due90: 0 };
       return { code: hotel, name: NAMES[hotel], expired: counts.expired, due30: counts.due30, due60: counts.due60, due90: counts.due90 };
     });
   }

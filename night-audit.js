@@ -212,17 +212,21 @@
       { itemId: "na-mspam-zero", hotel: "MSPAM", checkinDate: today, action: "explain", note: "Sample comp. GM approved in the demo.", by: "Riley Brooks", role: "GM", at: dueInstant(today, "08:12"), source: "sample" },
       { itemId: "na-mspam-batch", hotel: "MSPAM", checkinDate: today, action: "done", note: "", by: "Riley Brooks", role: "GM", at: dueInstant(today, "08:12"), source: "sample" }
     ];
-    var completions = [{
-      hotel: "MSPAM", date: today, at: dueInstant(today, "08:12"), due: settings.MSPAM,
-      by: "Riley Brooks", role: "GM", openCount: 0, resolvedCount: 3, amountOpen: 0, source: "sample"
-    }];
+    var completions = [];
+    var reports = [];
+    function addReport(hotel, auditDate) {
+      if (!auditDate || reports.some(function (row) { return row.hotel === hotel && row.auditDate === auditDate; })) return;
+      reports.push({ hotel: hotel, auditDate: auditDate, source: "sample", status: "sample" });
+    }
+    items.forEach(function (item) { addReport(item.hotel, item.auditDate); });
     HOTELS.forEach(function (hotel) {
       for (var age = 1; age <= 13; age++) {
         var kind = pastKind(hotel, age);
-        if (kind !== "on_time" && kind !== "late") continue;
         var date = addDays(today, -age);
+        if (kind === "missed" || kind === "late") addReport(hotel, addDays(date, -1));
+        if (kind !== "late") continue;
         var who = staff(hotel, kind);
-        var at = dueInstant(date, kind === "late" ? "11:40" : "08:05");
+        var at = dueInstant(date, "11:40");
         completions.push({
           hotel: hotel, date: date, at: at, due: settings[hotel], by: who.name, role: who.role,
           openCount: 0, resolvedCount: 3, amountOpen: 0, source: "sample"
@@ -232,7 +236,7 @@
     return {
       origin: "example", now: now instanceof Date ? now.toISOString() : String(now), today: today,
       settings: settings, settingsTouched: false, items: items, resolutions: resolutions,
-      completions: completions,
+      reports: reports, completions: completions,
       suppressions: [{
         hotel: "MSPWE", code: "pet_fee", confirmation: "DEMO-0990",
         fingerprint: "MSPWE|pet_fee|DEMO-0990", note: "Sample stay, no pet.",
@@ -317,8 +321,14 @@
     if (done && done.due) return done.due;
     return (model.settings && model.settings[hotel]) || DEFAULT_DUE;
   }
+  function hasReport(model, hotel, date) {
+    var night = addDays(date, -1);
+    if ((model.reports || []).some(function (row) { return row.hotel === hotel && row.auditDate === night; })) return true;
+    return (model.items || []).some(function (item) { return item.hotel === hotel && item.auditDate === night; });
+  }
   function statusOf(model, hotel, date, now) {
     var today = model.today || checkinDate(now);
+    if (!hasReport(model, hotel, date)) return "no_report";
     var done = completionFor(model, hotel, date);
     var due = dueFor(model, hotel, date);
     if (done && done.at) return done.at <= dueInstant(date, due) ? "on_time" : "late";
@@ -407,6 +417,7 @@
   }
   function markComplete(model, hotel, actor, now) {
     if (!canAct(actor, hotel)) return { ok: false, error: "denied" };
+    if (!hasReport(model, hotel, model.today)) return { ok: false, error: "no_report" };
     if (openItems(model, hotel, model.today).length) return { ok: false, error: "open" };
     if (completionFor(model, hotel, model.today)) return { ok: true, model: model };
     var next = clone(model);
@@ -512,6 +523,7 @@
     if (status === "late") return tx(lang, "Late", "Tarde");
     if (status === "missed") return tx(lang, "Missed", "Faltó");
     if (status === "on_time") return tx(lang, "Done", "Hecho");
+    if (status === "no_report") return tx(lang, "Missing", "Falta");
     return "";
   }
   function badgeStatus(status, lang) {
@@ -519,11 +531,12 @@
     if (status === "overdue") return tx(lang, "Overdue", "Atrasado");
     if (status === "late") return tx(lang, "Done late", "Hecho tarde");
     if (status === "missed") return tx(lang, "Missed", "Faltó");
-    return tx(lang, "Done", "Hecho");
+    if (status === "on_time") return tx(lang, "Done", "Hecho");
+    return tx(lang, "No report yet", "Aún no hay reporte");
   }
   function worst(statuses) {
-    var rank = { overdue: 0, open: 1, missed: 2, late: 3, on_time: 4, future: 5 };
-    return (statuses || []).slice().sort(function (a, b) { return (rank[a] == null ? 9 : rank[a]) - (rank[b] == null ? 9 : rank[b]); })[0] || "on_time";
+    var rank = { overdue: 0, open: 1, missed: 2, no_report: 3, late: 4, on_time: 5, future: 6 };
+    return (statuses || []).slice().sort(function (a, b) { return (rank[a] == null ? 9 : rank[a]) - (rank[b] == null ? 9 : rank[b]); })[0] || "no_report";
   }
   function actionLabel(action, lang) {
     if (action === "not_issue") return tx(lang, "Not an issue", "No es problema");
@@ -611,7 +624,9 @@
     var openRows = rows.filter(function (item) { return !item.resolution; });
     var closedRows = rows.filter(function (item) { return item.resolution; });
     var banner = "";
-    if (done && !sum.open) {
+    if (status === "no_report") {
+      banner = "<p class=\"na-missing\" role=\"status\">" + esc(tx(lang, "No report yet. This check-in is not complete.", "Aún no hay reporte. Esta revisión no está completa.")) + "</p>";
+    } else if (done && !sum.open) {
       banner = "<p class=\"na-done\" role=\"status\">" + esc(tx(lang, "Completed by", "Completado por") + " " + done.by + " · " + fmtClock(done.at, lang)) + "</p>";
     } else if (!sum.open) {
       banner = "<button type=\"button\" class=\"btn na-wide\" onclick=\"naMark('" + hotel + "')\">" + esc(tx(lang, "Mark check-in complete", "Marcar revisión completa")) + "</button>";
@@ -627,7 +642,7 @@
     var held = (model.suppressions || []).filter(function (row) { return row.hotel === hotel && row.active !== false; }).length;
     var heldNote = held ? "<p class=\"na-note\">" + esc(held + " " + tx(lang, "similar items held off later lists", "casos similares quedan fuera de listas futuras")) + "</p>" : "";
     var list = openRows.map(function (item) { return itemHtml(item, lang, view); }).join("") ||
-      "<p class=\"na-note\">" + esc(tx(lang, "Nothing open in this check-in.", "Nada abierto en esta revisión.")) + "</p>";
+      (status === "no_report" ? "" : "<p class=\"na-note\">" + esc(tx(lang, "Nothing open in this check-in.", "Nada abierto en esta revisión.")) + "</p>");
     var closed = closedRows.length ? "<details class=\"na-closed\"><summary>" + esc(closedRows.length + " " + tx(lang, "resolved", "resueltos")) + "</summary>" + closedRows.map(function (item) { return itemHtml(item, lang, view); }).join("") + "</details>" : "";
     var hotelsBlock = hotels.length > 1 ? hotelTable(model, hotels, now, lang, hotel) + categoryTable(model, hotels, model.today, lang) : categoryTable(model, [hotel], model.today, lang);
     return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" +
@@ -730,7 +745,7 @@
     hotelRows: hotelRows, statusOf: statusOf, streak: streak, history: history,
     resolve: resolve, markComplete: markComplete, setDue: setDue, isSuppressed: isSuppressed,
     parseReport: parseReport, ingest: ingest, detectSource: detectSource, registerParser: registerParser,
-    checkinHtml: checkinHtml, homeCard: homeCard, money: money, cellStatus: cellStatus, badgeStatus: badgeStatus
+    checkinHtml: checkinHtml, homeCard: homeCard, money: money, cellStatus: cellStatus, badgeStatus: badgeStatus, hasReport: hasReport
   };
   root.NightAudit = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -841,6 +856,8 @@
     ".na-st-open{background:#fff3cd;color:#8a5a00}",
     ".na-st-overdue,.na-st-missed{background:#fde2e1;color:#7a1218}",
     ".na-st-on_time{background:#d4f5dc;color:#15642f}",
+    ".na-st-no_report{background:#eef1f4;color:#5c6570}",
+    ".na-missing{background:#eef1f4;color:#3c4658;border-radius:8px;padding:8px 10px;font-weight:700}",
     ".na-st-late{background:#fff0c2;color:#8a5a00}",
     ".na-k{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}",
     ".na-k div{background:#eef3fa;border-radius:8px;padding:8px 4px;text-align:center}",

@@ -130,6 +130,10 @@ test("shared queue for both airport desks, status stamps, and ridership", () => 
   assert.doesNotMatch(fdHtml, /Last name/);
   assert.doesNotMatch(fdHtml, /Keller|Olson|Nguyen|Garcia|Walsh|Hayes/);
   assert.doesNotMatch(fdHtml, /id="shCode-MSPMS">2871</);
+  const gmHtml = desk(state, gm, "MSPAM", "en");
+  assert.match(gmHtml, /seat taken by SpringHill|seats taken by SpringHill/);
+  assert.doesNotMatch(gmHtml, /<td>MSPMS<\/td>/);
+  assert.match(desk(state, corp, "MSPAM", "en"), /<td>MSPMS<\/td>/);
   const corpHtml = desk(state, corp, "MSPAM", "en");
   assert.match(corpHtml, /Room 214/);
   assert.match(corpHtml, /Room 109/);

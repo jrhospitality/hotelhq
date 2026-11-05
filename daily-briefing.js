@@ -175,7 +175,14 @@
         return "<li>" + esc(line) + "</li>";
       }).join("") + "</ul></section>";
     }).join("");
-    if (!body) body = "<p>" + esc(L("Nothing to report for this hotel today.", "Nada que reportar en este hotel hoy.")) + "</p>";
+    if (!body) {
+      var liveBrief = false;
+      try { liveBrief = typeof authMode !== "undefined" && authMode === "live"; } catch (e) {}
+      if (!liveBrief && root.HOTELHQ_CONFIG && String(root.HOTELHQ_CONFIG.mode) === "live") liveBrief = true;
+      body = liveBrief
+        ? "<p>" + esc(L("Nothing to report for this hotel today.", "Nada que reportar en este hotel hoy.")) + "</p>"
+        : "<p class=\"db-missing\">" + esc(L("No feeds are connected for this hotel. This is not an all-clear.", "No hay datos conectados para este hotel. Esto no es un todo en orden.")) + "</p>";
+    }
     var name = (typeof HOTELS !== "undefined" && HOTELS[hotel]) || hotel;
     return "<div class=\"raw db\" id=\"dbRoot\"><h2>" + esc(L("Daily Briefing", "Resumen diario")) + "</h2><p class=\"db-hotel\">" + esc(name) + "</p>" + body + "</div>";
   }

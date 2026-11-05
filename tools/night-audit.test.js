@@ -26,7 +26,8 @@ test("Chicago morning clock and the 10:00 due line", () => {
   assert.equal(na.statusOf(early, "MSPWE", early.today, early.now), "open");
   assert.equal(na.statusOf(due, "MSPWE", due.today, due.now), "overdue");
   assert.equal(na.statusOf(early, "MSPMS", early.today, early.now), "overdue");
-  assert.equal(na.statusOf(early, "MSPAM", early.today, early.now), "on_time");
+  assert.equal(na.statusOf(early, "MSPAM", early.today, early.now), "open");
+  assert.equal(na.statusOf(early, "MSPWE", na.addDays(early.today, -2), early.now), "no_report");
 });
 
 test("each hotel sees only itself and corporate sees every hotel", () => {
@@ -71,11 +72,14 @@ test("sample items are fake, carry forward, and roll up by hotel and category", 
   assert.equal(byId.rates.open, 0);
   assert.equal(byId.cash.open, 0);
   const rows = na.hotelRows(model, na.HOTELS, model.now);
-  assert.deepEqual(rows.map((row) => row.status), ["overdue", "on_time", "overdue"]);
-  assert.equal(na.streak(model, "MSPAM", model.now), 14);
+  assert.deepEqual(rows.map((row) => row.status), ["overdue", "overdue", "overdue"]);
+  assert.equal(na.streak(model, "MSPAM", model.now), 0);
   assert.equal(na.streak(model, "MSPWE", model.now), 0);
   assert.equal(na.badgeStatus("open", "en"), "Not completed today");
   assert.equal(na.badgeStatus("open", "es"), "Sin completar hoy");
+  assert.equal(na.badgeStatus("no_report", "en"), "No report yet");
+  assert.equal(na.badgeStatus("on_time", "en"), "Done");
+  assert.notEqual(na.badgeStatus("", "en"), "Done");
 });
 
 test("resolving clears an item, records a dismissal, and carries what is still open", () => {
@@ -114,6 +118,13 @@ test("an empty morning can be marked complete and the due time moves the overdue
   model.items = model.items.filter((item) => item.hotel !== "MSPWE");
   const blocked = na.markComplete(na.buildDemo(EARLY), "MSPWE", gm, EARLY);
   assert.equal(blocked.error, "open");
+  const unfed = na.buildDemo(EARLY);
+  unfed.reports = [];
+  unfed.items = unfed.items.filter((item) => item.hotel !== "MSPWE");
+  assert.equal(na.markComplete(unfed, "MSPWE", gm, EARLY).error, "no_report");
+  assert.equal(na.statusOf(unfed, "MSPWE", unfed.today, EARLY), "no_report");
+  assert.match(na.checkinHtml(unfed, gm, { hotel: "MSPWE", lang: "en", now: EARLY }), /No report yet/);
+  assert.equal(na.checkinHtml(unfed, gm, { hotel: "MSPWE", lang: "en", now: EARLY }).includes("Completed by"), false);
   const done = na.markComplete(model, "MSPWE", gm, EARLY);
   assert.equal(done.ok, true);
   assert.equal(na.statusOf(done.model, "MSPWE", model.today, EARLY), "on_time");
@@ -173,7 +184,7 @@ test("the check-in is one bilingual screen and table cells stay short", () => {
   assert.match(na.homeCard(model, gm, "en"), /Not completed today/);
   const corpHtml = na.homeCard(model, corp, "en");
   assert.match(corpHtml, /id="naHome"/);
-  assert.match(corpHtml, /2 not done/);
+  assert.match(corpHtml, /3 not done/);
   assert.match(corpHtml, />Open</);
   assert.match(corpHtml, />MSPWE</);
   assert.match(corpHtml, />MSPAM</);
