@@ -1,13 +1,21 @@
--- Training, inspections, and licenses. Additive only. Not applied by this change.
--- Review and run it when you are ready. Demo mode does not call this database.
+-- Training, fire/health inspection reports, and licenses. Additive only.
+-- Safe to run again. It does not remove any table and it does not delete rows.
 --
--- New tables only. No existing table, column, or row is dropped or deleted.
+-- public.inspections is the existing room-inspection table (bigint id, hotel_id,
+-- room_number). This file leaves public.inspections unchanged.
+-- Fire and health reports use public.compliance_inspections,
+-- public.compliance_inspection_actions, and public.compliance_inspection_imports.
+--
 -- Training: GM and AGM read and write their own hotel. Corporate reads and writes every hotel.
--- Inspections and licenses: GM and corporate only. AGM has no section.
--- An associate can read an inspection action assigned to them, and can mark that
--- action fixed through complete_inspection_action. They cannot edit the report.
+-- Inspection reports and licenses: GM and corporate only. AGM has no section.
+-- An associate can read an action assigned to them, and can mark that action
+-- fixed through complete_inspection_action. They cannot edit the report.
 -- Brand and report imports store a status only. The file body is not stored.
--- Certificate, report, and permit files go in the private compliance-docs bucket.
+-- Files go in the private compliance-docs bucket:
+--   {hotel}/training/  {hotel}/reports/  {hotel}/licenses/  {hotel}/actions/{id}/
+--
+-- Apply on project clxvmtbmveusrbxacnxe (SQL editor or the Supabase migration runner).
+-- Demo mode does not call this database. The app reads sample data on this device.
 
 create schema if not exists private;
 
@@ -72,7 +80,7 @@ create table if not exists public.training_types (
   id uuid primary key default gen_random_uuid(),
   hotel text not null check (hotel in ('MSPWE', 'MSPAM', 'MSPMS')),
   name_en text not null check (char_length(name_en) between 1 and 80),
-  name_es text not null default '' check (char_length(name_es) <= 80),
+  name_es text not null default '' check (char_length(name_es) between 0 and 80),
   kind text not null check (kind in ('online', 'in_person')),
   brand text not null default '' check (brand in ('', 'ihg', 'marriott', 'hilton')),
   validity_days integer check (validity_days is null or (validity_days between 1 and 3650)),
@@ -98,13 +106,13 @@ create table if not exists public.training_records (
   id uuid primary key default gen_random_uuid(),
   hotel text not null check (hotel in ('MSPWE', 'MSPAM', 'MSPMS')),
   training_type_id uuid not null references public.training_types (id) on delete cascade,
-  associate_id text not null default '' check (char_length(associate_id) <= 80),
+  associate_id text not null default '' check (char_length(associate_id) between 0 and 80),
   associate_name text not null check (char_length(associate_name) between 1 and 80),
   position text not null check (char_length(position) between 1 and 40),
   completed_on date,
   expires_on date,
-  certificate_path text not null default '' check (char_length(certificate_path) <= 200),
-  signed_off_name text not null default '' check (char_length(signed_off_name) <= 80),
+  certificate_path text not null default '' check (char_length(certificate_path) between 0 and 200),
+  signed_off_name text not null default '' check (char_length(signed_off_name) between 0 and 80),
   signed_off_by uuid,
   signed_off_at timestamptz,
   source text not null default 'manual' check (source in ('manual', 'brand_import')),
@@ -131,29 +139,29 @@ create table if not exists public.training_imports (
 comment on table public.training_imports is
   'Brand completion import stub. awaiting_import stores no file body.';
 
-create table if not exists public.inspections (
+create table if not exists public.compliance_inspections (
   id uuid primary key default gen_random_uuid(),
   hotel text not null check (hotel in ('MSPWE', 'MSPAM', 'MSPMS')),
   kind text not null check (kind in ('fire', 'health')),
   inspection_date date not null,
   agency text not null check (char_length(agency) between 1 and 120),
   result text not null check (result in ('pass', 'fail', 'conditional')),
-  score text not null default '' check (char_length(score) <= 40),
+  score text not null default '' check (char_length(score) between 0 and 40),
   next_due date,
-  document_path text not null default '' check (char_length(document_path) <= 200),
-  notes text not null default '' check (char_length(notes) <= 400),
+  document_path text not null default '' check (char_length(document_path) between 0 and 200),
+  notes text not null default '' check (char_length(notes) between 0 and 400),
   created_at timestamptz not null default pg_catalog.now()
 );
 
-comment on table public.inspections is
-  'A fire or health inspection report. The PDF or photo lives in storage. GM and corporate only.';
+comment on table public.compliance_inspections is
+  'A fire or health inspection report. Not the room-inspection table public.inspections. The PDF or photo lives in storage under {hotel}/reports/. GM and corporate only.';
 
-create table if not exists public.inspection_actions (
+create table if not exists public.compliance_inspection_actions (
   id uuid primary key default gen_random_uuid(),
-  inspection_id uuid not null references public.inspections (id) on delete cascade,
+  inspection_id uuid not null references public.compliance_inspections (id) on delete cascade,
   hotel text not null check (hotel in ('MSPWE', 'MSPAM', 'MSPMS')),
   description text not null check (char_length(description) between 1 and 300),
-  owner_name text not null default '' check (char_length(owner_name) <= 80),
+  owner_name text not null default '' check (char_length(owner_name) between 0 and 80),
   owner_role text not null default '' check (owner_role in (
     '', 'gm', 'agm', 'front_desk', 'hk_lead', 'housekeeper', 'maintenance',
     'shuttle_driver', 'house_person', 'laundry', 'breakfast', 'bartender'
@@ -161,30 +169,30 @@ create table if not exists public.inspection_actions (
   owner_user_id uuid,
   due_on date,
   status text not null default 'open' check (status in ('open', 'done')),
-  proof_path text not null default '' check (char_length(proof_path) <= 200),
+  proof_path text not null default '' check (char_length(proof_path) between 0 and 200),
   completed_on date,
-  completed_name text not null default '' check (char_length(completed_name) <= 80),
+  completed_name text not null default '' check (char_length(completed_name) between 0 and 80),
   source text not null default 'manual' check (source in ('manual', 'import')),
   created_at timestamptz not null default pg_catalog.now(),
   check (char_length(owner_name) > 0 or char_length(owner_role) > 0)
 );
 
-comment on table public.inspection_actions is
+comment on table public.compliance_inspection_actions is
   'A violation from an inspection. source is manual or import. A named owner is the only associate who sees it. A blank name shows it to that role at the hotel.';
 
-create index if not exists inspection_actions_hotel_idx
-  on public.inspection_actions (hotel, status, due_on);
+create index if not exists compliance_inspection_actions_hotel_idx
+  on public.compliance_inspection_actions (hotel, status, due_on);
 
-create table if not exists public.inspection_imports (
+create table if not exists public.compliance_inspection_imports (
   id uuid primary key default gen_random_uuid(),
   hotel text not null check (hotel in ('MSPWE', 'MSPAM', 'MSPMS')),
   kind text not null default '' check (kind in ('', 'fire', 'health')),
   status text not null check (status in ('received', 'awaiting_parse', 'parsed', 'failed')),
-  document_path text not null default '' check (char_length(document_path) <= 200),
+  document_path text not null default '' check (char_length(document_path) between 0 and 200),
   received_at timestamptz not null default pg_catalog.now()
 );
 
-comment on table public.inspection_imports is
+comment on table public.compliance_inspection_imports is
   'Assistant import stub. awaiting_parse means the report body was not stored and no action items were created yet.';
 
 create table if not exists public.licenses (
@@ -200,7 +208,7 @@ create table if not exists public.licenses (
   expires_on date not null,
   renewal_fee numeric(12, 2) not null default 0 check (renewal_fee >= 0),
   responsible_name text not null check (char_length(responsible_name) between 1 and 80),
-  document_path text not null default '' check (char_length(document_path) <= 200),
+  document_path text not null default '' check (char_length(document_path) between 0 and 200),
   created_at timestamptz not null default pg_catalog.now()
 );
 
@@ -214,9 +222,9 @@ alter table public.training_types enable row level security;
 alter table public.training_requirements enable row level security;
 alter table public.training_records enable row level security;
 alter table public.training_imports enable row level security;
-alter table public.inspections enable row level security;
-alter table public.inspection_actions enable row level security;
-alter table public.inspection_imports enable row level security;
+alter table public.compliance_inspections enable row level security;
+alter table public.compliance_inspection_actions enable row level security;
+alter table public.compliance_inspection_imports enable row level security;
 alter table public.licenses enable row level security;
 
 create or replace function private.training_allowed(p_hotel text)
@@ -229,7 +237,7 @@ as $$
   select coalesce(
     private.is_above()
     or (
-      private.my_role() in ('gm', 'agm')
+      (private.my_role())::text in ('gm', 'agm')
       and p_hotel = any ((select private.my_hotels())::text[])
     ),
     false
@@ -246,7 +254,7 @@ as $$
   select coalesce(
     private.is_above()
     or (
-      private.my_role() = 'gm'
+      (private.my_role())::text = 'gm'
       and p_hotel = any ((select private.my_hotels())::text[])
     ),
     false
@@ -272,7 +280,7 @@ as $$
       and (
         (p_owner_user is not null and p_owner_user = (select auth.uid()))
         or (
-          coalesce(p_owner_name, '') <> ''
+          coalesce(p_owner_name, '') != ''
           and lower(p_owner_name) = lower(coalesce((
             select pr.name from public.profiles pr
             where pr.user_id = (select auth.uid())
@@ -281,8 +289,8 @@ as $$
         )
         or (
           coalesce(p_owner_name, '') = ''
-          and coalesce(p_owner_role, '') <> ''
-          and p_owner_role = private.my_role()
+          and coalesce(p_owner_role, '') != ''
+          and p_owner_role = (private.my_role())::text
         )
       )
     ),
@@ -314,14 +322,14 @@ create policy training_imports_all on public.training_imports
   using (private.training_allowed(hotel))
   with check (private.training_allowed(hotel));
 
-drop policy if exists inspections_all on public.inspections;
-create policy inspections_all on public.inspections
+drop policy if exists compliance_inspections_all on public.compliance_inspections;
+create policy compliance_inspections_all on public.compliance_inspections
   for all to authenticated
   using (private.docs_allowed(hotel))
   with check (private.docs_allowed(hotel));
 
-drop policy if exists inspection_imports_all on public.inspection_imports;
-create policy inspection_imports_all on public.inspection_imports
+drop policy if exists compliance_inspection_imports_all on public.compliance_inspection_imports;
+create policy compliance_inspection_imports_all on public.compliance_inspection_imports
   for all to authenticated
   using (private.docs_allowed(hotel))
   with check (private.docs_allowed(hotel));
@@ -332,13 +340,13 @@ create policy licenses_all on public.licenses
   using (private.docs_allowed(hotel))
   with check (private.docs_allowed(hotel));
 
-drop policy if exists inspection_actions_select on public.inspection_actions;
-create policy inspection_actions_select on public.inspection_actions
+drop policy if exists compliance_inspection_actions_select on public.compliance_inspection_actions;
+create policy compliance_inspection_actions_select on public.compliance_inspection_actions
   for select to authenticated
   using (private.inspection_action_visible(hotel, owner_user_id, owner_role, owner_name));
 
-drop policy if exists inspection_actions_write on public.inspection_actions;
-create policy inspection_actions_write on public.inspection_actions
+drop policy if exists compliance_inspection_actions_write on public.compliance_inspection_actions;
+create policy compliance_inspection_actions_write on public.compliance_inspection_actions
   for all to authenticated
   using (private.docs_allowed(hotel))
   with check (private.docs_allowed(hotel));
@@ -407,7 +415,7 @@ begin
   if pg_catalog.jsonb_array_length(v_actions) > 50 then
     raise exception 'too many actions';
   end if;
-  insert into public.inspection_imports (hotel, kind, status, document_path)
+  insert into public.compliance_inspection_imports (hotel, kind, status, document_path)
   values (
     v_hotel,
     v_kind,
@@ -421,11 +429,11 @@ begin
   for v_item in select value from pg_catalog.jsonb_array_elements(v_actions) loop
     v_inspection := nullif(v_item->>'inspection_id', '')::uuid;
     if v_inspection is null or not exists (
-      select 1 from public.inspections i where i.id = v_inspection and i.hotel = v_hotel
+      select 1 from public.compliance_inspections i where i.id = v_inspection and i.hotel = v_hotel
     ) then
       raise exception 'unknown inspection';
     end if;
-    insert into public.inspection_actions (
+    insert into public.compliance_inspection_actions (
       inspection_id, hotel, description, owner_name, owner_role, due_on, source
     ) values (
       v_inspection,
@@ -452,24 +460,24 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row public.inspection_actions%rowtype;
+  v_row public.compliance_inspection_actions%rowtype;
   v_name text;
 begin
   if (select auth.uid()) is null then
     raise exception 'not allowed';
   end if;
-  select * into v_row from public.inspection_actions where id = p_id;
+  select * into v_row from public.compliance_inspection_actions where id = p_id;
   if v_row.id is null or not private.inspection_action_visible(v_row.hotel, v_row.owner_user_id, v_row.owner_role, v_row.owner_name) then
     raise exception 'not allowed';
   end if;
   if p_completed is null or p_completed > (pg_catalog.timezone('America/Chicago', pg_catalog.now()))::date then
     raise exception 'date';
   end if;
-  if coalesce(p_proof, '') <> '' then
+  if coalesce(p_proof, '') != '' then
     if p_proof !~ '^[A-Za-z0-9][A-Za-z0-9_./-]{0,180}$' or p_proof like '%..%' then
       raise exception 'proof path';
     end if;
-    if pg_catalog.split_part(p_proof, '/', 1) <> v_row.hotel or pg_catalog.split_part(p_proof, '/', 2) <> 'actions' then
+    if pg_catalog.split_part(p_proof, '/', 1) != v_row.hotel or pg_catalog.split_part(p_proof, '/', 2) != 'actions' then
       raise exception 'proof path';
     end if;
   end if;
@@ -477,7 +485,7 @@ begin
   from public.profiles pr
   where pr.user_id = (select auth.uid())
   limit 1;
-  update public.inspection_actions
+  update public.compliance_inspection_actions
     set status = 'done',
         completed_on = p_completed,
         completed_name = coalesce(v_name, ''),
@@ -547,18 +555,18 @@ revoke all on table public.training_types from public, anon;
 revoke all on table public.training_requirements from public, anon;
 revoke all on table public.training_records from public, anon;
 revoke all on table public.training_imports from public, anon;
-revoke all on table public.inspections from public, anon;
-revoke all on table public.inspection_actions from public, anon;
-revoke all on table public.inspection_imports from public, anon;
+revoke all on table public.compliance_inspections from public, anon;
+revoke all on table public.compliance_inspection_actions from public, anon;
+revoke all on table public.compliance_inspection_imports from public, anon;
 revoke all on table public.licenses from public, anon;
 
 grant select, insert, update, delete on table public.training_types to authenticated;
 grant select, insert, update, delete on table public.training_requirements to authenticated;
 grant select, insert, update, delete on table public.training_records to authenticated;
 grant select, insert, update, delete on table public.training_imports to authenticated;
-grant select, insert, update, delete on table public.inspections to authenticated;
-grant select, insert, update, delete on table public.inspection_actions to authenticated;
-grant select, insert, update, delete on table public.inspection_imports to authenticated;
+grant select, insert, update, delete on table public.compliance_inspections to authenticated;
+grant select, insert, update, delete on table public.compliance_inspection_actions to authenticated;
+grant select, insert, update, delete on table public.compliance_inspection_imports to authenticated;
 grant select, insert, update, delete on table public.licenses to authenticated;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -592,7 +600,7 @@ begin
     return false;
   end if;
   parts := storage.foldername(p_name);
-  if parts is null or coalesce(pg_catalog.array_length(parts, 1), 0) < 2 then
+  if parts is null or not (coalesce(pg_catalog.array_length(parts, 1), 0) >= 2) then
     return false;
   end if;
   v_hotel := parts[1];
@@ -604,13 +612,13 @@ begin
   if v_folder = 'training' then
     return private.training_allowed(v_hotel);
   end if;
-  if v_folder in ('inspections', 'licenses') then
+  if v_folder in ('reports', 'licenses') then
     return private.docs_allowed(v_hotel);
   end if;
-  if v_folder = 'actions' and v_id <> '' then
+  if v_folder = 'actions' and v_id != '' then
     select private.inspection_action_visible(a.hotel, a.owner_user_id, a.owner_role, a.owner_name)
       into v_ok
-    from public.inspection_actions a
+    from public.compliance_inspection_actions a
     where a.id::text = v_id
       and a.hotel = v_hotel;
     return coalesce(v_ok, false);
