@@ -151,7 +151,7 @@
   function toneAudit(status) {
     if (status === "on_time") return "good";
     if (status === "open" || status === "future") return "watch";
-    if (!status) return "none";
+    if (!status || status === "no_report") return "none";
     return "bad";
   }
   function toneComments(n) {
@@ -187,6 +187,7 @@
   function auditLabel(status, lang) {
     var labels = {
       on_time: ["Done", "Hecha"],
+      no_report: ["No report", "Sin reporte"],
       open: ["Due", "Pendiente"],
       overdue: ["Overdue", "Atrasada"],
       late: ["Late", "Tarde"],

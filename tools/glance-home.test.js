@@ -64,6 +64,8 @@ test("room, labor, and score tones use the existing feeds", () => {
   assert.equal(glance.toneScore(8.1, 8.4), "watch");
   assert.equal(glance.toneScore(7.5, 8.4), "bad");
   assert.equal(glance.toneAudit("on_time"), "good");
+  assert.equal(glance.toneAudit("no_report"), "none");
+  assert.equal(glance.auditLabel("no_report", "en"), "No report");
   assert.equal(glance.toneAudit("open"), "watch");
   assert.equal(glance.toneAudit("overdue"), "bad");
   assert.equal(glance.fmtDue("10:00"), "10:00 AM");

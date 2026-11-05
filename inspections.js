@@ -184,22 +184,24 @@
   }
   function attentionOf(model, hotel, today) {
     if (HOTELS.indexOf(hotel) < 0) return null;
+    var actions = (model.actions || []).filter(function (row) { return row.hotel === hotel; });
+    var visits = (model.inspections || []).filter(function (row) { return row.hotel === hotel; });
+    if (!actions.length && !visits.length) return null;
     var bag = { overdue: 0, open: 0, upcoming: 0 };
-    (model.actions || []).forEach(function (row) {
-      if (row.hotel !== hotel) return;
+    actions.forEach(function (row) {
       var state = actionState(row, today);
       if (state === "overdue") bag.overdue += 1;
       else if (state === "open") bag.open += 1;
     });
-    (model.inspections || []).forEach(function (row) {
-      if (row.hotel !== hotel || !row.nextDue) return;
+    visits.forEach(function (row) {
+      if (!row.nextDue) return;
       if (row.nextDue >= today && row.nextDue <= addDays(today, SOON)) bag.upcoming += 1;
     });
     return bag;
   }
   function board(model, today) {
     return HOTELS.map(function (hotel) {
-      var counts = attentionOf(model, hotel, today);
+      var counts = attentionOf(model, hotel, today) || { overdue: 0, open: 0, upcoming: 0 };
       var next = null;
       (model.inspections || []).forEach(function (row) {
         if (row.hotel !== hotel || !row.nextDue) return;

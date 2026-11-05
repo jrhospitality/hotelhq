@@ -26,6 +26,8 @@ test("spanish labels exist for the briefing title", () => {
   const fs = require("node:fs");
   const src = fs.readFileSync(require("node:path").join(__dirname, "../daily-briefing.js"), "utf8");
   assert.match(src, /Resumen diario/);
+  assert.match(src, /Nothing to report for this hotel today/);
+  assert.match(src, /No feeds are connected for this hotel/);
   assert.match(src, /authRole\(\)/);
   assert.match(src, /u\.hotel/);
 });
