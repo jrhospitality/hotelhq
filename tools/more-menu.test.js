@@ -132,7 +132,8 @@ test("the profile column is additive and only the signed-in person can change it
   assert.doesNotMatch(sql, /drop column/i);
   assert.doesNotMatch(sql, /delete from/i);
   const sw = read("sw.js");
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v20"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v21"/);
+  assert.doesNotMatch(sw, /hotelhq-shell-v20"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v19"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v18"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v17"/);

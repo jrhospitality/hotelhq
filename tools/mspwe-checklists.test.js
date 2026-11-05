@@ -145,7 +145,7 @@ test("the app wires the lists, the walk filter, and the cache", () => {
   assert.match(html, /Setup: coffee brewed/);
   assert.match(engine, /walkAreas\(\)/);
   assert.match(sw, /mspwe-checklists\.js/);
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v20"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v21"/);
   const migrations = fs.readdirSync(path.join(root, "supabase/migrations"));
   assert.equal(migrations.some((name) => /mspwe/i.test(name) && /check|pool|lost/i.test(name)), false);
 });
