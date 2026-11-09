@@ -38,6 +38,19 @@
         es: "Cuarto urgente " + r.room + (r.late ? " va tarde" : "")
       });
     });
+    (ctx.loops || []).forEach(function (g) {
+      if (!g || !g.room) return;
+      if (!has(role, ["Front Desk", "GM", "AGM", "Housekeeping", "Maintenance", "Breakfast Attendant"])) return;
+      if (role === "Housekeeping" && g.dept !== "Housekeeping") return;
+      if (role === "Maintenance" && g.dept !== "Maintenance") return;
+      if (role === "Breakfast Attendant" && g.dept !== "Breakfast") return;
+      add({
+        rank: 25,
+        go: "gi",
+        en: "Close the loop with room " + g.room,
+        es: "Cierra el ciclo con la hab. " + g.room
+      });
+    });
     (ctx.issues || []).forEach(function (g) {
       if (!has(role, ["Front Desk", "GM", "AGM", "Housekeeping", "Maintenance", "Breakfast Attendant"])) return;
       add({
@@ -128,6 +141,15 @@
         issues.push({ room: g.room, days: typeof giDepDay === "function" ? giDepDay(g) : 0 });
       });
     } catch (e5) {}
+    var loops = [];
+    try {
+      if (typeof giList === "function" && typeof giLoopDue === "function") {
+        giList().filter(giLoopDue).forEach(function (g) {
+          if (!g || !g.room) return;
+          loops.push({ room: g.room, dept: g.dept || "" });
+        });
+      }
+    } catch (e5b) {}
     var deep = 0;
     try {
       if (typeof dcState === "function" && typeof dcLeft === "function") {
@@ -153,7 +175,7 @@
       if (typeof grList === "function" && typeof grOver === "function") sla = grList().filter(function (r) { return r.st !== "done" && grOver(r); }).length;
     } catch (e11) {}
     return buildItems({
-      role: role, me: me, punches: punches, rush: rush, issues: issues,
+      role: role, me: me, punches: punches, rush: rush, issues: issues, loops: loops,
       deep: deep, lost: lost, alerts: alerts, cleans: cleans, events: events, sla: sla
     });
   }
