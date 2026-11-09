@@ -19,13 +19,17 @@
     train: "training",
     inspx: "inspections",
     ifix: "inspections",
-    permits: "licenses"
+    permits: "licenses",
+    fshare: "fair_share",
+    gchat: "guest_messages"
   };
   var DESK = ["Front Desk", "AGM", "GM", "Above Property", "JR Corporate"];
   var AUDIT = ["GM", "AGM", "Above Property"];
   var COMMENTS = ["GM", "AGM", "Above Property", "Housekeeping", "Housekeeper"];
   var TRAIN = ["GM", "AGM", "Above Property", "JR Corporate"];
   var DOCS = ["GM", "Above Property", "JR Corporate"];
+  var FAIR = ["GM", "Above Property"];
+  var CHAT = ["Front Desk", "AGM"];
   var SHUTTLE = ["MSPAM", "MSPMS"];
 
   function norm(role) {
@@ -52,6 +56,8 @@
     }
     if (feature === "training" && TRAIN.indexOf(role) < 0) return false;
     if ((feature === "inspections" || feature === "licenses") && DOCS.indexOf(role) < 0) return false;
+    if (feature === "fair_share" && FAIR.indexOf(role) < 0) return false;
+    if (feature === "guest_messages" && CHAT.indexOf(role) < 0) return false;
     if (typeof featureOn === "function" && featureOn(hotel, feature) === false) return false;
     return true;
   }

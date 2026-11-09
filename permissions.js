@@ -56,7 +56,10 @@
     "scores.leader": ["GM", "AGM", "Above Property"],
     "training.see": ["GM", "AGM", "Above Property"],
     "inspections.manage": ["GM", "Above Property"],
-    "licenses.manage": ["GM", "Above Property"]
+    "licenses.manage": ["GM", "Above Property"],
+    "fairshare.see": ["GM", "Above Property"],
+    "guestchat.respond": ["Front Desk", "AGM"],
+    "guestchat.count": ["GM"]
   };
 
   var SHUTTLE_HOTELS = ["MSPAM", "MSPMS"];
