@@ -1,12 +1,15 @@
-/* T7 and T28 fair share, demo site only.
+/* Revenue tab, demo site only. Not shown on Home.
    GM sees the hotel they run. Corporate sees MSPWE, MSPAM, and MSPMS.
-   AGM, front desk, and other roles do not see this section.
+   AGM, front desk, and other roles do not see this tab.
    T7 is the trailing 7 days. T28 is the trailing 28 days.
+   STR fair share and Expedia fair share both stay on this tab.
    Fair share is the hotel divided by its competitive set, times 100.
    MPI is occupancy, ARI is ADR, and RGI is RevPAR. 100 is an even share.
-   Sample figures only. STR, DaySTAR, MINT, and Hilton are not connected.
+   Sample figures only. No live STR, DaySTAR, MINT, Hilton, or Expedia feed.
    IHG DaySTAR/STAR access for HotelHQ was still pending as of November 5, 2026.
-   Later imports write public.fair_share_snapshots. This file does not call Supabase. */
+   Operations has Expedia Partner Central access for these three hotels.
+   This file does not call Partner Central.
+   Later imports write public.fair_share_snapshots and public.expedia_fair_share_snapshots. */
 (function (root) {
   "use strict";
 
@@ -25,12 +28,21 @@
     { id: "adr", indexId: "ari", en: "ADR", es: "ADR", index: "ARI", kind: "money" },
     { id: "revpar", indexId: "rgi", en: "RevPAR", es: "RevPAR", index: "RGI", kind: "money" }
   ];
+  var EXPEDIA_METRICS = [
+    { id: "search", en: "Search share", es: "Participación en búsquedas", index: "", kind: "pct" },
+    { id: "nights", en: "Room nights", es: "Noches", index: "", kind: "count" },
+    { id: "revenue", en: "Revenue", es: "Ingresos", index: "", kind: "money" }
+  ];
   var SOURCES = ["sample", "str", "daystar", "mint", "hilton", "manual"];
   var IMPORT_SOURCES = ["str", "daystar", "mint", "hilton", "manual"];
+  var EXPEDIA_SOURCES = ["sample", "partner_central", "manual"];
+  var EXPEDIA_IMPORTS = ["partner_central", "manual"];
   var COMP = "Sample competitive set";
+  var EXPEDIA_COMP = "Sample Expedia competitive set";
   var TZ = "America/Chicago";
   var KEY = "jrportal_fair_share_v1";
   var FIELDS = ["occ", "occComp", "occLy", "occCompLy", "adr", "adrComp", "adrLy", "adrCompLy", "revpar", "revparComp", "revparLy", "revparCompLy"];
+  var EXPEDIA_FIELDS = ["search", "searchComp", "searchLy", "searchCompLy", "nights", "nightsComp", "nightsLy", "nightsCompLy", "revenue", "revenueComp", "revenueLy", "revenueCompLy"];
   var SAMPLE = {
     MSPWE: {
       t7: { occ: 78.4, occComp: 74.1, occLy: 74.2, occCompLy: 73.0, adr: 129.50, adrComp: 134.20, adrLy: 124.10, adrCompLy: 128.40, revpar: 101.53, revparComp: 99.44, revparLy: 92.08, revparCompLy: 93.73 },
@@ -43,6 +55,20 @@
     MSPMS: {
       t7: { occ: 64.8, occComp: 71.4, occLy: 66.5, occCompLy: 70.2, adr: 132.10, adrComp: 138.60, adrLy: 129.40, adrCompLy: 135.20, revpar: 85.60, revparComp: 98.96, revparLy: 86.05, revparCompLy: 94.91 },
       t28: { occ: 67.1, occComp: 70.8, occLy: 68.4, occCompLy: 70.0, adr: 130.25, adrComp: 136.40, adrLy: 127.90, adrCompLy: 133.10, revpar: 87.40, revparComp: 96.57, revparLy: 87.48, revparCompLy: 93.17 }
+    }
+  };
+  var EXPEDIA = {
+    MSPWE: {
+      t7: { search: 24.6, searchComp: 21.0, searchLy: 22.0, searchCompLy: 20.5, nights: 86, nightsComp: 92, nightsLy: 80, nightsCompLy: 88, revenue: 11240, revenueComp: 12480, revenueLy: 10110, revenueCompLy: 11840 },
+      t28: { search: 23.1, searchComp: 20.8, searchLy: 21.4, searchCompLy: 20.2, nights: 310, nightsComp: 328, nightsLy: 290, nightsCompLy: 320, revenue: 41250, revenueComp: 44800, revenueLy: 38100, revenueCompLy: 42600 }
+    },
+    MSPAM: {
+      t7: { search: 14.2, searchComp: 17.8, searchLy: 15.0, searchCompLy: 17.4, nights: 74, nightsComp: 70, nightsLy: 68, nightsCompLy: 71, revenue: 13880, revenueComp: 12150, revenueLy: 12440, revenueCompLy: 11820 },
+      t28: { search: 15.6, searchComp: 17.2, searchLy: 15.1, searchCompLy: 16.9, nights: 268, nightsComp: 255, nightsLy: 250, nightsCompLy: 258, revenue: 48620, revenueComp: 44210, revenueLy: 45100, revenueCompLy: 43040 }
+    },
+    MSPMS: {
+      t7: { search: 11.8, searchComp: 15.4, searchLy: 12.6, searchCompLy: 15.1, nights: 51, nightsComp: 66, nightsLy: 55, nightsCompLy: 64, revenue: 6840, revenueComp: 9120, revenueLy: 7210, revenueCompLy: 8680 },
+      t28: { search: 12.4, searchComp: 15.0, searchLy: 13.0, searchCompLy: 14.8, nights: 198, nightsComp: 240, nightsLy: 210, nightsCompLy: 236, revenue: 26140, revenueComp: 33200, revenueLy: 27400, revenueCompLy: 31850 }
     }
   };
 
@@ -147,7 +173,7 @@
       prior: prior,
       indexValue: index,
       indexPrior: indexPrior,
-      yoy: metric.kind === "occ" ? yoyPoints(value, prior) : yoyPercent(value, prior),
+      yoy: metric.kind === "occ" || metric.kind === "pct" ? yoyPoints(value, prior) : yoyPercent(value, prior),
       indexYoy: yoyPoints(index, indexPrior)
     };
   }
@@ -156,6 +182,12 @@
     var window = bag && bag[period];
     if (!window) return [];
     return METRICS.map(function (metric) { return measure(window, metric); });
+  }
+  function compareExpedia(model, hotel, period) {
+    var bag = model && model.hotels && model.hotels[hotel] && model.hotels[hotel].expedia;
+    var window = bag && bag[period];
+    if (!window) return [];
+    return EXPEDIA_METRICS.map(function (metric) { return measure(window, metric); });
   }
   function toneIndex(n) {
     if (n == null || !isFinite(Number(n))) return "none";
@@ -170,15 +202,28 @@
     return "bad";
   }
   function fmtOcc(n) { return n == null ? "—" : round1(n).toFixed(1) + "%"; }
-  function fmtMoney(n) { return n == null ? "—" : "$" + round2(n).toFixed(2); }
-  function fmtValue(metric) { return metric.kind === "occ" ? fmtOcc(metric.value) : fmtMoney(metric.value); }
-  function fmtComp(metric) { return metric.kind === "occ" ? fmtOcc(metric.comp) : fmtMoney(metric.comp); }
+  function fmtCount(n) { return n == null ? "—" : String(Math.round(Number(n))); }
+  function fmtMoney(n) {
+    if (n == null) return "—";
+    var rounded = round2(n);
+    var neg = rounded < 0;
+    var parts = Math.abs(rounded).toFixed(2).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return (neg ? "-$" : "$") + parts.join(".");
+  }
+  function fmtKind(n, kind) {
+    if (kind === "occ" || kind === "pct") return fmtOcc(n);
+    if (kind === "count") return fmtCount(n);
+    return fmtMoney(n);
+  }
+  function fmtValue(metric) { return fmtKind(metric.value, metric.kind); }
+  function fmtComp(metric) { return fmtKind(metric.comp, metric.kind); }
   function fmtIndex(n) { return n == null ? "—" : round1(n).toFixed(1); }
   function fmtMove(n, kind, lang) {
     if (n == null) return "—";
     var sign = n > 0 ? "+" : "";
     var text = sign + round1(n).toFixed(1);
-    if (kind === "occ" || kind === "index") return text + " " + tx(lang, "pts", "pts");
+    if (kind === "occ" || kind === "pct" || kind === "index") return text + " " + tx(lang, "pts", "pts");
     return text + "%";
   }
   function buildDemo(now) {
@@ -189,7 +234,14 @@
         currency: "USD",
         source: "sample",
         t7: clone(SAMPLE[code].t7),
-        t28: clone(SAMPLE[code].t28)
+        t28: clone(SAMPLE[code].t28),
+        expedia: {
+          compSet: EXPEDIA_COMP,
+          currency: "USD",
+          source: "sample",
+          t7: clone(EXPEDIA[code].t7),
+          t28: clone(EXPEDIA[code].t28)
+        }
       };
     });
     return {
@@ -198,6 +250,11 @@
         connected: false,
         sources: ["str", "daystar", "mint", "hilton"],
         pendingAsOf: "2026-11-05"
+      },
+      expediaFeed: {
+        connected: false,
+        sources: ["partner_central"],
+        access: ["MSPWE", "MSPAM", "MSPMS"]
       },
       hotels: hotels
     };
@@ -225,6 +282,26 @@
     });
     return out;
   }
+  function expediaRows(model) {
+    var out = [];
+    HOTELS.forEach(function (hotel) {
+      var bag = model.hotels[hotel].expedia;
+      PERIODS.forEach(function (period) {
+        var window = bag[period.id];
+        var row = {
+          hotel: hotel,
+          period: period.id,
+          period_end: model.asOf,
+          source: bag.source || "sample",
+          currency: bag.currency || "USD",
+          comp_set_label: bag.compSet
+        };
+        EXPEDIA_FIELDS.forEach(function (key) { row[snake(key)] = window[key]; });
+        out.push(row);
+      });
+    });
+    return out;
+  }
   function importSlot(hotel, source, periodEnd, note) {
     if (HOTELS.indexOf(hotel) < 0 || IMPORT_SOURCES.indexOf(source) < 0) return null;
     if (periodEnd && !/^\d{4}-\d{2}-\d{2}$/.test(String(periodEnd))) return null;
@@ -236,22 +313,42 @@
       note: String(note || "").slice(0, 240)
     };
   }
+  function expediaImportSlot(hotel, source, periodEnd, note) {
+    if (HOTELS.indexOf(hotel) < 0 || EXPEDIA_IMPORTS.indexOf(source) < 0) return null;
+    if (periodEnd && !/^\d{4}-\d{2}-\d{2}$/.test(String(periodEnd))) return null;
+    return {
+      hotel: hotel,
+      source: source,
+      status: "pending",
+      period_end: periodEnd || null,
+      note: String(note || "").slice(0, 240)
+    };
+  }
+  function writeFields(window, row, fields, pctPrefix) {
+    fields.forEach(function (key) {
+      var raw = row[key] != null ? row[key] : row[snake(key)];
+      var n = num(raw);
+      if (n == null || n < 0 || n > 10000000) return;
+      if (key.indexOf(pctPrefix) === 0 && n > 100) return;
+      window[key] = key.indexOf(pctPrefix) === 0 ? round1(n) : (key.indexOf("nights") === 0 ? Math.round(n) : round2(n));
+    });
+  }
   function applySaved(model, saved) {
     if (!saved || saved.v !== 1 || !saved.rows) return model;
     var next = clone(model);
     saved.rows.forEach(function (row) {
       if (!row || HOTELS.indexOf(row.hotel) < 0 || !periodById(row.period)) return;
-      if (SOURCES.indexOf(row.source) < 0) return;
       var bag = next.hotels[row.hotel];
-      if (!bag || !bag[row.period]) return;
-      var window = bag[row.period];
-      FIELDS.forEach(function (key) {
-        var raw = row[key] != null ? row[key] : row[snake(key)];
-        var n = num(raw);
-        if (n == null) return;
-        if ((key.indexOf("occ") === 0 && (n < 0 || n > 100)) || n < 0 || n > 100000) return;
-        window[key] = key.indexOf("occ") === 0 ? round1(n) : round2(n);
-      });
+      if (!bag) return;
+      if (row.feed === "expedia") {
+        if (EXPEDIA_SOURCES.indexOf(row.source) < 0 || !bag.expedia || !bag.expedia[row.period]) return;
+        writeFields(bag.expedia[row.period], row, EXPEDIA_FIELDS, "search");
+        if (row.comp_set_label || row.compSet) bag.expedia.compSet = String(row.comp_set_label || row.compSet).slice(0, 80);
+        bag.expedia.source = row.source;
+        return;
+      }
+      if (SOURCES.indexOf(row.source) < 0 || !bag[row.period]) return;
+      writeFields(bag[row.period], row, FIELDS, "occ");
       if (row.comp_set_label || row.compSet) bag.compSet = String(row.comp_set_label || row.compSet).slice(0, 80);
       bag.source = row.source;
     });
@@ -268,19 +365,38 @@
       "La participación justa es el hotel dividido entre su grupo competitivo, por 100. 100 es una parte pareja. MPI es ocupación, ARI es ADR y RGI es RevPAR. Interanual compara esta ventana con la misma ventana del año pasado. El número pequeño bajo la participación justa es cómo se movió ese índice."
     )) + "</p>";
   }
-  function periodHtml(model, hotel, period, lang) {
-    var bag = model.hotels[hotel];
-    var rows = compare(model, hotel, period.id);
+  function expediaNote(lang) {
+    return "<p class=\"fs-note\"><span class=\"ex\">" + esc(tx(lang, "EXAMPLE", "EJEMPLO")) + "</span> " +
+      esc(tx(lang, "Sample Expedia figures for this demo. Not a live Partner Central feed.", "Cifras de Expedia de ejemplo. No es un feed en vivo de Partner Central.")) + "</p>" +
+      "<p class=\"fs-note\">" + esc(tx(lang, "Operations has Expedia Partner Central access for these three hotels. This screen does not call it.", "Operaciones ya tiene acceso a Expedia Partner Central para estos tres hoteles. Esta pantalla no lo consulta.")) + "</p>" +
+      "<p class=\"fs-note\">" + esc(tx(lang, "Search share is visibility. Room nights and revenue are property totals versus the sample Expedia competitive set, not bookings.", "La participación en búsquedas es visibilidad. Las noches y los ingresos son totales del hotel contra el grupo competitivo de Expedia de ejemplo, no reservas.")) + "</p>";
+  }
+  function periodHtml(model, hotel, period, lang, feed) {
+    var rootBag = model.hotels[hotel];
+    var bag = feed === "expedia" ? rootBag.expedia : rootBag;
+    var rows = feed === "expedia" ? compareExpedia(model, hotel, period.id) : compare(model, hotel, period.id);
+    var compLabel = feed === "expedia"
+      ? tx(lang, "Sample Expedia competitive set", "Grupo competitivo de Expedia de ejemplo")
+      : (bag.compSet || COMP);
     var head = "<tr><th>" + esc(tx(lang, "Metric", "Medida")) + "</th><th>" + esc(tx(lang, "Hotel", "Hotel")) + "</th><th>" + esc(tx(lang, "Comp set", "Grupo comp.")) + "</th><th>" + esc(tx(lang, "Fair share", "Participación justa")) + "</th><th>" + esc(tx(lang, "YOY", "Interanual")) + "</th></tr>";
     var body = rows.map(function (row) {
-      return "<tr data-metric=\"" + row.id + "\"><th>" + esc(tx(lang, row.en, row.es)) + "</th><td>" + esc(fmtValue(row)) + "</td><td>" + esc(fmtComp(row)) + "</td><td class=\"fs-" + toneIndex(row.indexValue) + "\"><b>" + esc(fmtIndex(row.indexValue) + " " + row.index) + "</b><small>" + esc(fmtMove(row.indexYoy, "index", lang)) + "</small></td><td class=\"fs-" + toneYoy(row.yoy) + "\">" + esc(fmtMove(row.yoy, row.kind, lang)) + "</td></tr>";
+      var indexText = fmtIndex(row.indexValue) + (row.index ? " " + row.index : "");
+      return "<tr data-metric=\"" + row.id + "\"><th>" + esc(tx(lang, row.en, row.es)) + "</th><td>" + esc(fmtValue(row)) + "</td><td>" + esc(fmtComp(row)) + "</td><td class=\"fs-" + toneIndex(row.indexValue) + "\"><b>" + esc(indexText) + "</b><small>" + esc(fmtMove(row.indexYoy, "index", lang)) + "</small></td><td class=\"fs-" + toneYoy(row.yoy) + "\">" + esc(fmtMove(row.yoy, row.kind, lang)) + "</td></tr>";
     }).join("");
-    return "<section class=\"fs-period\" data-period=\"" + period.id + "\" data-hotel=\"" + esc(hotel) + "\"><h3>" + esc(period.id.toUpperCase()) + " · " + esc(tx(lang, period.en, period.es)) + "</h3><p class=\"fs-note\">" +
-      esc(tx(lang, "Period ending", "Periodo que termina") + " " + model.asOf + " · " + (bag.compSet || COMP)) + "</p><div class=\"fs-scroll\"><table class=\"fs-table\"><thead>" + head + "</thead><tbody>" + body + "</tbody></table></div></section>";
+    return "<section class=\"fs-period\" data-feed=\"" + feed + "\" data-period=\"" + period.id + "\" data-hotel=\"" + esc(hotel) + "\"><h3>" + esc(period.id.toUpperCase()) + " · " + esc(tx(lang, period.en, period.es)) + "</h3><p class=\"fs-note\">" +
+      esc(tx(lang, "Period ending", "Periodo que termina") + " " + model.asOf + " · " + compLabel) + "</p><div class=\"fs-scroll\"><table class=\"fs-table\"><thead>" + head + "</thead><tbody>" + body + "</tbody></table></div></section>";
   }
-  function hotelHtml(model, hotel, lang) {
-    return "<section class=\"fs-hotel\" data-hotel=\"" + esc(hotel) + "\"><h3><b>" + esc(hotel) + "</b> " + esc(NAMES[hotel] || hotel) + "</h3>" +
-      PERIODS.map(function (period) { return periodHtml(model, hotel, period, lang); }).join("") + "</section>";
+  function hotelHtml(model, hotel, lang, feed) {
+    return "<section class=\"fs-hotel\" data-feed=\"" + feed + "\" data-hotel=\"" + esc(hotel) + "\"><h3><b>" + esc(hotel) + "</b> " + esc(NAMES[hotel] || hotel) + "</h3>" +
+      PERIODS.map(function (period) { return periodHtml(model, hotel, period, lang, feed); }).join("") + "</section>";
+  }
+  function sourceBlock(model, hotels, lang, feed) {
+    var title = feed === "expedia"
+      ? ["Expedia fair share", "Participación justa de Expedia"]
+      : ["STR fair share", "Participación justa STR"];
+    var note = feed === "expedia" ? expediaNote(lang) : sampleNote(lang) + legend(lang);
+    return "<section class=\"fs-source\" data-feed=\"" + feed + "\"><h3 class=\"fs-source-title\">" + esc(tx(lang, title[0], title[1])) + "</h3>" + note +
+      hotels.map(function (hotel) { return hotelHtml(model, hotel, lang, feed); }).join("") + "</section>";
   }
   function sectionHtml(model, actor, view) {
     view = view || {};
@@ -291,21 +407,24 @@
     var hotels = allowed;
     if (view.hotel && allowed.indexOf(view.hotel) >= 0 && view.portfolio === false) hotels = [view.hotel];
     var many = hotels.length > 1;
-    return "<section class=\"fs" + (many ? " fs-portfolio" : "") + "\" id=\"fairShareHome\" data-fair-share=\"1\">" +
-      "<h2>" + esc(tx(lang, "Fair share", "Participación justa")) + "</h2>" + sampleNote(lang) + legend(lang) +
-      hotels.map(function (hotel) { return hotelHtml(model, hotel, lang); }).join("") + "</section>";
+    return "<section class=\"fs" + (many ? " fs-portfolio" : "") + "\" id=\"revRoot\" data-revenue=\"1\">" +
+      "<h2>" + esc(tx(lang, "Revenue", "Ingresos")) + "</h2>" +
+      sourceBlock(model, hotels, lang, "str") +
+      sourceBlock(model, hotels, lang, "expedia") + "</section>";
   }
   function pageHtml(model, actor, view) {
     var html = sectionHtml(model, actor, view);
-    if (!html) return "<div class=\"fs\" id=\"fairShareHome\" hidden></div>";
+    if (!html) return "<div class=\"fs\" id=\"revRoot\" hidden></div>";
     return html;
   }
 
   var api = {
-    HOTELS: HOTELS, NAMES: NAMES, PERIODS: PERIODS, METRICS: METRICS, SOURCES: SOURCES, IMPORT_SOURCES: IMPORT_SOURCES,
+    HOTELS: HOTELS, NAMES: NAMES, PERIODS: PERIODS, METRICS: METRICS, EXPEDIA_METRICS: EXPEDIA_METRICS,
+    SOURCES: SOURCES, IMPORT_SOURCES: IMPORT_SOURCES, EXPEDIA_SOURCES: EXPEDIA_SOURCES, EXPEDIA_IMPORTS: EXPEDIA_IMPORTS,
     norm: norm, canSee: canSee, hotelsFor: hotelsFor, demoUi: demoUi, todayOf: todayOf,
     shareIndex: shareIndex, yoyPoints: yoyPoints, yoyPercent: yoyPercent, toneIndex: toneIndex, toneYoy: toneYoy,
-    buildDemo: buildDemo, compare: compare, snapshotRows: snapshotRows, importSlot: importSlot, applySaved: applySaved,
+    buildDemo: buildDemo, compare: compare, compareExpedia: compareExpedia, snapshotRows: snapshotRows, expediaRows: expediaRows,
+    importSlot: importSlot, expediaImportSlot: expediaImportSlot, applySaved: applySaved,
     sectionHtml: sectionHtml, pageHtml: pageHtml, fmtMove: fmtMove
   };
   root.FairShare = api;
@@ -333,15 +452,28 @@
   function bootPage() {
     var actor = actorNow();
     var surface = norm(surfaceNow());
-    if (surface !== "GM" && surface !== "Above Property") return "<div class=\"fs\" id=\"fairShareHome\" hidden></div>";
+    if (surface !== "GM" && surface !== "Above Property") return "<div class=\"fs\" id=\"revRoot\" hidden></div>";
     var hotel = "";
     try { hotel = S.hotel || actor.hotel || ""; } catch (e) { hotel = actor.hotel || ""; }
-    if (!featureOn(hotel || actor.hotel || "MSPWE")) return "<div class=\"fs\" id=\"fairShareHome\" hidden></div>";
+    if (!featureOn(hotel || actor.hotel || "MSPWE")) return "<div class=\"fs\" id=\"revRoot\" hidden></div>";
     return pageHtml(bundle(), actor, { lang: langNow(), hotel: hotel, portfolio: norm(actor.role) === "Above Property" });
   }
-  if (typeof M !== "undefined") M.fshare = ["📈", "Fair share"];
-  if (typeof I18N !== "undefined" && I18N.es) I18N.es["Fair share"] = "Participación justa";
-  if (typeof V !== "undefined") V.fshare = bootPage;
+  if (typeof M !== "undefined") M.rev = ["📈", "Revenue"];
+  if (typeof I18N !== "undefined" && I18N.es) I18N.es.Revenue = "Ingresos";
+  if (typeof V !== "undefined") V.rev = bootPage;
+  if (typeof NAV5 !== "undefined" && NAV5.GM) {
+    var gmNav = NAV5.GM.filter(function (id) { return id !== "rev"; });
+    var navAt = gmNav.indexOf("home");
+    gmNav.splice(navAt >= 0 ? navAt + 1 : 0, 0, "rev");
+    NAV5.GM = gmNav;
+  }
+  function showRev(role) {
+    var actor = actorNow();
+    var surface = norm(role);
+    var hotel = "";
+    try { hotel = (typeof S !== "undefined" && S.hotel) || actor.hotel || ""; } catch (e) { hotel = actor.hotel || ""; }
+    return hotelsFor(actor.role, actor.hotel).length > 0 && (surface === "GM" || surface === "Above Property") && featureOn(hotel || actor.hotel || "MSPWE");
+  }
   if (typeof tilesFor === "function") {
     var prevTiles = tilesFor;
     root.tilesFor = function (role) {
@@ -349,47 +481,45 @@
       var actor = actorNow();
       var hotel = "";
       try { hotel = S.hotel || actor.hotel || ""; } catch (e) { hotel = actor.hotel || ""; }
-      var surface = norm(role);
-      var show = hotelsFor(actor.role, actor.hotel).length > 0 && (surface === "GM" || surface === "Above Property") && featureOn(hotel || actor.hotel || "MSPWE");
-      if (show && list.indexOf("fshare") < 0) list.splice(Math.min(4, list.length), 0, "fshare");
-      if (!show) list = list.filter(function (id) { return id !== "fshare"; });
-      if (root.HHQMenus && root.HHQMenus.menuAllows && !root.HHQMenus.menuAllows("fshare", actor.role, hotel, function (h, feature) {
+      var show = showRev(role);
+      if (show && list.indexOf("rev") < 0) list.splice(Math.min(1, list.length), 0, "rev");
+      if (!show) list = list.filter(function (id) { return id !== "rev" && id !== "fshare"; });
+      if (root.HHQMenus && root.HHQMenus.menuAllows && !root.HHQMenus.menuAllows("rev", actor.role, hotel, function (h, feature) {
         return feature === "fair_share" ? featureOn(h) : true;
-      })) list = list.filter(function (id) { return id !== "fshare"; });
+      })) list = list.filter(function (id) { return id !== "rev" && id !== "fshare"; });
       return list;
     };
   }
-  try { if (typeof RSEC !== "undefined" && RSEC[4] && RSEC[4][2].indexOf("fshare") < 0) RSEC[4][2].push("fshare"); } catch (e) {}
-  try { if (typeof NOCOLS !== "undefined" && NOCOLS.indexOf("fshare") < 0) NOCOLS.push("fshare"); } catch (e2) {}
+  if (typeof navFor === "function") {
+    var prevNav = navFor;
+    root.navFor = function (role) {
+      var list = (prevNav(role) || []).slice();
+      if (showRev(role) && list.indexOf("rev") < 0) {
+        var at = list.indexOf("home");
+        list.splice(at >= 0 ? at + 1 : 0, 0, "rev");
+      }
+      if (!showRev(role)) list = list.filter(function (id) { return id !== "rev" && id !== "fshare"; });
+      return list;
+    };
+  }
+  try {
+    if (typeof RSEC !== "undefined" && RSEC[0] && RSEC[0][2].indexOf("rev") < 0) {
+      var atHome = RSEC[0][2].indexOf("home");
+      RSEC[0][2].splice(atHome >= 0 ? atHome + 1 : 0, 0, "rev");
+    }
+  } catch (e) {}
+  try { if (typeof NOCOLS !== "undefined" && NOCOLS.indexOf("rev") < 0) NOCOLS.push("rev"); } catch (e2) {}
   (function (spec) {
     if (root.HotelFeatures && root.HotelFeatures.register) root.HotelFeatures.register(spec);
     else (root.HF_QUEUE = root.HF_QUEUE || []).push(spec);
-  })({ id: "fair_share", en: "Fair share", es: "Participación justa", order: 18 });
+  })({ id: "fair_share", en: "Revenue", es: "Ingresos", order: 18 });
 
-  function mountHome() {
-    var old = document.getElementById("fairShareHome");
-    if (old && old.parentNode && !(typeof S !== "undefined" && S.tab === "fshare" && old.parentNode.id === "app")) old.remove();
-    if (typeof S === "undefined" || S.tab !== "home") return;
-    var actor = actorNow();
-    var surface = norm(surfaceNow());
-    if (surface !== "GM" && surface !== "Above Property") return;
-    var hotel = "";
-    try { hotel = S.hotel || actor.hotel || ""; } catch (e) { hotel = actor.hotel || ""; }
-    if (!featureOn(hotel || actor.hotel || "MSPWE")) return;
-    var drilled = false;
-    try { drilled = !!S.hhqDrill; } catch (e2) {}
-    var portfolio = norm(actor.role) === "Above Property" && !drilled;
-    var html = sectionHtml(bundle(), actor, { lang: langNow(), hotel: portfolio ? "" : hotel, portfolio: portfolio });
-    if (!html) return;
-    var glance = document.getElementById("glanceHome");
-    var today = document.getElementById("hhqToday");
-    if (glance) glance.insertAdjacentHTML("afterend", html);
-    else if (today) today.insertAdjacentHTML("afterend", html);
-  }
   var style = document.createElement("style");
   style.textContent = [
     ".fs{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}",
     ".fs h2,.fs h3{margin:0}",
+    ".fs-source{display:flex;flex-direction:column;gap:8px;margin:4px 0 16px}",
+    ".fs-source-title{font-size:18px;color:#14365d}",
     ".fs-note{margin:0;color:#3c4658;font-size:13px;font-weight:650}",
     ".fs-hotel{background:#fff;border:1px solid #e6e8ee;border-radius:14px;padding:12px}",
     ".fs-hotel h3 b{margin-right:6px}",
@@ -408,13 +538,4 @@
     "@media(min-width:768px){.fs-portfolio{gap:12px}}"
   ].join("");
   document.head.appendChild(style);
-  setTimeout(function () {
-    if (typeof render !== "function") return;
-    var prev = render;
-    root.render = function () {
-      var result = prev.apply(this, arguments);
-      try { mountHome(); } catch (e) {}
-      return result;
-    };
-  }, 0);
 })(typeof window !== "undefined" ? window : globalThis);

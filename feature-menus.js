@@ -20,7 +20,7 @@
     inspx: "inspections",
     ifix: "inspections",
     permits: "licenses",
-    fshare: "fair_share",
+    rev: "fair_share",
     gchat: "guest_messages"
   };
   var DESK = ["Front Desk", "AGM", "GM", "Above Property", "JR Corporate"];

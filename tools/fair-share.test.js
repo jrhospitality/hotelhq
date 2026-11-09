@@ -26,11 +26,12 @@ test("only a GM or corporate login can see fair share, and only their hotels", (
   assert.deepEqual(fsmod.hotelsFor("Front Desk", "MSPWE"), []);
   assert.deepEqual(fsmod.hotelsFor("Housekeeping", "MSPMS"), []);
   assert.deepEqual(fsmod.hotelsFor("JR Corporate", null), ["MSPWE", "MSPAM", "MSPMS"]);
-  assert.equal(menus.menuAllows("fshare", "GM", "MSPWE"), true);
-  assert.equal(menus.menuAllows("fshare", "Above Property", "MSPMS"), true);
-  assert.equal(menus.menuAllows("fshare", "AGM", "MSPWE"), false);
-  assert.equal(menus.menuAllows("fshare", "Front Desk", "MSPWE"), false);
-  assert.equal(menus.menuAllows("fshare", "GM", "MSPWE", function (_h, feature) { return feature !== "fair_share"; }), false);
+  assert.equal(menus.menuAllows("rev", "GM", "MSPWE"), true);
+  assert.equal(menus.menuAllows("rev", "Above Property", "MSPMS"), true);
+  assert.equal(menus.menuAllows("rev", "AGM", "MSPWE"), false);
+  assert.equal(menus.menuAllows("rev", "Front Desk", "MSPWE"), false);
+  assert.equal(menus.menuAllows("rev", "Housekeeping", "MSPWE"), false);
+  assert.equal(menus.menuAllows("rev", "GM", "MSPWE", function (_h, feature) { return feature !== "fair_share"; }), false);
 });
 
 test("T7 and T28 show hotel, comp set, fair share, and year over year", () => {
@@ -70,8 +71,16 @@ test("T7 and T28 show hotel, comp set, fair share, and year over year", () => {
 test("a GM page is one hotel and corporate sees all three, in English and Spanish", () => {
   const model = fsmod.buildDemo(NOW);
   const page = fsmod.pageHtml(model, gm, { lang: "en", portfolio: false, hotel: "MSPWE" });
-  assert.match(page, /id="fairShareHome"/);
-  assert.match(page, /Fair share/);
+  assert.match(page, /id="revRoot"/);
+  assert.match(page, />Revenue</);
+  assert.match(page, /STR fair share/);
+  assert.match(page, /Expedia fair share/);
+  assert.match(page, /data-feed="str"/);
+  assert.match(page, /data-feed="expedia"/);
+  assert.match(page, /117\.1/);
+  assert.match(page, /\$11,240\.00/);
+  assert.match(page, /Search share/);
+  assert.match(page, /Room nights/);
   assert.match(page, /Holiday Inn Express Golden Valley/);
   assert.match(page, /data-period="t7"/);
   assert.match(page, /data-period="t28"/);
@@ -90,7 +99,10 @@ test("a GM page is one hotel and corporate sees all three, in English and Spanis
   assert.equal(page.includes("148.75"), false);
   assert.equal(page.includes("data-hotel=\"MSPMS\""), false);
   const es = fsmod.pageHtml(model, gm, { lang: "es", portfolio: false, hotel: "MSPWE" });
-  assert.match(es, /Participación justa/);
+  assert.match(es, />Ingresos</);
+  assert.match(es, /Participación justa STR/);
+  assert.match(es, /Participación justa de Expedia/);
+  assert.match(es, /Participación en búsquedas/);
   assert.match(es, /Últimos 7 días/);
   assert.match(es, /Últimos 28 días/);
   assert.match(es, /Ocupación/);
@@ -105,6 +117,9 @@ test("a GM page is one hotel and corporate sees all three, in English and Spanis
   assert.match(corpPage, /data-hotel="MSPWE"/);
   assert.match(corpPage, /data-hotel="MSPAM"/);
   assert.match(corpPage, /data-hotel="MSPMS"/);
+  assert.match(corpPage, /Expedia fair share/);
+  assert.match(corpPage, /79\.8/);
+  assert.match(corpPage, /75\.0/);
   const drilled = fsmod.sectionHtml(model, corp, { lang: "en", portfolio: false, hotel: "MSPMS" });
   assert.match(drilled, /SpringHill Suites/);
   assert.equal(drilled.includes("Holiday Inn Express"), false);
@@ -128,6 +143,26 @@ test("snapshot rows match the import table and sample data stays unlabeled as a 
   assert.equal(row.adr_ly, 124.10);
   assert.equal(row.revpar_comp_ly, 93.73);
   assert.equal(row.comp_set_label, "Sample competitive set");
+  const expedia = fsmod.expediaRows(model);
+  assert.equal(expedia.length, 6);
+  const exp = expedia.find((item) => item.hotel === "MSPWE" && item.period === "t7");
+  assert.equal(exp.source, "sample");
+  assert.equal(exp.search, 24.6);
+  assert.equal(exp.search_comp, 21.0);
+  assert.equal(exp.nights, 86);
+  assert.equal(exp.revenue, 11240);
+  assert.equal(exp.comp_set_label, "Sample Expedia competitive set");
+  const t7x = fsmod.compareExpedia(model, "MSPWE", "t7");
+  assert.equal(t7x.find((item) => item.id === "search").indexValue, 117.1);
+  assert.equal(t7x.find((item) => item.id === "nights").indexValue, 93.5);
+  assert.equal(t7x.find((item) => item.id === "revenue").indexValue, 90.1);
+  assert.equal(fsmod.compareExpedia(model, "MSPWE", "t28").find((item) => item.id === "search").indexValue, 111.1);
+  assert.equal(fsmod.compareExpedia(model, "MSPAM", "t7").find((item) => item.id === "search").indexValue, 79.8);
+  assert.equal(fsmod.compareExpedia(model, "MSPMS", "t7").find((item) => item.id === "revenue").indexValue, 75);
+  const expSlot = fsmod.expediaImportSlot("MSPAM", "partner_central", "2026-11-09", "Partner Central not called");
+  assert.equal(expSlot.status, "pending");
+  assert.equal(expSlot.source, "partner_central");
+  assert.equal(fsmod.expediaImportSlot("MSPWE", "str", "2026-11-09", ""), null);
   const slot = fsmod.importSlot("MSPWE", "daystar", "2026-11-09", "IHG DaySTAR still pending");
   assert.equal(slot.status, "pending");
   assert.equal(slot.source, "daystar");
@@ -140,6 +175,13 @@ test("snapshot rows match the import table and sample data stays unlabeled as a 
   assert.equal(saved.hotels.MSPMS.t28.occ, 70.2);
   assert.equal(saved.hotels.MSPMS.source, "str");
   assert.equal(saved.hotels.MSPWE.t7.occ, 78.4);
+  const withExpedia = fsmod.applySaved(model, {
+    v: 1,
+    rows: [{ feed: "expedia", hotel: "MSPWE", period: "t7", source: "partner_central", search: 20, search_comp: 20 }]
+  });
+  assert.equal(withExpedia.hotels.MSPWE.expedia.t7.search, 20);
+  assert.equal(withExpedia.hotels.MSPWE.expedia.source, "partner_central");
+  assert.equal(withExpedia.hotels.MSPWE.t7.occ, 78.4);
   const blob = JSON.stringify(model) + fsmod.pageHtml(model, corp, { lang: "en", portfolio: true });
   assert.equal(/@/.test(blob), false);
   assert.equal(/\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/.test(blob), false);
@@ -166,6 +208,13 @@ test("the migration stores later imports and does not publish sample guests", ()
   assert.match(sql, /November 5, 2026/);
   assert.match(sql, /enable row level security/);
   assert.match(sql, /grant select on table public\.fair_share_snapshots to authenticated/);
+  assert.match(sql, /expedia_fair_share_snapshots/);
+  assert.match(sql, /expedia_fair_share_imports/);
+  assert.match(sql, /partner_central/);
+  assert.match(sql, /No guest or booking is stored/);
+  assert.equal(src.includes("insertAdjacentHTML"), false);
+  assert.match(src, /M\.rev = \["📈", "Revenue"\]/);
+  assert.match(src, /I18N\.es\.Revenue = "Ingresos"/);
   assert.doesNotMatch(sql, /grant insert/i);
   assert.doesNotMatch(sql, /drop table/i);
   assert.doesNotMatch(sql, /delete from/i);

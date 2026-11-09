@@ -7,6 +7,10 @@
 -- fair_share_snapshots is the slot a later import writes. The file body is not stored.
 -- fair_share_imports records that a feed was received. GM reads their hotel.
 -- Corporate reads every hotel. AGM, front desk, and other roles read no fair-share rows.
+-- expedia_fair_share_snapshots is the slot for a later Expedia Partner Central import.
+-- Operations has Partner Central access for MSPWE, MSPAM, and MSPMS.
+-- This migration does not call Expedia. Rows are property totals, not bookings.
+-- Do not store a guest name, email, phone, or booking id in these tables.
 --
 -- guest_chat_messages is unanswered inbound brand guest chat.
 -- It is not a guest issue, a pre-checkout reminder, or a guest-request callback.
@@ -116,6 +120,49 @@ create table if not exists public.fair_share_imports (
 comment on table public.fair_share_imports is
   'Status of a later fair-share import. The file body is not stored. IHG DaySTAR/STAR access was still pending as of November 5, 2026.';
 
+create table if not exists public.expedia_fair_share_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  hotel text not null check (hotel in ('MSPWE', 'MSPAM', 'MSPMS')),
+  period text not null check (period in ('t7', 't28')),
+  period_end date not null,
+  source text not null check (source in ('sample', 'partner_central', 'manual')),
+  currency text not null default 'USD' check (currency = 'USD'),
+  search numeric(5, 1) check (search is null or (search >= 0 and search <= 100)),
+  search_comp numeric(5, 1) check (search_comp is null or (search_comp >= 0 and search_comp <= 100)),
+  search_ly numeric(5, 1) check (search_ly is null or (search_ly >= 0 and search_ly <= 100)),
+  search_comp_ly numeric(5, 1) check (search_comp_ly is null or (search_comp_ly >= 0 and search_comp_ly <= 100)),
+  nights numeric(8, 1) check (nights is null or (nights >= 0 and nights < 1000000)),
+  nights_comp numeric(8, 1) check (nights_comp is null or (nights_comp >= 0 and nights_comp < 1000000)),
+  nights_ly numeric(8, 1) check (nights_ly is null or (nights_ly >= 0 and nights_ly < 1000000)),
+  nights_comp_ly numeric(8, 1) check (nights_comp_ly is null or (nights_comp_ly >= 0 and nights_comp_ly < 1000000)),
+  revenue numeric(12, 2) check (revenue is null or (revenue >= 0 and revenue < 100000000)),
+  revenue_comp numeric(12, 2) check (revenue_comp is null or (revenue_comp >= 0 and revenue_comp < 100000000)),
+  revenue_ly numeric(12, 2) check (revenue_ly is null or (revenue_ly >= 0 and revenue_ly < 100000000)),
+  revenue_comp_ly numeric(12, 2) check (revenue_comp_ly is null or (revenue_comp_ly >= 0 and revenue_comp_ly < 100000000)),
+  comp_set_label text not null default '' check (char_length(comp_set_label) <= 80),
+  imported_at timestamptz not null default pg_catalog.now(),
+  unique (hotel, period, period_end, source)
+);
+
+comment on table public.expedia_fair_share_snapshots is
+  'T7 or T28 Expedia fair share for one hotel. A later Partner Central import writes rows here. No guest or booking is stored. No feed is connected.';
+
+create index if not exists expedia_fair_share_snapshots_hotel_idx
+  on public.expedia_fair_share_snapshots (hotel, period, period_end desc);
+
+create table if not exists public.expedia_fair_share_imports (
+  id uuid primary key default gen_random_uuid(),
+  hotel text not null check (hotel in ('MSPWE', 'MSPAM', 'MSPMS')),
+  source text not null check (source in ('partner_central', 'manual')),
+  status text not null check (status in ('pending', 'received', 'applied', 'rejected')),
+  period_end date,
+  note text not null default '' check (char_length(note) <= 240),
+  created_at timestamptz not null default pg_catalog.now()
+);
+
+comment on table public.expedia_fair_share_imports is
+  'Status of a later Expedia Partner Central import. The file body is not stored. This migration does not call Expedia.';
+
 create table if not exists public.guest_chat_messages (
   id uuid primary key default gen_random_uuid(),
   hotel text not null check (hotel in ('MSPWE', 'MSPAM', 'MSPMS')),
@@ -156,6 +203,8 @@ comment on table public.guest_chat_imports is
 
 alter table public.fair_share_snapshots enable row level security;
 alter table public.fair_share_imports enable row level security;
+alter table public.expedia_fair_share_snapshots enable row level security;
+alter table public.expedia_fair_share_imports enable row level security;
 alter table public.guest_chat_messages enable row level security;
 alter table public.guest_chat_imports enable row level security;
 
@@ -211,6 +260,16 @@ create policy fair_share_snapshots_select on public.fair_share_snapshots
 
 drop policy if exists fair_share_imports_select on public.fair_share_imports;
 create policy fair_share_imports_select on public.fair_share_imports
+  for select to authenticated
+  using (private.fair_share_allowed(hotel));
+
+drop policy if exists expedia_fair_share_snapshots_select on public.expedia_fair_share_snapshots;
+create policy expedia_fair_share_snapshots_select on public.expedia_fair_share_snapshots
+  for select to authenticated
+  using (private.fair_share_allowed(hotel));
+
+drop policy if exists expedia_fair_share_imports_select on public.expedia_fair_share_imports;
+create policy expedia_fair_share_imports_select on public.expedia_fair_share_imports
   for select to authenticated
   using (private.fair_share_allowed(hotel));
 
@@ -279,10 +338,14 @@ grant execute on function public.mark_guest_chat_responded(uuid) to authenticate
 
 revoke all on table public.fair_share_snapshots from public, anon;
 revoke all on table public.fair_share_imports from public, anon;
+revoke all on table public.expedia_fair_share_snapshots from public, anon;
+revoke all on table public.expedia_fair_share_imports from public, anon;
 revoke all on table public.guest_chat_messages from public, anon;
 revoke all on table public.guest_chat_imports from public, anon;
 
 grant select on table public.fair_share_snapshots to authenticated;
 grant select on table public.fair_share_imports to authenticated;
+grant select on table public.expedia_fair_share_snapshots to authenticated;
+grant select on table public.expedia_fair_share_imports to authenticated;
 grant select on table public.guest_chat_messages to authenticated;
 grant select on table public.guest_chat_imports to authenticated;
