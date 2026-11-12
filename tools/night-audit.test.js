@@ -209,7 +209,7 @@ test("live mode does not turn the screen on, and the migration is additive", () 
   const src = fs.readFileSync(path.join(root, "night-audit.js"), "utf8");
   assert.match(html, /night-audit\.js/);
   assert.match(sw, /night-audit\.js/);
-  assert.match(sw, /hotelhq-shell-v22/);
+  assert.match(sw, /hotelhq-shell-v23/);
   assert.match(home, /NightAudit\.homeHtml/);
   assert.match(src, /!\s*demoUi\(\)/);
   const logic = src.slice(src.indexOf("function hasReport"), src.indexOf("function streak"));
