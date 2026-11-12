@@ -16,52 +16,25 @@ create schema if not exists private;
 
 grant usage on schema private to authenticated;
 
-alter table public.hotel_features drop constraint if exists hotel_features_feature_check;
+-- Applied 2026-11-12 without rewriting hotel_features_feature_check.
+-- That rewrite would drop newer features (guest_comments, training,
+-- inspections, and licenses) already allowed on this database.
+-- night_audit is already in the check. private.set_hotel_feature is left
+-- unchanged. Later migrations own the allowed-feature list.
 
-alter table public.hotel_features add constraint hotel_features_feature_check
-  check (feature in (
-    'parking', 'sales_leads', 'greetings', 'guest_scores',
-    'shuttle', 'meetings', 'winter', 'night_audit'
-  ));
-
-insert into public.hotel_features (hotel, feature, enabled)
-values
-  ('MSPWE', 'night_audit', true),
-  ('MSPAM', 'night_audit', true),
-  ('MSPMS', 'night_audit', true)
-on conflict (hotel, feature) do nothing;
-
-create or replace function private.set_hotel_feature(
-  p_hotel text,
-  p_feature text,
-  p_enabled boolean
-)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
+do $$
 begin
-  if (select auth.uid()) is null or not private.hotel_feature_is_corporate() then
-    raise exception 'not allowed';
-  end if;
-  if p_hotel not in ('MSPWE', 'MSPAM', 'MSPMS') then
-    raise exception 'unknown hotel';
-  end if;
-  if p_feature not in (
-    'parking', 'sales_leads', 'greetings', 'guest_scores',
-    'shuttle', 'meetings', 'winter', 'night_audit'
-  ) then
-    raise exception 'unknown feature';
-  end if;
-  insert into public.hotel_features (hotel, feature, enabled, updated_by, updated_at)
-  values (p_hotel, p_feature, coalesce(p_enabled, true), (select auth.uid()), pg_catalog.now())
-  on conflict (hotel, feature) do update
-    set enabled = excluded.enabled,
-        updated_by = excluded.updated_by,
-        updated_at = excluded.updated_at;
-end;
-$$;
+  insert into public.hotel_features (hotel, feature, enabled)
+  values
+    ('MSPWE', 'night_audit', true),
+    ('MSPAM', 'night_audit', true),
+    ('MSPMS', 'night_audit', true)
+  on conflict (hotel, feature) do nothing;
+exception
+  when check_violation then
+    -- The check does not list night_audit yet. Do not rewrite it.
+    null;
+end $$;
 
 create table if not exists public.night_audit_settings (
   hotel text primary key check (hotel in ('MSPWE', 'MSPAM', 'MSPMS')),

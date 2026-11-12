@@ -2,8 +2,10 @@
    Each morning they clear that hotel's flagged items: Done, Not an issue, or Explain.
    Unresolved items carry to the next morning. The check-in is overdue after the due time
    (default 10:00 AM America/Chicago). Corporate sees every hotel. A hotel sees only itself.
-   This screen is demo-only. Live mode loads the file and does not add a menu or a card.
-   Sample guests start with "Sample" and confirmations start with "DEMO".
+   Demo mode keeps the sample check-in. Sample guests start with "Sample" and
+   confirmations start with "DEMO". Live mode reads night_audit_reports where
+   source is hotelkey, plus night_audit_report_rows and night_audit_items.
+   Counts are shown as reported. OOO and stay extensions do not grow a room list.
    Opera, OnQ, and Marriott parsers stay empty until real report samples arrive.
    The mailbox body is not stored. Parsed rows belong in night_audit_report_rows. */
 (function (root) {
@@ -745,21 +747,465 @@
     hotelRows: hotelRows, statusOf: statusOf, streak: streak, history: history,
     resolve: resolve, markComplete: markComplete, setDue: setDue, isSuppressed: isSuppressed,
     parseReport: parseReport, ingest: ingest, detectSource: detectSource, registerParser: registerParser,
-    checkinHtml: checkinHtml, homeCard: homeCard, money: money, cellStatus: cellStatus, badgeStatus: badgeStatus, hasReport: hasReport
+    checkinHtml: checkinHtml, homeCard: homeCard, money: money, cellStatus: cellStatus, badgeStatus: badgeStatus, hasReport: hasReport,
+    reportFromRows: reportFromRows, exampleFeed: exampleFeed, feedHtml: feedHtml, feedForHotel: feedForHotel, fmtStat: fmtStat
   };
+
+  var GM_LINES = [
+    { key: "occupancy", section: "gm_occupancy", metric: "occupancy_pct", en: "Occupancy", es: "Ocupación", kind: "pct" },
+    { key: "adr", section: "gm_revenue", metric: "adr", en: "ADR", es: "ADR", kind: "money" },
+    { key: "revpar", section: "gm_revenue", metric: "revpar", en: "RevPAR", es: "RevPAR", kind: "money" },
+    { key: "rooms", section: "gm_statistics", metric: "total_rooms", en: "Rooms", es: "Cuartos", kind: "count" },
+    { key: "occupied", section: "gm_statistics", metric: "rooms_occupied", en: "Occupied", es: "Ocupados", kind: "count" },
+    { key: "available", section: "gm_statistics", metric: "available_rooms", en: "Available", es: "Disponibles", kind: "count" },
+    { key: "room_revenue", section: "gm_revenue", metric: "room_revenue", en: "Room revenue", es: "Ingreso de cuartos", kind: "money" },
+    { key: "total_revenue", section: "gm_revenue", metric: "total_revenue", en: "Total revenue", es: "Ingreso total", kind: "money" },
+    { key: "ooo", section: "gm_statistics", metric: "ooo_rooms", en: "OOO", es: "Fuera de servicio", kind: "count", countOnly: true },
+    { key: "dirty", section: "gm_statistics", metric: "dirty_rooms", en: "Dirty", es: "Sucios", kind: "count" },
+    { key: "clean", section: "gm_statistics", metric: "clean_rooms", en: "Clean", es: "Limpios", kind: "count" },
+    { key: "ready", section: "gm_statistics", metric: "ready_rooms", en: "Ready", es: "Listos", kind: "count" }
+  ];
+  var FEED_SECTIONS = [
+    { id: "reservations", en: "Reservations", es: "Reservas", mode: "count" },
+    { id: "cancellations", en: "Cancellations", es: "Cancelaciones", mode: "count" },
+    { id: "clerk_activity", en: "Clerk activity", es: "Actividad de empleados", mode: "count" },
+    { id: "clerk_payment_summary", en: "Clerk payments", es: "Pagos por empleado", mode: "table", cols: ["username", "payment_type", "total_amount"] },
+    { id: "rate_override", en: "Rate overrides", es: "Cambios de tarifa", mode: "table", cols: ["confirmation", "stay_date", "time"], noteEn: "No reason column and no amount column on this report.", noteEs: "Este reporte no trae columna de motivo ni de monto." },
+    { id: "adjustments", en: "Adjustments", es: "Ajustes", mode: "table", cols: ["confirmation", "room", "guest_name", "charge_type", "time"] },
+    { id: "adjustment_summary", en: "Adjustment summary", es: "Resumen de ajustes", mode: "table", cols: ["charge_type", "reason_code", "adjusted_amount"] },
+    { id: "refunds", en: "Refunds", es: "Reembolsos", mode: "table", cols: ["confirmation", "room", "guest_name", "payment", "time"] },
+    { id: "refund_summary", en: "Refund summary", es: "Resumen de reembolsos", mode: "table", cols: ["payment_type", "reason_code", "refund_amount"] },
+    { id: "no_show_late_cancel", en: "No-shows and late cancels", es: "No-shows y cancelaciones tardías", mode: "table", cols: ["confirmation", "guest_name", "status", "nights", "amount"] },
+    { id: "high_balance", en: "High balance", es: "Saldo alto", mode: "empty" },
+    { id: "maintenance_summary", en: "Maintenance", es: "Mantenimiento", mode: "empty" },
+    { id: "early_departures", en: "Early departures", es: "Salidas tempranas", mode: "rooms" }
+  ];
+
+  function numOrNull(value) {
+    if (value == null || value === "") return null;
+    var n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  function fmtStat(kind, value) {
+    if (value == null || !Number.isFinite(Number(value))) return "—";
+    var n = Number(value);
+    if (kind === "pct") return (Math.round(n * 10) / 10).toFixed(1) + "%";
+    if (kind === "money") return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (Math.abs(n - Math.round(n)) < 0.001) return String(Math.round(n));
+    return String(Math.round(n * 100) / 100);
+  }
+  function metricCells(rows, section, metric) {
+    for (var i = 0; i < rows.length; i++) {
+      var cells = rows[i].cells || {};
+      if (rows[i].section === section && cells.metric === metric) return cells;
+    }
+    return null;
+  }
+  function seriesOf(cells) {
+    if (!cells) return { today: null, mtd: null, ytd: null };
+    return { today: numOrNull(cells.today), mtd: numOrNull(cells.mtd), ytd: numOrNull(cells.ytd) };
+  }
+  function normalizeFeedRow(row, hotel) {
+    row = row || {};
+    if (row.hotel && row.hotel !== hotel) return null;
+    var cells = row.cells && typeof row.cells === "object" ? row.cells : {};
+    return { hotel: row.hotel || hotel, section: String(row.section || ""), cells: cells };
+  }
+  function roomLine(row) {
+    var cells = row.cells || {};
+    if (!cells.room) return null;
+    return { room: String(cells.room), confirmation: cells.confirmation ? String(cells.confirmation) : "", guest: cells.guest_name ? String(cells.guest_name) : "" };
+  }
+  function normalizeFeedItem(row, hotel) {
+    row = row || {};
+    if (row.hotel && row.hotel !== hotel) return null;
+    var code = String(row.code || "");
+    var spec = RULES[code] || {};
+    var confirmation = String(row.confirmation || "");
+    if (!confirmation) return null;
+    return {
+      id: String(row.id || ""),
+      hotel: hotel,
+      auditDate: String(row.audit_date || row.auditDate || "").slice(0, 10),
+      category: row.category || spec.category || "",
+      code: code,
+      guest: String(row.guest_name || row.guest || ""),
+      confirmation: confirmation,
+      amount: Number(row.amount) || 0,
+      room: String(row.room || ""),
+      whyEn: row.why_en || row.whyEn || spec.whyEn || code,
+      whyEs: row.why_es || row.whyEs || spec.whyEs || code,
+      fixEn: row.fix_en || row.fixEn || spec.fixEn || "",
+      fixEs: row.fix_es || row.fixEs || spec.fixEs || "",
+      resolution: row.resolution || null
+    };
+  }
+  function reportFromRows(input) {
+    input = input || {};
+    var hotel = input.hotel;
+    if (HOTELS.indexOf(hotel) < 0) return { connected: false, hotel: hotel || "" };
+    var rows = [];
+    (input.rows || []).forEach(function (row) {
+      var next = normalizeFeedRow(row, hotel);
+      if (next) rows.push(next);
+    });
+    var resolved = {};
+    (input.resolutions || []).forEach(function (row) {
+      var id = row && (row.item_id || row.itemId);
+      if (id) resolved[id] = row;
+    });
+    var items = [];
+    (input.items || []).forEach(function (row) {
+      var next = normalizeFeedItem(row, hotel);
+      if (!next) return;
+      if (resolved[next.id]) next.resolution = resolved[next.id];
+      items.push(next);
+    });
+    var lines = GM_LINES.map(function (line) {
+      var point = seriesOf(metricCells(rows, line.section, line.metric));
+      return {
+        key: line.key, en: line.en, es: line.es, kind: line.kind, countOnly: !!line.countOnly,
+        today: point.today, mtd: point.mtd, ytd: point.ytd
+      };
+    });
+    var oooPoint = seriesOf(metricCells(rows, "gm_statistics", "ooo_rooms"));
+    var oooRooms = [];
+    rows.forEach(function (row) {
+      if (row.section !== "ooo" && row.section !== "out_of_order" && row.section !== "ooo_rooms") return;
+      var line = roomLine(row);
+      if (line) oooRooms.push(line);
+    });
+    var earlyPoint = seriesOf(metricCells(rows, "gm_statistics", "early_departures"));
+    var earlyRooms = [];
+    rows.forEach(function (row) {
+      if (row.section !== "early_departures") return;
+      var line = roomLine(row);
+      if (line) earlyRooms.push(line);
+    });
+    var extensionRooms = [];
+    rows.forEach(function (row) {
+      var kind = row.cells && row.cells.kind;
+      var sectionHit = row.section === "stay_extensions" || row.section === "extensions";
+      if (!sectionHit && kind !== "stay_extension") return;
+      var line = roomLine(row);
+      if (line) extensionRooms.push(line);
+      else extensionRooms.push({ room: "", confirmation: row.cells && row.cells.confirmation ? String(row.cells.confirmation) : "", guest: "" });
+    });
+    var extensionCount = rows.filter(function (row) {
+      var kind = row.cells && row.cells.kind;
+      return row.section === "stay_extensions" || row.section === "extensions" || kind === "stay_extension";
+    }).length;
+    var sections = FEED_SECTIONS.map(function (spec) {
+      var found = rows.filter(function (row) { return row.section === spec.id; });
+      var marker = found.length === 1 && found[0].cells && found[0].cells.empty === true;
+      return {
+        id: spec.id, en: spec.en, es: spec.es, mode: spec.mode, cols: spec.cols || [],
+        noteEn: spec.noteEn || "", noteEs: spec.noteEs || "",
+        count: marker ? (numOrNull(found[0].cells.count) || 0) : found.length,
+        rows: marker ? [] : found
+      };
+    });
+    return {
+      connected: true,
+      origin: input.origin || "hotelkey",
+      hotel: hotel,
+      auditDate: String(input.auditDate || input.audit_date || "").slice(0, 10),
+      source: input.source || "",
+      status: input.status || "",
+      subject: input.subject || "",
+      lines: lines,
+      ooo: { today: oooPoint.today, mtd: oooPoint.mtd, ytd: oooPoint.ytd, rooms: oooRooms },
+      early: { gmToday: earlyPoint.today, rooms: earlyRooms },
+      extensions: { count: extensionCount, rooms: extensionRooms.filter(function (row) { return row.room; }) },
+      sections: sections,
+      items: items
+    };
+  }
+  function exampleFeed() {
+    function gm(section, metric, today, mtd, ytd) {
+      return { section: section, cells: { metric: metric, today: today, mtd: mtd, ytd: ytd } };
+    }
+    return reportFromRows({
+      hotel: "MSPWE",
+      auditDate: "2026-11-02",
+      source: "hotelkey",
+      status: "parsed",
+      subject: "Example daily reports",
+      origin: "example",
+      rows: [
+        gm("gm_occupancy", "occupancy_pct", 70, 68.5, 72.3),
+        gm("gm_revenue", "adr", 110, 108.25, 105),
+        gm("gm_revenue", "revpar", 77, 74.16, 75.86),
+        gm("gm_statistics", "total_rooms", 100, 3000, 36500),
+        gm("gm_statistics", "rooms_occupied", 70, 2055, 26400),
+        gm("gm_statistics", "available_rooms", 28, 941, 10090),
+        gm("gm_revenue", "room_revenue", 7700, 224000, 2772000),
+        gm("gm_revenue", "total_revenue", 8000, 230000, 2900000),
+        gm("gm_statistics", "ooo_rooms", 2, 4, 10),
+        gm("gm_statistics", "dirty_rooms", 20, 600, 7000),
+        gm("gm_statistics", "clean_rooms", 80, 2400, 29000),
+        gm("gm_statistics", "ready_rooms", 75, 2300, 28000),
+        gm("gm_statistics", "early_departures", 1, 2, 9),
+        { section: "reservations", cells: { confirmation: "DEMO-3001", market: "D" } },
+        { section: "reservations", cells: { confirmation: "DEMO-3002", market: "D" } },
+        { section: "reservations", cells: { confirmation: "DEMO-3003", market: "D" } },
+        { section: "cancellations", cells: { confirmation: "DEMO-3004", market: "D" } },
+        { section: "clerk_activity", cells: { confirmation: "DEMO-3001", date: "2026-11-02", time: "09:00:00" } },
+        { section: "clerk_activity", cells: { confirmation: "DEMO-3002", date: "2026-11-02", time: "09:05:00" } },
+        { section: "clerk_payment_summary", cells: { username: "Sample Clerk", payment_type: "Cash", total_amount: 40 } },
+        { section: "rate_override", cells: { confirmation: "DEMO-1045", guest_name: "Sample Guest Cole", stay_date: "2026-11-02", time: "08:10:00" } },
+        { section: "adjustments", cells: { confirmation: "DEMO-1046", room: "214", guest_name: "Sample Guest Diaz", charge_type: "Parking", time: "10:15:00" } },
+        { section: "adjustment_summary", cells: { charge_type: "Parking", reason_code: "SAMPLE", adjusted_amount: 15 } },
+        { section: "refunds", cells: { confirmation: "DEMO-1047", room: "118", guest_name: "Sample Guest Shah", payment: "Visa", time: "11:00:00" } },
+        { section: "refund_summary", cells: { payment_type: "Visa", reason_code: "SAMPLE", refund_amount: 20 } },
+        { section: "no_show_late_cancel", cells: { confirmation: "DEMO-1001", guest_name: "Sample Guest Ames", status: "Cancelled", nights: 1, amount: 0 } },
+        { section: "high_balance", cells: { empty: true, count: 0 } },
+        { section: "maintenance_summary", cells: { empty: true, count: 0 } },
+        { section: "early_departures", cells: { room: "101", confirmation: "DEMO-2001", guest_name: "Sample Guest Ellis", kind: "early_departure" } }
+      ],
+      items: [{
+        id: "na-ex-override", hotel: "MSPWE", audit_date: "2026-11-02", category: "rates", code: "override_no_reason",
+        guest_name: "Sample Guest Cole", confirmation: "DEMO-1045", amount: 0, room: "",
+        why_en: "Rate override has no reason", why_es: "Cambio de tarifa sin motivo",
+        fix_en: "Add the reason or restore BAR", fix_es: "Agrega el motivo o vuelve a BAR"
+      }]
+    });
+  }
+  function feedForHotel(model, hotel) {
+    if (!model || !model.connected || model.hotel !== hotel) return { connected: false, hotel: hotel || "" };
+    return model;
+  }
+  function feedCells(section, limit, lang) {
+    var cols = section.cols || [];
+    var labels = {
+      username: ["Clerk", "Empleado"], payment_type: ["Payment", "Pago"], total_amount: ["Amount", "Monto"],
+      confirmation: ["Confirmation", "Confirmación"], stay_date: ["Stay", "Estadía"], time: ["Time", "Hora"],
+      room: ["Room", "Cuarto"], guest_name: ["Guest", "Huésped"], charge_type: ["Charge", "Cargo"],
+      reason_code: ["Reason", "Motivo"], adjusted_amount: ["Amount", "Monto"], payment: ["Payment", "Pago"],
+      refund_amount: ["Amount", "Monto"], status: ["Status", "Estado"], nights: ["Nights", "Noches"], amount: ["Amount", "Monto"]
+    };
+    var shown = section.rows.slice(0, limit);
+    var body = shown.map(function (row) {
+      return cols.map(function (col) {
+        var value = row.cells ? row.cells[col] : "";
+        if (value == null || value === "") return "—";
+        return esc(String(value));
+      });
+    });
+    var extra = section.rows.length - shown.length;
+    var heads = cols.map(function (col) {
+      var pair = labels[col] || [col, col];
+      return lang === "es" ? pair[1] : pair[0];
+    });
+    var tableHtml = body.length ? table(heads, body) : "";
+    var more = extra > 0 ? "<p class=\"na-note\">+" + extra + "</p>" : "";
+    return tableHtml + more;
+  }
+  function earlyNote(model, lang) {
+    var listed = model.early.rooms.length;
+    var gmCount = model.early.gmToday;
+    if (!listed && (gmCount == null || gmCount === 0)) return tx(lang, "0 early departures reported.", "0 salidas tempranas reportadas.");
+    if (!listed) return tx(lang, "GM count is " + gmCount + ". No room list.", "El conteo del GM es " + gmCount + ". No hay lista de cuartos.");
+    var note = listed + " " + tx(lang, "rooms on the early-departure list.", "cuartos en la lista de salidas tempranas.");
+    if (gmCount != null && gmCount !== listed) note += " " + tx(lang, "GM count is " + gmCount + ". No other rooms are shown.", "El conteo del GM es " + gmCount + ". No se muestran otros cuartos.");
+    return note;
+  }
+  function feedHtml(model, lang, opts) {
+    lang = lang === "es" ? "es" : "en";
+    opts = opts || {};
+    if (!model || !model.connected) {
+      var hotel = model && model.hotel ? model.hotel : "";
+      return "<div class=\"na-feed\" id=\"naFeed\"><p class=\"na-missing\">" + esc(tx(lang, "Feed not connected", "Fuente no conectada")) + "</p><p class=\"na-note\">" +
+        esc(hotel ? tx(lang, "No HotelKey night audit is loaded for " + hotel + ".", "No hay auditoría HotelKey cargada para " + hotel + ".") : tx(lang, "No HotelKey night audit is loaded.", "No hay auditoría HotelKey cargada.")) +
+        "</p></div>";
+    }
+    var banner = model.origin === "example"
+      ? "<p class=\"na-note\"><span class=\"ex\">EXAMPLE</span> " + esc(tx(lang, "Sample HotelKey figures for this demo. No real guests.", "Cifras HotelKey de ejemplo para esta demostración. No hay huéspedes reales.")) + "</p>"
+      : "";
+    var head = "<p class=\"na-note\">" + esc(model.hotel + " · " + (model.auditDate || "") + " · HotelKey") + "</p>";
+    var gmRows = (model.lines || []).map(function (line) {
+      var label = lang === "es" ? line.es : line.en;
+      return [esc(label), esc(fmtStat(line.kind, line.today)), esc(fmtStat(line.kind, line.mtd)), esc(fmtStat(line.kind, line.ytd))];
+    });
+    var gm = "<h3>" + esc(tx(lang, "GM stats", "Cifras del GM")) + "</h3>" + table(
+      [tx(lang, "Metric", "Cifra"), tx(lang, "Today", "Hoy"), "MTD", "YTD"],
+      gmRows
+    );
+    var oooRooms = model.ooo && model.ooo.rooms ? model.ooo.rooms : [];
+    var oooNote = oooRooms.length
+      ? oooRooms.map(function (row) { return esc(row.room); }).join(", ")
+      : esc(tx(lang, "OOO count only. This report has no room list.", "Solo el conteo de fuera de servicio. Este reporte no trae lista de cuartos."));
+    var extRooms = model.extensions && model.extensions.rooms ? model.extensions.rooms : [];
+    var extCount = model.extensions ? model.extensions.count : 0;
+    var extNote = extRooms.length
+      ? extRooms.map(function (row) { return esc(row.room); }).join(", ")
+      : esc(extCount + " " + tx(lang, "stay extensions reported. No room list.", "extensiones de estadía reportadas. No hay lista de cuartos."));
+    var counts = "<p class=\"na-note\">" + oooNote + "</p><p class=\"na-note\">" + extNote + "</p><p class=\"na-note\">" + esc(earlyNote(model, lang)) + "</p>";
+    var earlyTable = "";
+    if (model.early && model.early.rooms && model.early.rooms.length) {
+      earlyTable = table(
+        [tx(lang, "Room", "Cuarto"), tx(lang, "Confirmation", "Confirmación"), tx(lang, "Guest", "Huésped")],
+        model.early.rooms.map(function (row) { return [esc(row.room), esc(row.confirmation), esc(row.guest)]; })
+      );
+    }
+    var sections = (model.sections || []).map(function (section) {
+      var label = lang === "es" ? section.es : section.en;
+      var note = lang === "es" ? section.noteEs : section.noteEn;
+      var body = "";
+      if (section.mode === "count") body = "<p class=\"na-note\">" + section.count + "</p>";
+      else if (section.mode === "empty") body = "<p class=\"na-note\">" + esc(section.count ? String(section.count) : tx(lang, "None reported.", "Ninguno reportado.")) + "</p>";
+      else if (section.mode === "rooms") body = "";
+      else body = feedCells(section, 8, lang);
+      var noteHtml = note ? "<p class=\"na-note\">" + esc(note) + "</p>" : "";
+      return "<section class=\"na-sec\"><h3>" + esc(label) + "</h3>" + noteHtml + body + "</section>";
+    }).join("");
+    var itemBlocks = (model.items || []).map(function (item) {
+      var why = lang === "es" ? item.whyEs : item.whyEn;
+      var fix = lang === "es" ? item.fixEs : item.fixEn;
+      var guest = item.guest ? esc(item.guest) + " · " : "";
+      var resolved = item.resolution ? "<p class=\"na-note\">" + esc(tx(lang, "Resolved", "Resuelto")) + "</p>" : "";
+      var acts = "";
+      if (opts.actions && !item.resolution && /^[0-9a-f-]{36}$/i.test(item.id)) {
+        var open = opts.openId === item.id;
+        acts = "<div class=\"na-acts\"><button type=\"button\" onclick=\"naLiveAct('" + item.id + "','done')\">" + esc(tx(lang, "Done", "Listo")) + "</button>" +
+          "<button type=\"button\" onclick=\"naLiveAct('" + item.id + "','not_issue')\">" + esc(tx(lang, "Not an issue", "No es problema")) + "</button>" +
+          "<button type=\"button\" onclick=\"naExplain('" + item.id + "')\">" + esc(tx(lang, "Explain", "Explicar")) + "</button></div>";
+        if (open) {
+          acts += "<label class=\"na-note-label\">" + esc(tx(lang, "Note", "Nota")) + "<textarea id=\"naNote\" maxlength=\"240\"></textarea></label>" +
+            "<button type=\"button\" class=\"btn\" onclick=\"naLiveAct('" + item.id + "','explain')\">" + esc(tx(lang, "Save note", "Guardar nota")) + "</button>";
+          if (opts.error === "note") acts += "<p class=\"na-note\">" + esc(tx(lang, "Add a short note.", "Agrega una nota corta.")) + "</p>";
+        }
+      }
+      return "<article class=\"na-item\"><p><b>" + guest + esc(item.confirmation) + "</b> · " + esc(why) + "</p><p class=\"na-fix\">" + esc(fix) + "</p>" + resolved + acts + "</article>";
+    }).join("");
+    var itemsHtml = "<h3>" + esc(tx(lang, "Items to review", "Casos por revisar")) + "</h3>" +
+      (itemBlocks || "<p class=\"na-note\">" + esc(tx(lang, "No exceptions on this report.", "No hay excepciones en este reporte.")) + "</p>");
+    return "<div class=\"na-feed\" id=\"naFeed\">" + banner + head + gm + counts + earlyTable + itemsHtml + sections + "</div>";
+  }
+
   root.NightAudit = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  if (typeof document === "undefined" || !demoUi()) return;
+  if (typeof document === "undefined") return;
 
+  var liveState = "";
+  var livePack = {};
+
+  function mapLiveItem(row) {
+    return {
+      id: row.id, hotel: row.hotel, audit_date: row.audit_date, category: row.category, code: row.code,
+      guest_name: row.guest_name, confirmation: row.confirmation, why_en: row.why_en, why_es: row.why_es,
+      fix_en: row.fix_en, fix_es: row.fix_es, amount: row.amount, room: row.room
+    };
+  }
+  function ensureLive() {
+    if (demoUi()) return;
+    if (liveState === "loading" || liveState === "ready" || liveState === "empty") return;
+    if (typeof useRemote !== "function" || !useRemote() || typeof sb === "undefined" || !sb) {
+      liveState = "empty";
+      livePack = {};
+      return;
+    }
+    liveState = "loading";
+    var actor = currentActor();
+    var hotels = hotelsFor(actor.role, actor.hotel);
+    var reportQuery = sb.from("night_audit_reports").select("id,hotel,audit_date,source,subject,status").eq("source", "hotelkey").order("audit_date", { ascending: false }).limit(20);
+    if (hotels.length === 1) reportQuery = reportQuery.eq("hotel", hotels[0]);
+    reportQuery.then(function (res) {
+      var reports = (!res || res.error || !res.data) ? [] : res.data.filter(function (row) { return hotels.indexOf(row.hotel) >= 0; });
+      var latest = {};
+      reports.forEach(function (row) { if (!latest[row.hotel]) latest[row.hotel] = row; });
+      var ids = Object.keys(latest).map(function (hotel) { return latest[hotel].id; });
+      if (!ids.length) {
+        liveState = "empty";
+        livePack = {};
+        try { render(); } catch (e) {}
+        return;
+      }
+      Promise.all([
+        sb.from("night_audit_report_rows").select("report_id,hotel,audit_date,row_no,section,cells").in("report_id", ids).order("row_no").limit(2000),
+        sb.from("night_audit_items").select("id,hotel,audit_date,category,code,guest_name,confirmation,why_en,why_es,fix_en,fix_es,amount,room,report_id").in("report_id", ids).limit(300),
+        sb.from("night_audit_resolutions").select("item_id,hotel,action,note,resolved_name").limit(300)
+      ]).then(function (parts) {
+        var rowRes = parts[0] || {};
+        var itemRes = parts[1] || {};
+        var resRes = parts[2] || {};
+        var allRows = rowRes.error ? [] : (rowRes.data || []);
+        var allItems = itemRes.error ? [] : (itemRes.data || []);
+        var allResolutions = resRes.error ? [] : (resRes.data || []);
+        livePack = {};
+        Object.keys(latest).forEach(function (hotel) {
+          var report = latest[hotel];
+          livePack[hotel] = reportFromRows({
+            hotel: hotel,
+            auditDate: report.audit_date,
+            source: report.source,
+            status: report.status,
+            subject: report.subject,
+            origin: "hotelkey",
+            rows: allRows.filter(function (row) { return row.report_id === report.id && row.hotel === hotel; }),
+            items: allItems.filter(function (row) { return row.report_id === report.id && row.hotel === hotel; }).map(mapLiveItem),
+            resolutions: allResolutions.filter(function (row) { return row.hotel === hotel; })
+          });
+        });
+        liveState = "ready";
+        try { render(); } catch (e2) {}
+      }, function () {
+        liveState = "empty";
+        livePack = {};
+        try { render(); } catch (e3) {}
+      });
+    }, function () {
+      liveState = "empty";
+      livePack = {};
+      try { render(); } catch (e4) {}
+    });
+  }
+  function livePage(actor) {
+    ensureLive();
+    var lang = langNow();
+    var hotels = hotelsFor(actor.role, actor.hotel).filter(featureOn);
+    if (!hotels.length) return "<div class=\"na\" id=\"naRoot\"></div>";
+    var view = pageState();
+    var hotel = hotels.indexOf(view.hotel) >= 0 ? view.hotel : hotels[0];
+    if (liveState === "loading" || liveState === "") {
+      return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2><p class=\"na-note\">" + esc(tx(lang, "Loading the HotelKey feed.", "Cargando el reporte HotelKey.")) + "</p></div>";
+    }
+    var switcher = hotels.length < 2 ? "" : "<div class=\"na-chips\">" + hotels.map(function (code) {
+      return "<button type=\"button\" class=\"" + (code === hotel ? "on" : "") + "\" onclick=\"naHotel('" + code + "')\">" + esc(code) + "</button>";
+    }).join("") + "</div>";
+    var model = livePack[hotel] || { connected: false, hotel: hotel };
+    return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" + switcher + feedHtml(model, lang, { actions: true, openId: view.openId, error: view.error }) + "</div>";
+  }
+  function liveHomeHtml(actor, lang) {
+    ensureLive();
+    var hotels = hotelsFor(actor.role, actor.hotel).filter(featureOn);
+    if (!hotels.length) return "";
+    if (liveState === "loading" || liveState === "") {
+      return "<section class=\"na-home\" id=\"naHome\"><h3>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h3><p class=\"na-note\">" + esc(tx(lang, "Loading the HotelKey feed.", "Cargando el reporte HotelKey.")) + "</p></section>";
+    }
+    var rows = hotels.map(function (hotel) {
+      var model = livePack[hotel];
+      if (!model || !model.connected) return esc(hotel) + " · " + esc(tx(lang, "Feed not connected", "Fuente no conectada"));
+      var occ = null;
+      (model.lines || []).forEach(function (line) { if (line.key === "occupancy") occ = line; });
+      var open = (model.items || []).filter(function (item) { return !item.resolution; }).length;
+      return esc(hotel) + " · " + esc(model.auditDate || "") + " · " + esc(occ ? fmtStat("pct", occ.today) : "—") + " · " + open + " " + esc(tx(lang, "to review", "por revisar"));
+    });
+    return "<section class=\"na-home\" id=\"naHome\"><div class=\"na-line\"><h3>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h3></div><p class=\"na-note\">" + rows.join("<br>") + "</p><button type=\"button\" class=\"btn na-wide\" onclick=\"naOpen('" + hotels[0] + "')\">" + esc(tx(lang, "Open night audit", "Abrir auditoría")) + "</button></section>";
+  }
   function bootPage() {
     var actor = currentActor();
     if (!isLeader(actor.role)) return "<div class=\"na\" id=\"naRoot\"></div>";
-    return checkinHtml(bundle(), actor, pageState());
+    if (!demoUi()) return livePage(actor);
+    var view = pageState();
+    var lang = langNow();
+    var sample = feedForHotel(exampleFeed(), view.hotel);
+    return checkinHtml(bundle(), actor, view) + feedHtml(sample, lang);
   }
   function homeHtml() {
-    if (!demoUi()) return "";
     var actor = currentActor();
     if (!isLeader(actor.role)) return "";
+    if (!demoUi()) return liveHomeHtml(actor, langNow());
     return homeCard(bundle(), actor, langNow());
   }
   api.homeHtml = homeHtml;
@@ -780,8 +1226,9 @@
     if (typeof render === "function") render();
   };
   root.naExplain = function (id) {
-    if (!safeItem(id)) return;
-    try { S.naItem = id; S.naErr = ""; } catch (e) {}
+    var safe = safeItem(id) || (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || "")) ? String(id) : "");
+    if (!safe) return;
+    try { S.naItem = safe; S.naErr = ""; } catch (e) {}
     if (typeof render === "function") render();
   };
   root.naDue = function (hotel, hhmm) {
@@ -817,6 +1264,40 @@
     else if (!openItems(result.model, result.model.resolutions[result.model.resolutions.length - 1].hotel, result.model.today).length) toast(lang, "Check-in complete", "Revisión completa");
     if (typeof render === "function") render();
   };
+  root.naLiveAct = function (id, action) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""))) return;
+    if (["done", "not_issue", "explain"].indexOf(action) < 0) return;
+    if (demoUi()) return;
+    var note = "";
+    if (action === "explain") {
+      var el = document.getElementById("naNote");
+      note = el ? String(el.value || "").trim() : "";
+      if (note.length < 3) {
+        try { S.naItem = id; S.naErr = "note"; } catch (e) {}
+        if (typeof render === "function") render();
+        return;
+      }
+    }
+    if (typeof sb === "undefined" || !sb || !sb.rpc) return;
+    var checkin = checkinDate(new Date().toISOString());
+    sb.rpc("resolve_night_audit_item", { p_item: id, p_action: action, p_note: note, p_checkin: checkin }).then(function (res) {
+      if (res && res.error) {
+        try { S.naErr = "closed"; } catch (e) {}
+        if (typeof render === "function") render();
+        return;
+      }
+      Object.keys(livePack).forEach(function (hotel) {
+        var model = livePack[hotel];
+        if (!model || !model.items) return;
+        model.items.forEach(function (item) {
+          if (item.id === id) item.resolution = { action: action, note: note };
+        });
+      });
+      try { S.naItem = ""; S.naErr = ""; } catch (e2) {}
+      toast(langNow(), "Recorded", "Anotado");
+      if (typeof render === "function") render();
+    });
+  };
 
   if (typeof M !== "undefined") M.naudit = ["🌙", "Night Audit"];
   if (typeof I18N !== "undefined" && I18N.es) I18N.es["Night Audit"] = "Auditoría nocturna";
@@ -828,7 +1309,7 @@
       var actor = currentActor();
       var hotel = "";
       try { hotel = S.hotel || actor.hotel || ""; } catch (e) { hotel = actor.hotel || ""; }
-      var show = demoUi() && isLeader(actor.role || role) && hotelsFor(actor.role || role, actor.hotel || hotel).some(featureOn);
+      var show = isLeader(actor.role || role) && hotelsFor(actor.role || role, actor.hotel || hotel).some(featureOn);
       if (show && list.indexOf("naudit") < 0) list.splice(Math.min(1, list.length), 0, "naudit");
       if (!show) list = list.filter(function (id) { return id !== "naudit"; });
       if (root.HHQMenus && root.HHQMenus.menuAllows && !root.HHQMenus.menuAllows("naudit", actor.role || role, hotel, function (h, feature) {
@@ -881,7 +1362,10 @@
     ".na-due select{flex:1}",
     ".na-done{background:#d4f5dc;color:#15642f;border-radius:8px;padding:8px 10px;font-weight:800}",
     ".na-closed{margin-top:8px}",
-    ".na-carried{background:#fffaf0}"
+    ".na-carried{background:#fffaf0}",
+    ".na-feed{margin-top:8px}",
+    ".na-sec h3{margin:12px 0 4px;font-size:15px}",
+    ".na-feed .na-t td{white-space:normal}"
   ].join("");
   document.head.appendChild(style);
 })(typeof window !== "undefined" ? window : globalThis);

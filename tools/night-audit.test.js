@@ -198,7 +198,7 @@ test("the check-in is one bilingual screen and table cells stay short", () => {
   assert.match(na.homeCard(late, corp, "es"), /Atrasado/);
 });
 
-test("live mode does not turn the screen on, and the migration is additive", () => {
+test("live mode reads a HotelKey feed and keeps the sample check-in in demo", () => {
   assert.equal(na.demoUi({ mode: "live" }), false);
   assert.equal(na.demoUi({ mode: "demo" }), true);
   assert.equal(na.demoUi(null), true);
@@ -212,6 +212,8 @@ test("live mode does not turn the screen on, and the migration is additive", () 
   assert.match(sw, /hotelhq-shell-v23/);
   assert.match(home, /NightAudit\.homeHtml/);
   assert.match(src, /!\s*demoUi\(\)/);
+  assert.match(src, /source", "hotelkey"/);
+  assert.doesNotMatch(src, /if \(typeof document === "undefined" \|\| !demoUi\(\)\) return/);
   const logic = src.slice(src.indexOf("function hasReport"), src.indexOf("function streak"));
   assert.match(logic, /return "no_report"/);
   assert.equal(/authMode|HOTELHQ_CONFIG/.test(logic), false);
@@ -231,6 +233,9 @@ test("live mode does not turn the screen on, and the migration is additive", () 
   assert.match(sql, /grant execute on function public\.resolve_night_audit_item/);
   assert.match(sql, /to authenticated/);
   assert.match(sql, /'night_audit'/);
+  assert.match(sql, /would drop newer features/);
+  assert.doesNotMatch(sql, /drop constraint if exists hotel_features_feature_check/);
+  assert.doesNotMatch(sql, /create or replace function private\.set_hotel_feature/);
   assert.doesNotMatch(sql, /grant execute[\s\S]*to anon/);
   assert.doesNotMatch(sql, /to anon,/);
   assert.doesNotMatch(sql, /user_metadata/i);
@@ -238,4 +243,70 @@ test("live mode does not turn the screen on, and the migration is additive", () 
   assert.doesNotMatch(sql, /delete from/i);
   assert.doesNotMatch(sql, /sb_publishable_|eyJ/);
   na.CATEGORIES.forEach((cat) => assert.match(sql, new RegExp("'" + cat.id + "'")));
+});
+
+test("a HotelKey feed shows reported counts and does not invent room lists", () => {
+  const built = na.reportFromRows({
+    hotel: "MSPWE",
+    auditDate: "2026-11-02",
+    source: "hotelkey",
+    status: "parsed",
+    rows: [
+      { section: "gm_occupancy", cells: { metric: "occupancy_pct", today: 70, mtd: 68.5, ytd: 72.3 } },
+      { section: "gm_revenue", cells: { metric: "adr", today: 110, mtd: 108.25, ytd: 105 } },
+      { section: "gm_revenue", cells: { metric: "revpar", today: 77, mtd: 74.16, ytd: 75.86 } },
+      { section: "gm_statistics", cells: { metric: "ooo_rooms", today: 2, mtd: 4, ytd: 10 } },
+      { section: "gm_statistics", cells: { metric: "dirty_rooms", today: 20, mtd: 30, ytd: 40 } },
+      { section: "gm_statistics", cells: { metric: "clean_rooms", today: 80, mtd: 90, ytd: 100 } },
+      { section: "gm_statistics", cells: { metric: "ready_rooms", today: 75, mtd: 80, ytd: 90 } },
+      { section: "gm_statistics", cells: { metric: "early_departures", today: 5, mtd: 6, ytd: 7 } },
+      { hotel: "MSPAM", section: "early_departures", cells: { room: "999", confirmation: "DEMO-9999", guest_name: "Sample Guest Other" } },
+      { section: "early_departures", cells: { room: "101", confirmation: "DEMO-2001", guest_name: "Sample Guest Ellis", kind: "early_departure" } },
+      { section: "reservations", cells: { confirmation: "DEMO-3001" } }
+    ],
+    items: [{
+      id: "na-ex-override", hotel: "MSPWE", audit_date: "2026-11-02", category: "rates", code: "override_no_reason",
+      guest_name: "Sample Guest Cole", confirmation: "DEMO-1045", amount: 0
+    }]
+  });
+  assert.equal(built.connected, true);
+  assert.equal(built.lines.find((line) => line.key === "occupancy").today, 70);
+  assert.equal(built.lines.find((line) => line.key === "adr").today, 110);
+  assert.equal(built.lines.find((line) => line.key === "revpar").today, 77);
+  assert.equal(built.ooo.today, 2);
+  assert.deepEqual(built.ooo.rooms, []);
+  assert.equal(built.early.gmToday, 5);
+  assert.equal(built.early.rooms.length, 1);
+  assert.equal(built.early.rooms[0].room, "101");
+  assert.equal(built.extensions.count, 0);
+  assert.deepEqual(built.extensions.rooms, []);
+  assert.equal(built.sections.find((section) => section.id === "reservations").count, 1);
+  assert.equal(built.items.length, 1);
+  assert.equal(built.items[0].guest, "Sample Guest Cole");
+  const html = na.feedHtml(built, "en");
+  assert.match(html, /70\.0%/);
+  assert.match(html, /\$110\.00/);
+  assert.match(html, /\$77\.00/);
+  assert.match(html, /no room list/i);
+  assert.match(html, /0 stay extensions/);
+  assert.match(html, /GM count is 5/);
+  assert.match(html, /Room 101|101/);
+  assert.match(html, /Sample Guest Ellis/);
+  assert.equal(html.includes("999"), false);
+  assert.equal(html.includes("Sample Guest Other"), false);
+  const off = na.feedHtml(na.feedForHotel(built, "MSPAM"), "en");
+  assert.match(off, /Feed not connected/);
+  assert.equal(off.includes("Sample Guest"), false);
+  assert.equal(off.includes("70.0%"), false);
+  const sample = na.exampleFeed();
+  sample.items.forEach((item) => {
+    assert.equal(item.guest.indexOf("Sample "), 0);
+    assert.equal(item.confirmation.indexOf("DEMO"), 0);
+  });
+  const sampleHtml = na.feedHtml(sample, "en");
+  assert.match(sampleHtml, /EXAMPLE/);
+  assert.match(sampleHtml, /Items to review/);
+  assert.match(sampleHtml, /Rate override has no reason/);
+  assert.equal(sampleHtml.includes("62.39"), false);
+  assert.equal(/[1-9][0-9]{7}/.test(sampleHtml), false);
 });
