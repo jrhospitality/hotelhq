@@ -23,6 +23,28 @@ test("today sorts by urgency and keeps the top 5", () => {
   assert.ok(items.every(function (it, i) { return i === 0 || items[i - 1].rank <= it.rank; }));
 });
 
+test("a resolved guest issue that still needs a follow-up shows on Today", () => {
+  const desk = today.buildItems({
+    role: "Front Desk",
+    loops: [{ room: "305", dept: "Breakfast" }],
+    issues: [{ room: "214", days: 1 }]
+  });
+  assert.equal(desk[0].en, "Close the loop with room 305");
+  assert.equal(desk[0].go, "gi");
+  assert.equal(desk[1].en, "Guest issue room 214 departs tomorrow");
+  const maintenance = today.buildItems({
+    role: "Maintenance",
+    loops: [{ room: "305", dept: "Breakfast" }, { room: "108", dept: "Maintenance" }]
+  });
+  assert.deepEqual(maintenance.map(function (it) { return it.en; }), ["Close the loop with room 108"]);
+  const breakfast = today.buildItems({
+    role: "Breakfast Attendant",
+    loops: [{ room: "305", dept: "Breakfast" }]
+  });
+  assert.equal(breakfast[0].es, "Cierra el ciclo con la hab. 305");
+  assert.equal(today.buildItems({ role: "Front Desk", loops: [{ room: "", dept: "Breakfast" }] }).length, 0);
+});
+
 test("a housekeeper does not see the front-desk lost-and-found pile", () => {
   const items = today.buildItems({
     role: "Housekeeper",

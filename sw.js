@@ -26,6 +26,7 @@ var SHELL = [
   "./guest-scores.js",
   "./night-audit.js",
   "./guest-comments.js",
+  "./guest-loop.js",
   "./training.js",
   "./inspections.js",
   "./licenses.js",

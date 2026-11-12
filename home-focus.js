@@ -361,9 +361,20 @@
     }
     return items;
   }
+  function loopFollowUps() {
+    if (typeof giLoopQueue !== "function") return [];
+    try {
+      return giLoopQueue().filter(function (g) { return g && g.room; }).map(function (g) {
+        return {
+          label: L("Close the loop with room ", "Cierra el ciclo con la hab. ") + g.room,
+          onclick: "go('gi')"
+        };
+      });
+    } catch (e) { return []; }
+  }
   function urgentButtons() {
     var role = S.role;
-    var items = meetingUrgent();
+    var items = loopFollowUps().concat(meetingUrgent());
     var where = corporatePortfolio() ? S.hotel + " · " : "";
     var pmOk = seesPm();
     urgentItems({
