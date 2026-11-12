@@ -312,6 +312,274 @@ function fillScores(n, pct) {
     if (lift < 0) return [4, 4, 3, 3, 4];
     return [5, 5, 5, 4, 4];
   }
+  var FLOOR = 80;
+  var PERIOD_KINDS = ["mtd", "t3", "t12"];
+  var DEPTS = [
+    {
+      id: "front_desk", en: "Front Desk", es: "Recepción",
+      roles: ["front_desk", "gm", "agm", "above_property"],
+      metrics: [
+        { id: "overall_experience", en: "Overall Experience", es: "Experiencia general", goal: 83, medallia: "Overall Experience" },
+        { id: "overall_service", en: "Service", es: "Servicio", goal: 88, medallia: "Overall Service" },
+        { id: "check_in", en: "Overall Check-In", es: "Registro de llegada", goal: null, medallia: "Overall Check-In" },
+        { id: "member_recognition", en: "Member Recognition", es: "Reconocimiento de socios", goal: null, medallia: "Loyalty Recognition", roles: ["front_desk", "gm", "agm", "above_property"] }
+      ]
+    },
+    {
+      id: "breakfast", en: "Breakfast", es: "Desayuno",
+      roles: ["breakfast", "gm", "agm", "above_property"],
+      metrics: [
+        { id: "breakfast", en: "Breakfast", es: "Desayuno", goal: 80, medallia: "Overall Breakfast" },
+        { id: "fb_overall", en: "Overall F&B", es: "Alimentos y bebidas", goal: null, medallia: "Overall F&B" }
+      ]
+    },
+    {
+      id: "maintenance", en: "Maintenance", es: "Mantenimiento",
+      roles: ["maintenance", "gm", "agm", "above_property"],
+      metrics: [
+        { id: "hotel_condition", en: "Hotel Condition", es: "Condición del hotel", goal: 82, medallia: "Hotel Condition" },
+        { id: "guest_room_condition", en: "Guest Room Condition", es: "Condición del cuarto", goal: 83, medallia: "Overall Guest Room" }
+      ]
+    },
+    {
+      id: "housekeeping", en: "Housekeeping", es: "Ama de llaves",
+      roles: ["hk_lead", "housekeeper", "gm", "agm", "above_property"],
+      metrics: [
+        { id: "room_cleanliness", en: "Room Cleanliness", es: "Limpieza del cuarto", goal: 87 },
+        { id: "bathroom_cleanliness", en: "Bathroom Cleanliness", es: "Limpieza del baño", goal: 88, medallia: "Overall Guest Bathroom" }
+      ]
+    },
+    {
+      id: "laundry", en: "Laundry", es: "Lavandería",
+      roles: ["laundry", "gm", "agm", "above_property"],
+      metrics: [
+        { id: "towels", en: "Towels", es: "Toallas", goal: 87 },
+        { id: "room_cleanliness", en: "Room Cleanliness", es: "Limpieza del cuarto", goal: 87, shared: true },
+        { id: "bathroom_cleanliness", en: "Bathroom Cleanliness", es: "Limpieza del baño", goal: 88, shared: true }
+      ]
+    },
+    {
+      id: "houseman", en: "Houseman", es: "Houseman",
+      roles: ["house_person", "gm", "agm", "above_property"],
+      inspections: "public_area",
+      metrics: []
+    },
+    {
+      id: "hotel", en: "Hotel", es: "Hotel",
+      roles: ["gm", "agm", "above_property"],
+      metrics: [
+        { id: "itr", en: "Likely to Recommend", es: "Probabilidad de recomendar", goal: null, medallia: "Likely to Recommend" },
+        { id: "problem_handling", en: "Problem Handling", es: "Manejo de problemas", goal: null, medallia: "Problem Handling" },
+        { id: "wifi", en: "Overall Wi-Fi", es: "Wi-Fi general", goal: null, medallia: "Overall Wi-Fi" }
+      ]
+    }
+  ];
+  var EXAMPLE_BASE = {
+    overall_experience: 81, overall_service: 90, check_in: 86, member_recognition: 70,
+    breakfast: 78, fb_overall: 77, hotel_condition: 84, guest_room_condition: 80,
+    room_cleanliness: 85, bathroom_cleanliness: 89, towels: 88, itr: 73, problem_handling: 75, wifi: 82
+  };
+
+  function gsTx(lang, en, es) { return lang === "es" ? es : en; }
+  function escGs(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function periodWindow(today, kind) {
+    if (kind === "mtd") return { start: today.slice(0, 8) + "01", end: today };
+    if (kind === "t3") return { start: addDays(today, -91), end: today };
+    return { start: addDays(today, -364), end: today };
+  }
+  function shiftExample(base, kind) {
+    if (kind === "t3") return Math.round((base - 1.5) * 10) / 10;
+    if (kind === "t12") return Math.round((base + 1) * 10) / 10;
+    return base;
+  }
+  function exampleN(kind) {
+    if (kind === "t3") return 70;
+    if (kind === "t12") return 240;
+    return 24;
+  }
+  function examplePeriods(today) {
+    var metrics = [];
+    DEPTS.forEach(function (dept) {
+      (dept.metrics || []).forEach(function (metric) {
+        if (!metrics.some(function (item) { return item.id === metric.id; })) metrics.push(metric);
+      });
+    });
+    var out = [];
+    function push(metric, kind, method, value, goal) {
+      var win = periodWindow(today, kind);
+      out.push({
+        hotel: "MSPWE", source: "example", metric: metric, periodKind: kind,
+        periodStart: win.start, periodEnd: win.end, asOf: today,
+        value: value, n: exampleN(kind), calcMethod: method,
+        goal: goal, priorYear: Math.round((value - 4) * 10) / 10, region: null, brand: null
+      });
+    }
+    metrics.forEach(function (metric) {
+      PERIOD_KINDS.forEach(function (kind) {
+        var base = EXAMPLE_BASE[metric.id] == null ? 80 : EXAMPLE_BASE[metric.id];
+        push(metric.id, kind, "topbox_8_10", shiftExample(base, kind), metric.goal);
+      });
+    });
+    PERIOD_KINDS.forEach(function (kind) {
+      push("overall_experience", kind, "topbox_9_10", shiftExample(64, kind), 83);
+    });
+    return out;
+  }
+  function deptsFor(role) {
+    var key = normalize(role);
+    return DEPTS.filter(function (dept) {
+      if (LEADERS[key]) return true;
+      return (dept.roles || []).indexOf(key) >= 0;
+    }).map(function (dept) {
+      var metrics = (dept.metrics || []).filter(function (metric) {
+        if (!metric.roles || LEADERS[key]) return true;
+        return metric.roles.indexOf(key) >= 0;
+      });
+      return {
+        id: dept.id, en: dept.en, es: dept.es, inspections: dept.inspections || "",
+        metrics: metrics
+      };
+    });
+  }
+  function normFact(row) {
+    row = row || {};
+    var prior = row.priorYear != null ? row.priorYear : row.prior_year;
+    return {
+      hotel: row.hotel,
+      source: row.source || "",
+      metric: row.metric,
+      periodKind: row.periodKind || row.period_kind,
+      periodStart: String(row.periodStart || row.period_start || "").slice(0, 10),
+      periodEnd: String(row.periodEnd || row.period_end || "").slice(0, 10),
+      asOf: String(row.asOf || row.as_of || "").slice(0, 10),
+      value: row.value == null || row.value === "" ? null : Number(row.value),
+      n: row.n == null || row.n === "" ? null : Number(row.n),
+      calcMethod: row.calcMethod || row.calc_method || "",
+      goal: row.goal == null || row.goal === "" ? null : Number(row.goal),
+      priorYear: prior == null || prior === "" ? null : Number(prior),
+      region: row.region == null || row.region === "" ? null : Number(row.region),
+      brand: row.brand == null || row.brand === "" ? null : Number(row.brand)
+    };
+  }
+  function pickFacts(facts, hotel) {
+    var rows = [];
+    (facts || []).forEach(function (row) {
+      var next = normFact(row);
+      if (next.hotel === hotel) rows.push(next);
+    });
+    var liveRows = rows.filter(function (row) { return row.source && row.source !== "example"; });
+    if (liveRows.length) return { origin: "live", rows: liveRows };
+    if (rows.length) return { origin: "example", rows: rows };
+    return { origin: "empty", rows: [] };
+  }
+  function factFor(rows, metric, kind, method) {
+    var found = null;
+    rows.forEach(function (row) {
+      if (row.metric !== metric || row.periodKind !== kind || row.calcMethod !== method) return;
+      if (!found || String(row.asOf) > String(found.asOf)) found = row;
+    });
+    return found;
+  }
+  function fmtPct(value) {
+    if (value == null || !Number.isFinite(Number(value))) return "—";
+    return (Math.round(Number(value) * 10) / 10).toFixed(1) + "%";
+  }
+  function fmtGoalText(goal, lang) {
+    if (goal == null || !Number.isFinite(Number(goal))) return gsTx(lang, "Unset", "Sin definir");
+    return (Math.round(Number(goal) * 10) / 10).toFixed(1);
+  }
+  function fmtDay(iso, lang) {
+    if (!iso) return "";
+    var p = iso.split("-").map(Number);
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    return d.toLocaleDateString(lang === "es" ? "es-MX" : "en-US", { month: "short", day: "numeric", timeZone: "UTC" }).replace(".", "");
+  }
+  function fmtSpan(start, end, lang) {
+    if (!start || !end) return "—";
+    if (start.slice(0, 4) !== end.slice(0, 4)) return fmtDay(start, lang) + ", " + start.slice(0, 4) + "–" + fmtDay(end, lang) + ", " + end.slice(0, 4);
+    return fmtDay(start, lang) + "–" + fmtDay(end, lang) + ", " + end.slice(0, 4);
+  }
+  function methodLabel(method, lang) {
+    if (method === "topbox_9_10") return gsTx(lang, "HotelHQ top-box, 9–10", "HotelHQ caja alta, 9–10");
+    return gsTx(lang, "Medallia top-box, 8–10", "Medallia caja alta, 8–10");
+  }
+  function scoreResult(value, goal, lang) {
+    if (value == null || !Number.isFinite(Number(value))) return gsTx(lang, "No score yet", "Sin calificación");
+    var floorNote = Number(value) < FLOOR ? " · " + gsTx(lang, "Below floor", "Bajo el piso") : "";
+    if (goal == null || !Number.isFinite(Number(goal))) return gsTx(lang, "No goal yet", "Sin meta") + floorNote;
+    var met = Math.round(Number(value) * 10) / 10 + 1e-9 >= Math.round(Number(goal) * 10) / 10;
+    return (met ? gsTx(lang, "Met goal", "Cumple la meta") : gsTx(lang, "Short of goal", "Bajo la meta")) + floorNote;
+  }
+  function departmentHtml(facts, role, hotel, lang) {
+    lang = lang === "es" ? "es" : "en";
+    if (HOTELS.indexOf(hotel) < 0) return "";
+    var depts = deptsFor(role);
+    if (!depts.length) return "";
+    var picked = pickFacts(facts, hotel);
+    var methods = ["topbox_8_10"];
+    picked.rows.forEach(function (row) {
+      if (row.calcMethod && methods.indexOf(row.calcMethod) < 0) methods.push(row.calcMethod);
+    });
+    var banner = "";
+    if (picked.origin === "example") {
+      banner = "<p class=\"gs-note\"><span class=\"ex\">EXAMPLE</span> " + escGs(gsTx(lang, "Sample department scores for this demo. No real guests.", "Calificaciones de ejemplo por departamento. No hay huéspedes reales.")) + "</p>";
+    } else if (picked.origin === "empty") {
+      banner = "<p class=\"gs-note\">" + escGs(gsTx(lang, "Medallia feed not connected.", "La fuente Medallia no está conectada.")) + "</p>";
+    }
+    var note = "<p class=\"gs-note\">" + escGs(gsTx(lang,
+      "Medallia top-box is the share of 8–10 scores. HotelHQ top-box is the share of 9–10 scores. They stay in separate tables. My Region and Brand stay blank until the extract includes them. Prior year is same period year ago. The minimum floor is 80, separate from the internal goal and from IHG official targets.",
+      "La caja alta de Medallia es la parte de notas 8–10. La caja alta de HotelHQ es la parte de notas 9–10. Van en tablas separadas. Mi región y la marca quedan en blanco hasta que el extracto las traiga. El año anterior es el mismo período del año pasado. El piso mínimo es 80, aparte de la meta interna y de las metas oficiales de IHG."
+    )) + "</p>";
+    var blocks = depts.map(function (dept) {
+      if (dept.inspections && !dept.metrics.length) {
+        return "<section class=\"gs-dept\"><h3>" + escGs(lang === "es" ? dept.es : dept.en) + "</h3><p class=\"gs-note\">" + escGs(gsTx(lang,
+          "IHG has no public-area guest score. Public-area inspections belong on this view. Cleaner and inspector names stay off until a row has a verified room, stay, and check-in time.",
+          "IHG no tiene una métrica de áreas públicas. Las inspecciones de áreas públicas van en esta vista. Los nombres de quien limpia o inspecciona no aparecen hasta que haya un cuarto, una estadía y una hora de llegada verificados."
+        )) + "</p></section>";
+      }
+      var tables = methods.map(function (method) {
+        var any = dept.metrics.some(function (metric) {
+          return PERIOD_KINDS.some(function (kind) { return !!factFor(picked.rows, metric.id, kind, method); });
+        });
+        if (method !== "topbox_8_10" && !any) return "";
+        var body = dept.metrics.map(function (metric) {
+          var has = PERIOD_KINDS.some(function (kind) { return !!factFor(picked.rows, metric.id, kind, method); });
+          if (method !== "topbox_8_10" && !has) return "";
+          return PERIOD_KINDS.map(function (kind) {
+            var fact = factFor(picked.rows, metric.id, kind, method);
+            var today = fact && fact.asOf ? fact.asOf : new Date().toISOString().slice(0, 10);
+            var win = fact && fact.periodStart ? { start: fact.periodStart, end: fact.periodEnd } : periodWindow(today, kind);
+            var value = fact ? fact.value : null;
+            var n = fact && fact.n != null ? String(fact.n) : "—";
+            var prior = fact ? fmtPct(fact.priorYear) : "—";
+            var region = fact ? fmtPct(fact.region) : "—";
+            var brand = fact ? fmtPct(fact.brand) : "—";
+            var cls = "";
+            if (value != null && metric.goal != null) cls = Number(value) + 1e-9 >= Number(metric.goal) ? "gs-met" : "gs-miss";
+            return "<tr class=\"" + cls + "\"><td>" + escGs(lang === "es" ? metric.es : metric.en) + "</td><td>" + escGs(kind.toUpperCase()) + "</td><td>" +
+              escGs(fmtSpan(win.start, win.end, lang)) + "</td><td>" + escGs(fmtPct(value)) + "</td><td>" + escGs(n) + "</td><td>" +
+              escGs(fmtGoalText(metric.goal, lang)) + "</td><td>" + FLOOR + "</td><td>" + escGs(prior) + "</td><td>" + escGs(region) + "</td><td>" + escGs(brand) + "</td><td>" +
+              escGs(scoreResult(value, metric.goal, lang)) + "</td></tr>";
+          }).join("");
+        }).join("");
+        if (!body) return "";
+        return "<h4>" + escGs(methodLabel(method, lang)) + "</h4><div class=\"gs-scroll\"><table class=\"gs-t\"><thead><tr><th>" +
+          escGs(gsTx(lang, "Metric", "Métrica")) + "</th><th>" + escGs(gsTx(lang, "Period", "Período")) + "</th><th>" +
+          escGs(gsTx(lang, "Dates", "Fechas")) + "</th><th>" + escGs(gsTx(lang, "Score", "Nota")) + "</th><th>n</th><th>" +
+          escGs(gsTx(lang, "Goal", "Meta")) + "</th><th>" + escGs(gsTx(lang, "Floor", "Piso")) + "</th><th>" +
+          escGs(gsTx(lang, "Prior year", "Año anterior")) + "</th><th>" + escGs(gsTx(lang, "My Region", "Mi región")) + "</th><th>" +
+          escGs(gsTx(lang, "Brand", "Marca")) + "</th><th>" + escGs(gsTx(lang, "Result", "Resultado")) + "</th></tr></thead><tbody>" +
+          body + "</tbody></table></div>";
+      }).join("");
+      return "<section class=\"gs-dept\"><h3>" + escGs(lang === "es" ? dept.es : dept.en) + "</h3>" + tables + "</section>";
+    }).join("");
+    return "<div class=\"gs-depts\" id=\"gsDepts\">" + banner + note + blocks + "</div>";
+  }
+
   function buildDemo(today) {
     var surveys = [];
     var goals = {};
@@ -382,7 +650,7 @@ function fillScores(n, pct) {
         });
       });
     });
-    return { origin: "example", surveys: surveys, goals: goals };
+    return { origin: "example", surveys: surveys, goals: goals, periods: examplePeriods(today) };
   }
 
   var api = {
@@ -408,7 +676,13 @@ function fillScores(n, pct) {
     lowScores: lowScores,
     metricList: metricList,
     workOrderFromSurvey: workOrderFromSurvey,
-    buildDemo: buildDemo
+    buildDemo: buildDemo,
+    FLOOR: FLOOR,
+    DEPTS: DEPTS,
+    examplePeriods: examplePeriods,
+    deptsFor: deptsFor,
+    pickFacts: pickFacts,
+    departmentHtml: departmentHtml
   };
   root.GuestScores = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -502,32 +776,70 @@ function fillScores(n, pct) {
     });
     return out;
   }
+  function scoreLive() {
+    try { if (typeof authMode !== "undefined" && authMode === "live") return true; } catch (e) {}
+    try { if (root.HOTELHQ_CONFIG && String(root.HOTELHQ_CONFIG.mode) === "live") return true; } catch (e2) {}
+    return false;
+  }
+  function mapPeriod(r) {
+    return {
+      hotel: r.hotel, source: r.source || "", metric: r.metric,
+      periodKind: r.period_kind, periodStart: String(r.period_start || "").slice(0, 10),
+      periodEnd: String(r.period_end || "").slice(0, 10), asOf: String(r.as_of || "").slice(0, 10),
+      value: r.value == null ? null : Number(r.value), n: r.n == null ? null : Number(r.n),
+      calcMethod: r.calc_method, goal: r.goal == null ? null : Number(r.goal),
+      priorYear: r.prior_year == null ? null : Number(r.prior_year),
+      region: r.region == null ? null : Number(r.region), brand: r.brand == null ? null : Number(r.brand)
+    };
+  }
   function ensureLive() {
-    if (typeof useRemote !== "function" || !useRemote() || liveState === "loading" || liveState === "ready" || liveState === "empty") return;
-    if (typeof sb === "undefined" || !sb) return;
+    if (!scoreLive() || liveState === "loading" || liveState === "ready" || liveState === "empty") return;
+    if (typeof useRemote !== "function" || !useRemote() || typeof sb === "undefined" || !sb) {
+      liveState = "empty";
+      live = { surveys: [], goals: {}, periods: [] };
+      return;
+    }
     liveState = "loading";
     var from = addDays(waveOf(todayISO()).start, -14);
     var leader = isLeader(dbRole());
+    var hotels = hotelsFor(dbRole());
     var scores = leader
       ? sb.from("guest_surveys").select("id,hotel,survey_date,room,source,itr,comment,guest_survey_metrics(metric,score)").gte("survey_date", from).limit(5000)
       : sb.from("guest_score_facts").select("survey_id,hotel,survey_date,metric,score").gte("survey_date", from).limit(8000);
+    if (hotels.length === 1) scores = scores.eq("hotel", hotels[0]);
     var goals = sb.from("itr_goals").select("hotel,month,metric,goal_pct").limit(2000);
-    Promise.all([scores, goals]).then(function (res) {
-      var sres = res[0], gres = res[1];
-      if (sres.error || gres.error || !sres.data || !sres.data.length) { liveState = "empty"; live = null; return; }
+    var periods = sb.from("guest_score_period_facts").select("hotel,source,metric,period_kind,period_start,period_end,as_of,value,n,calc_method,goal,prior_year,region,brand").limit(2000);
+    if (hotels.length === 1) periods = periods.eq("hotel", hotels[0]);
+    else if (hotels.length) periods = periods.in("hotel", hotels);
+    Promise.all([scores, goals, periods]).then(function (res) {
+      var sres = res[0] || {}, gres = res[1] || {}, pres = res[2] || {};
+      var surveys = [];
+      if (!sres.error && sres.data && sres.data.length) surveys = leader ? sres.data.map(mapSurveyRow) : mapFacts(sres.data);
       live = {
-        origin: "supabase",
-        surveys: leader ? sres.data.map(mapSurveyRow) : mapFacts(sres.data),
-        goals: mapGoals(gres.data || [])
+        surveys: surveys,
+        goals: gres.error ? {} : mapGoals(gres.data || []),
+        periods: pres.error ? [] : (pres.data || []).map(mapPeriod)
       };
       liveState = "ready";
       try { render(); } catch (e) {}
-    }, function () { liveState = "empty"; live = null; });
+    }, function () {
+      liveState = "empty";
+      live = { surveys: [], goals: {}, periods: [] };
+      try { render(); } catch (e2) {}
+    });
   }
   function bundle() {
     ensureLive();
     var today = todayISO();
-    if (live && live.origin === "supabase") return { origin: "supabase", surveys: live.surveys, goals: mergeGoals(live.goals), today: today };
+    if (scoreLive()) {
+      return {
+        origin: liveState === "loading" ? "loading" : "live",
+        surveys: (live && live.surveys) || [],
+        goals: mergeGoals(live && live.goals),
+        periods: (live && live.periods) || [],
+        today: today
+      };
+    }
     var demo = buildDemo(today);
     demo.goals = mergeGoals(demo.goals);
     demo.today = today;
@@ -601,13 +913,16 @@ function fillScores(n, pct) {
   function lineCard(data, role) {
     var hotel = ownHotel();
     if (HOTELS.indexOf(hotel) < 0 || !guestScoresOn(hotel)) return "";
-    var surveys = project(data.surveys, role, [hotel]);
-    var list = metricList(hotel, role, surveys);
-    if (!list.length) return "";
+    var lang = (typeof LANG !== "undefined" && LANG === "es") ? "es" : "en";
+    var depts = departmentHtml(data.periods || [], role, hotel, lang);
+    var surveys = project(data.surveys || [], role, [hotel]);
+    var list = data.surveys && data.surveys.length ? metricList(hotel, role, surveys) : [];
+    if (!list.length && !depts) return "";
     var blocks = list.map(function (meta, i) {
       return metricBlock(surveys, data.goals, data.today, hotel, meta, i === 0);
     }).join("");
-    return '<div class="card gs" id="gsHome"><h3>' + esc(tx("Guest scores", "Calificaciones de huéspedes")) + "</h3>" + sampleNote(data.origin) + '<p class="gs-note">' + esc(hotel + " · " + BRAND[hotel]) + " · " + esc(tx("Scores for your department at this hotel.", "Calificaciones de tu departamento en este hotel.")) + " · " + esc(waveTitle(data.today)) + "</p>" + blocks + '<p class="gs-note">' + esc(tx("Top-box is 9–10 out of 10. The pale bar is the goal. Green met it. Red missed it.", "La caja alta es 9–10 de 10. La barra clara es la meta. Verde cumplió. Rojo no cumplió.")) + "</p></div>";
+    var surveyNote = list.length ? '<p class="gs-note">' + esc(tx("Top-box is 9–10 out of 10. The pale bar is the goal. Green met it. Red missed it.", "La caja alta es 9–10 de 10. La barra clara es la meta. Verde cumplió. Rojo no cumplió.")) + "</p>" : "";
+    return '<div class="card gs" id="gsHome"><h3>' + esc(tx("Guest scores", "Calificaciones de huéspedes")) + "</h3>" + sampleNote(data.origin) + '<p class="gs-note">' + esc(hotel + " · " + BRAND[hotel]) + " · " + esc(tx("Scores for your department at this hotel.", "Calificaciones de tu departamento en este hotel.")) + (list.length ? " · " + esc(waveTitle(data.today)) : "") + "</p>" + blocks + surveyNote + depts + "</div>";
   }
   function leaderCard(data, role) {
     var hotels = hotelsFor(role).filter(guestScoresOn);
@@ -629,6 +944,11 @@ function fillScores(n, pct) {
     if (!role) return "";
     if (!guestScoresOn(ownHotel())) return "";
     var data = bundle();
+    var lang = (typeof LANG !== "undefined" && LANG === "es") ? "es" : "en";
+    if (isLeader(role) && (!data.surveys || !data.surveys.length)) {
+      var hotel = ownHotel() || (hotelsFor(role)[0] || "");
+      return '<div class="card gs" id="gsHome"><h3>' + esc(tx("Guest scores", "Calificaciones de huéspedes")) + "</h3><p class=\"gs-note\">" + esc(hotel) + "</p>" + departmentHtml(data.periods || [], role, hotel, lang) + '<button type="button" class="btn" onclick="go(\'gscores\')">' + esc(tx("Open department scores", "Abrir calificaciones")) + "</button></div>";
+    }
     if (isLeader(role)) return leaderCard(data, role);
     if (!metricsForRole(role).length) return "";
     return lineCard(data, role);
@@ -671,17 +991,23 @@ function fillScores(n, pct) {
       var comment = tx(s.comment, s.commentEs);
       return '<div class="gs-low"><div class="row"><b>' + esc(s.date) + "</b><b>" + esc(tx("Room", "Cuarto")) + " " + esc(s.room) + "</b><b>ITR " + esc(String(s.itr)) + "</b></div>" + (comment ? "<p>" + esc(comment) + "</p>" : "") + btn + "</div>";
     }).join("");
+    var surveyOn = !!(data.surveys && data.surveys.length);
     return '<div class="gs" id="gsRoot"><h2>' + esc(tx("Guest scores", "Calificaciones de huéspedes")) + "</h2>" +
       sampleNote(data.origin) +
-      '<p class="gs-note">' + esc(tx("Top-box is the share of scores that are 9 or 10 out of 10. Google and TripAdvisor are star averages. ITR is the headline.", "La caja alta es la parte de notas de 9 o 10 sobre 10. Google y TripAdvisor son promedios de estrellas. ITR es la cifra principal.")) + " · " + esc(waveTitle(data.today)) + "</p>" +
-      (hotelButtons ? '<div class="gs-hotels">' + hotelButtons + "</div>" : "") +
-      '<div class="card"><h3>' + esc(detail + " · " + BRAND[detail]) + " · " + esc(tx("All metrics", "Todas las métricas")) + "</h3>" + grid + "</div>" +
-      '<div class="card" id="gsGoal"><h3>' + esc(labelOf(chosenMeta)) + " · " + esc(tx("Goal vs actual", "Meta contra real")) + "</h3>" +
-      '<div class="wlseg">' + chips + "</div>" + chart(rows, chosenMeta.kind) +
-      '<p class="gs-note">' + esc(tx("The pale bar is the goal. Green means the month met the goal. Red means it missed.", "La barra clara es la meta. Verde significa que el mes cumplió. Rojo significa que no cumplió.")) + (editable ? " " + esc(tx("JR Corporate can set a goal for any metric.", "JR Corporativo puede poner una meta para cualquier métrica.")) : "") + "</p>" +
-      monthTable(rows, detail, chosen, chosenMeta.kind, editable) + "</div>" +
-      '<div class="card" id="gsLow"><h3>' + esc(tx("Surveys with ITR of 6 or less", "Encuestas con ITR de 6 o menos")) + "</h3>" +
-      (woRows || '<p class="gs-note">' + esc(tx("No surveys at 6 or below in this wave.", "No hay encuestas de 6 o menos en esta ola.")) + "</p>") + "</div></div>";
+      (surveyOn
+        ? '<p class="gs-note">' + esc(tx("Top-box is the share of scores that are 9 or 10 out of 10. Google and TripAdvisor are star averages. ITR is the headline.", "La caja alta es la parte de notas de 9 o 10 sobre 10. Google y TripAdvisor son promedios de estrellas. ITR es la cifra principal.")) + " · " + esc(waveTitle(data.today)) + "</p>" +
+          (hotelButtons ? '<div class="gs-hotels">' + hotelButtons + "</div>" : "") +
+          '<div class="card"><h3>' + esc(detail + " · " + BRAND[detail]) + " · " + esc(tx("All metrics", "Todas las métricas")) + "</h3>" + grid + "</div>" +
+          '<div class="card" id="gsGoal"><h3>' + esc(labelOf(chosenMeta)) + " · " + esc(tx("Goal vs actual", "Meta contra real")) + "</h3>" +
+          '<div class="wlseg">' + chips + "</div>" + chart(rows, chosenMeta.kind) +
+          '<p class="gs-note">' + esc(tx("The pale bar is the goal. Green means the month met the goal. Red means it missed.", "La barra clara es la meta. Verde significa que el mes cumplió. Rojo significa que no cumplió.")) + (editable ? " " + esc(tx("JR Corporate can set a goal for any metric.", "JR Corporativo puede poner una meta para cualquier métrica.")) : "") + "</p>" +
+          monthTable(rows, detail, chosen, chosenMeta.kind, editable) + "</div>" +
+          '<div class="card" id="gsLow"><h3>' + esc(tx("Surveys with ITR of 6 or less", "Encuestas con ITR de 6 o menos")) + "</h3>" +
+          (woRows || '<p class="gs-note">' + esc(tx("No surveys at 6 or below in this wave.", "No hay encuestas de 6 o menos en esta ola.")) + "</p>") + "</div>"
+        : (hotels.length > 1 ? '<div class="gs-hotels">' + hotels.map(function (hotel) {
+          return '<button type="button" class="' + (hotel === detail ? "on" : "") + '" onclick="gsPickHotel(\'' + hotel + '\')">' + esc(hotel + " · " + BRAND[hotel]) + "</button>";
+        }).join("") + "</div>" : "")) +
+      departmentHtml(data.periods || [], role, detail, (typeof LANG !== "undefined" && LANG === "es") ? "es" : "en") + "</div>";
   }
 
   root.gsPickHotel = function (hotel) {
@@ -751,11 +1077,12 @@ function fillScores(n, pct) {
     var prevTiles = tilesFor;
     root.tilesFor = function (role) {
       var list = (prevTiles(role) || []).slice();
-      var leader = false;
-      try { leader = isLeader(authRole()); } catch (e) { leader = false; }
+      var who = role;
+      try { who = authRole() || role; } catch (e) { who = role; }
       var hotel = "";
-      try { hotel = S.hotel; } catch (e) { hotel = ""; }
-      if (leader && role === "GM" && guestScoresOn(hotel) && list.indexOf("gscores") < 0) list.splice(Math.min(2, list.length), 0, "gscores");
+      try { hotel = S.hotel; } catch (e2) { hotel = ""; }
+      var show = guestScoresOn(hotel) && (isLeader(who) || deptsFor(who).length > 0);
+      if (show && list.indexOf("gscores") < 0) list.splice(Math.min(2, list.length), 0, "gscores");
       if (!guestScoresOn(hotel)) list = list.filter(function (id) { return id !== "gscores"; });
       return list;
     };
@@ -784,7 +1111,10 @@ function fillScores(n, pct) {
     ".gs-metric{padding:8px 0;border-top:1px solid #e6ebf2}",
     ".gs-metric h3{margin:8px 0 4px}",
     ".gs-low{padding:8px 0;border-bottom:1px solid #e6ebf2}",
-    ".gs-low .btn,.gs-low .btn2{width:100%}"
+    ".gs-low .btn,.gs-low .btn2{width:100%}",
+    ".gs-dept{margin-top:12px}",
+    ".gs-dept h3{margin:12px 0 4px}",
+    ".gs-dept h4{margin:8px 0 4px;font-size:14px}"
   ].join("");
   document.head.appendChild(style);
   (function (spec) {
