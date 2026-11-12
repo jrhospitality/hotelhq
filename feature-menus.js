@@ -30,6 +30,7 @@
   var DOCS = ["GM", "Above Property", "JR Corporate"];
   var FAIR = ["GM", "Above Property"];
   var CHAT = ["Front Desk", "AGM"];
+  var CAPTURE = ["GM", "AGM", "Above Property"];
   var SHUTTLE = ["MSPAM", "MSPMS"];
 
   function norm(role) {
@@ -38,9 +39,10 @@
     return role || "";
   }
   function menuAllows(id, role, hotel, featureOn) {
+    role = norm(role);
+    if (id === "capture") return CAPTURE.indexOf(role) >= 0;
     var feature = SCREEN[id];
     if (!feature) return true;
-    role = norm(role);
     if (feature === "shuttle") {
       if (SHUTTLE.indexOf(hotel) < 0) return false;
     }

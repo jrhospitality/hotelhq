@@ -755,6 +755,7 @@
       var top = buildTop(hi, search);
       if (window.HHQDone && HHQDone.homeHtml) top.insertAdjacentHTML("beforeend", HHQDone.homeHtml());
       if (window.NightAudit && NightAudit.homeHtml) top.insertAdjacentHTML("beforeend", NightAudit.homeHtml());
+      if (window.RevenueCapture && RevenueCapture.homeHtml) top.insertAdjacentHTML("beforeend", RevenueCapture.homeHtml());
       if (window.GuestComments && GuestComments.homeHtml) top.insertAdjacentHTML("beforeend", GuestComments.homeHtml());
       if (window.HHQBrief && HHQBrief.inlineHtml) top.insertAdjacentHTML("beforeend", HHQBrief.inlineHtml());
       var pair = document.createElement("div");

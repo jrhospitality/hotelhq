@@ -55,7 +55,7 @@ test("demo sample rooms stay in the page and live mode skips that seed", () => {
   assert.match(html, /HHQRooms\.assignmentStatus/);
   assert.doesNotMatch(html, /dbInsert\("room_status_log"/);
   const sw = read("sw.js");
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v23"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v24"/);
   assert.match(sw, /\.\/room-live\.js/);
 });
 

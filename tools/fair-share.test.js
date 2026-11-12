@@ -196,7 +196,7 @@ test("the migration stores later imports and does not publish sample guests", ()
   const src = fs.readFileSync(path.join(root, "fair-share.js"), "utf8");
   assert.ok(html.indexOf('src="glance-home.js"') < html.indexOf('src="fair-share.js"'));
   assert.match(sw, /\.\/fair-share\.js/);
-  assert.match(sw, /hotelhq-shell-v23/);
+  assert.match(sw, /hotelhq-shell-v24/);
   assert.match(sql, /fair_share_snapshots/);
   assert.match(sql, /fair_share_imports/);
   assert.match(sql, /source in \('sample', 'str', 'daystar', 'mint', 'hilton', 'manual'\)/);
