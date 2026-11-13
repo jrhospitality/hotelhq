@@ -59,7 +59,13 @@
     "licenses.manage": ["GM", "Above Property"],
     "fairshare.see": ["GM", "Above Property"],
     "guestchat.respond": ["Front Desk", "AGM"],
-    "guestchat.count": ["GM"]
+    "guestchat.count": ["GM"],
+    "ar.invoice": ["GM", "AGM", "Above Property"],
+    "ar.overview": ["Above Property"],
+    "ar.collect": ["Front Desk"],
+    "ar.resolve": ["GM", "AGM", "Above Property"],
+    "ar.threshold": ["Above Property"],
+    "ar.aging": ["Above Property"]
   };
 
   var SHUTTLE_HOTELS = ["MSPAM", "MSPMS"];

@@ -144,7 +144,7 @@ test("live mode stays off and the private bucket is not public", () => {
   assert.match(html, /src="licenses\.js"/);
   assert.ok(html.indexOf('src="licenses.js"') < html.indexOf('src="glance-home.js"'));
   assert.match(sw, /\.\/licenses\.js/);
-  assert.match(sw, /hotelhq-shell-v23/);
+  assert.match(sw, /hotelhq-shell-v24/);
   assert.match(sql, /compliance-docs/);
   assert.match(sql, /public = false/);
   assert.match(sql, /file_size_limit/);

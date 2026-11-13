@@ -658,7 +658,7 @@
 
   var css = document.createElement("style");
   css.textContent = [
-    "#uxHero.glance-on .hhq-kpis,#uxHero.glance-on .hhq-board,#uxHero.glance-on .hhq-day,#uxHero.glance-on .hhq-urgent,#uxHero.glance-on #naHome,#uxHero.glance-on #gcHome,#uxHero.glance-on #gcScores,#uxHero.glance-on .gc-home,#uxHero.glance-on .gc-scores,#uxHero.glance-on .hhq-ops,#uxHero.glance-on .hhq-brief,#uxHero.glance-on .hhq-done,#uxHero.glance-on .hhq-notes,#uxHero.glance-on #qotd{display:none!important}",
+    "#uxHero.glance-on .hhq-kpis,#uxHero.glance-on .hhq-board,#uxHero.glance-on .hhq-day,#uxHero.glance-on .hhq-urgent,#uxHero.glance-on #naHome,#uxHero.glance-on #arHome,#uxHero.glance-on #gcHome,#uxHero.glance-on #gcScores,#uxHero.glance-on .gc-home,#uxHero.glance-on .gc-scores,#uxHero.glance-on .hhq-ops,#uxHero.glance-on .hhq-brief,#uxHero.glance-on .hhq-done,#uxHero.glance-on .hhq-notes,#uxHero.glance-on #qotd{display:none!important}",
     "#uxHero.glance-on.glance-portfolio .hhq-pair{display:none!important}",
     ".glance{display:flex;flex-direction:column;gap:10px;margin:0 0 8px}",
     ".glance-kicker{margin:0;font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#55606f}",

@@ -209,7 +209,7 @@ test("live mode reads a HotelKey feed and keeps the sample check-in in demo", ()
   const src = fs.readFileSync(path.join(root, "night-audit.js"), "utf8");
   assert.match(html, /night-audit\.js/);
   assert.match(sw, /night-audit\.js/);
-  assert.match(sw, /hotelhq-shell-v23/);
+  assert.match(sw, /hotelhq-shell-v24/);
   assert.match(home, /NightAudit\.homeHtml/);
   assert.match(src, /!\s*demoUi\(\)/);
   assert.match(src, /source", "hotelkey"/);
