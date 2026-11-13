@@ -754,6 +754,7 @@
       shell.id = "hhqFocus";
       var top = buildTop(hi, search);
       if (window.HHQDone && HHQDone.homeHtml) top.insertAdjacentHTML("beforeend", HHQDone.homeHtml());
+      if (window.AccountsReceivable && AccountsReceivable.homeHtml) top.insertAdjacentHTML("beforeend", AccountsReceivable.homeHtml());
       if (window.NightAudit && NightAudit.homeHtml) top.insertAdjacentHTML("beforeend", NightAudit.homeHtml());
       if (window.GuestComments && GuestComments.homeHtml) top.insertAdjacentHTML("beforeend", GuestComments.homeHtml());
       if (window.HHQBrief && HHQBrief.inlineHtml) top.insertAdjacentHTML("beforeend", HHQBrief.inlineHtml());

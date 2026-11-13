@@ -7,7 +7,8 @@
    source is hotelkey, plus night_audit_report_rows and night_audit_items.
    Counts are shown as reported. OOO and stay extensions do not grow a room list.
    Opera, OnQ, and Marriott parsers stay empty until real report samples arrive.
-   The mailbox body is not stored. Parsed rows belong in night_audit_report_rows. */
+   The mailbox body is not stored. Parsed rows belong in night_audit_report_rows.
+   Balance checks from the AR feed render above this check-in when AccountsReceivable is loaded. */
 (function (root) {
   "use strict";
 
@@ -1167,14 +1168,15 @@
     if (!hotels.length) return "<div class=\"na\" id=\"naRoot\"></div>";
     var view = pageState();
     var hotel = hotels.indexOf(view.hotel) >= 0 ? view.hotel : hotels[0];
+    var balance = arNight(actor, hotel, lang);
     if (liveState === "loading" || liveState === "") {
-      return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2><p class=\"na-note\">" + esc(tx(lang, "Loading the HotelKey feed.", "Cargando el reporte HotelKey.")) + "</p></div>";
+      return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" + balance + "<p class=\"na-note\">" + esc(tx(lang, "Loading the HotelKey feed.", "Cargando el reporte HotelKey.")) + "</p></div>";
     }
     var switcher = hotels.length < 2 ? "" : "<div class=\"na-chips\">" + hotels.map(function (code) {
       return "<button type=\"button\" class=\"" + (code === hotel ? "on" : "") + "\" onclick=\"naHotel('" + code + "')\">" + esc(code) + "</button>";
     }).join("") + "</div>";
     var model = livePack[hotel] || { connected: false, hotel: hotel };
-    return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" + switcher + feedHtml(model, lang, { actions: true, openId: view.openId, error: view.error }) + "</div>";
+    return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" + switcher + balance + feedHtml(model, lang, { actions: true, openId: view.openId, error: view.error }) + "</div>";
   }
   function liveHomeHtml(actor, lang) {
     ensureLive();
@@ -1193,6 +1195,12 @@
     });
     return "<section class=\"na-home\" id=\"naHome\"><div class=\"na-line\"><h3>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h3></div><p class=\"na-note\">" + rows.join("<br>") + "</p><button type=\"button\" class=\"btn na-wide\" onclick=\"naOpen('" + hotels[0] + "')\">" + esc(tx(lang, "Open night audit", "Abrir auditoría")) + "</button></section>";
   }
+  function arNight(actor, hotel, lang) {
+    try {
+      if (!root.AccountsReceivable || !root.AccountsReceivable.nightSection) return "";
+      return root.AccountsReceivable.nightSection(actor, { hotel: hotel, lang: lang });
+    } catch (e) { return ""; }
+  }
   function bootPage() {
     var actor = currentActor();
     if (!isLeader(actor.role)) return "<div class=\"na\" id=\"naRoot\"></div>";
@@ -1200,7 +1208,7 @@
     var view = pageState();
     var lang = langNow();
     var sample = feedForHotel(exampleFeed(), view.hotel);
-    return checkinHtml(bundle(), actor, view) + feedHtml(sample, lang);
+    return arNight(actor, view.hotel, lang) + checkinHtml(bundle(), actor, view) + feedHtml(sample, lang);
   }
   function homeHtml() {
     var actor = currentActor();
