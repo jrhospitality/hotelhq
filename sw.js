@@ -48,6 +48,7 @@ var SHELL = [
   "./glance-home.js",
   "./fair-share.js",
   "./guest-messages.js",
+  "./revenue-capture.js",
   "./room-live.js",
   "./data/welcome-messages.js",
   "./data/local-recs.js",
