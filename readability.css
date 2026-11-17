@@ -48,7 +48,8 @@ header#hdr{
   color:#fff;
   border-color:transparent;
 }
-#hbar .hhq,#hbar .hhq span,header .hhq span,#side .sb-brand span:not(.ex){color:var(--brand-ink)!important}
+#hbar .hhq,header .hhq{color:var(--brand-ink)!important}
+#hbar .hhq span,header .hhq span,#side .sb-brand span:not(.ex),#welcome .wl-brand span{color:#f2b705!important}
 #side .sb-top{background:var(--brand)!important;color:#fff!important;border-bottom:0}
 #side .sb-top #hname,#side .sb-top .sb-brand{color:#fff!important}
 .btn,.qa button,#uxHelpBtn,.kp button.btn{background:var(--brand);color:#fff;border-color:transparent}
