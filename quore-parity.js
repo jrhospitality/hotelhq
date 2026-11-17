@@ -227,7 +227,7 @@ QP.fgo=(t,room)=>{if(room&&/^\d+$/.test(room)&&S.fq!==room){S.fq=room;render();s
 
 /* ---------- (8) corporate reports ---------- */
 function woAge(w){if(w.at)return Math.max(0,Math.floor(mins(w.at)/1440));return (Number(w.id)*5)%23}
-function repData(h){const d=S.h[h],q=d.pmq||{total:0,done:0},dl=daysLeft(),open=(d.wo||[]).filter(w=>w.s!=="Done"),b=[0,0,0,0];open.forEach(w=>{const a=woAge(w);b[a<=2?0:a<=7?1:a<=14?2:3]++});
+function repData(h){const d=S.h[h],q=d.pmq||{total:0,done:0},dl=daysLeft(),open=(d.wo||[]).filter(function(w){return typeof woOpen==="function"?woOpen(w):w.s!=="Done"}),b=[0,0,0,0];open.forEach(w=>{const a=woAge(w);b[a<=2?0:a<=7?1:a<=14?2:3]++});
   const wk=Object.keys(d.pmDay||{}).filter(k=>dayDiff(today(),k)<7).reduce((a,k)=>a+(d.pmDay[k]||[]).filter(e=>e.done).length,0);
   const gr=grList(h),ack=gr.filter(r=>r.ackAt),res=gr.filter(r=>r.doneAt),inSla=ack.filter(r=>mins(r.at,r.ackAt)<=slaMin(r)).length,need=(q.total-q.done)/dl;
   const s=dcState(h),dk=Object.keys(s.rooms);
