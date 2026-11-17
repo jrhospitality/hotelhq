@@ -1217,6 +1217,18 @@
     return homeCard(bundle(), actor, langNow());
   }
   api.homeHtml = homeHtml;
+  api.currentFeed = function (hotel) {
+    if (demoUi()) {
+      var sample = feedForHotel(exampleFeed(), hotel);
+      return sample && sample.connected ? sample : null;
+    }
+    return livePack[hotel] && livePack[hotel].connected ? livePack[hotel] : null;
+  };
+  api.feedState = function () {
+    if (demoUi()) return "example";
+    if (liveState === "loading" || liveState === "") return "loading";
+    return liveState || "empty";
+  };
 
   root.naOpen = function (hotel) {
     if (HOTELS.indexOf(hotel) < 0 || !canAct(currentActor(), hotel)) return;

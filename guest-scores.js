@@ -845,6 +845,9 @@ function fillScores(n, pct) {
     demo.today = today;
     return demo;
   }
+  api.currentBundle = function () {
+    try { return bundle(); } catch (e) { return null; }
+  };
 
   function kpi(summary) {
     return '<div class="gs-k">' + ["t14", "mtd", "wave"].map(function (key) {
@@ -867,8 +870,8 @@ function fillScores(n, pct) {
         var bh = Math.max(0, ih * (val / max));
         return '<rect x="' + (px).toFixed(1) + '" y="' + (y0 - bh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" fill="' + fill + '"></rect>';
       }
-      bars += rect(x + gw * 0.16, r.goal, "#9eb6d6");
-      var fill = r.meet == null ? "#14365d" : (r.meet ? "#1a7f37" : "#c0262d");
+      var fill = r.meet == null ? "#0c3d5c" : (r.meet ? "#0d7a32" : "#b42318");
+      bars += rect(x + gw * 0.16, r.goal, "#c5d4e0");
       bars += rect(x + gw * 0.52, r.actual, fill);
       bars += '<text x="' + (x + gw / 2).toFixed(1) + '" y="' + (h - 6) + '" text-anchor="middle" font-size="9" fill="#445">' + esc(monthName(r.month)) + "</text>";
     });

@@ -1,0 +1,247 @@
+/* One type scale, one spacing scale, AA contrast, and phone-sized tap targets.
+   Loaded after the inline sheet so these tokens win. */
+:root{
+  --fs-xs:13px;
+  --fs-sm:15px;
+  --fs-body:17px;
+  --fs-md:18px;
+  --fs-lg:22px;
+  --fs-xl:28px;
+  --sp-1:4px;
+  --sp-2:8px;
+  --sp-3:12px;
+  --sp-4:16px;
+  --sp-5:24px;
+  --sp-6:32px;
+  --ink:#1c2430;
+  --muted:#3e4a59;
+  --line:#e2e6ec;
+  --surface:#fff;
+  --surface-2:#f7f8fa;
+  --bg:#f4f6f8;
+  --brand:#0c3d5c;
+  --brand-ink:#7ec8d4;
+  --pop:#176270;
+  --accent:#0c3d5c;
+  --accent-2:#082c43;
+  --accent-soft:#e6eef4;
+  --good:#0d7a32;
+  --bad:#b42318;
+  --warn:#8a5a00;
+  --radius:14px;
+  --shadow:0 1px 2px rgba(16,24,40,.06);
+}
+body{
+  font-size:var(--fs-body);
+  line-height:1.5;
+  background:var(--bg);
+  color:var(--ink);
+}
+header#hdr{
+  background:var(--brand);
+  color:#fff;
+  border-bottom:0;
+  box-shadow:none;
+}
+#hbar{
+  background:transparent;
+  color:#fff;
+  border-color:transparent;
+}
+#hbar .hhq,header .hhq{color:var(--brand-ink)!important}
+#hbar .hhq span,header .hhq span,#side .sb-brand span:not(.ex),#welcome .wl-brand span{color:#f2b705!important}
+#side .sb-top{background:var(--brand)!important;color:#fff!important;border-bottom:0}
+#side .sb-top #hname,#side .sb-top .sb-brand{color:#fff!important}
+.btn,.qa button,#uxHelpBtn,.kp button.btn{background:var(--brand);color:#fff;border-color:transparent}
+.btn:hover,.qa button:hover{background:var(--accent-2)}
+nav{background:var(--surface)}
+nav button.on{
+  color:var(--brand);
+  background:var(--accent-soft);
+  box-shadow:inset 0 3px 0 var(--brand);
+}
+.card,.tile,.rb,.rhroom,.hq-panel,.hhq-today{
+  background:#fff;
+  border:1px solid var(--line);
+  box-shadow:var(--shadow);
+}
+.kpi div,.hhq-kpis div,.hq-kpis div,.gs-k div{
+  background:#fff;
+  border:1px solid var(--line);
+  border-left:4px solid var(--brand);
+  box-shadow:none;
+}
+h2{font-size:var(--fs-xl);line-height:1.2;margin:0 0 var(--sp-4);font-weight:750}
+h3{font-size:var(--fs-md);line-height:1.3;margin:0 0 var(--sp-2);font-weight:700}
+small,.hname,.wlnote,.gs-note,.fs-note,.na-note,.ix-note{font-size:var(--fs-sm);color:var(--muted);line-height:1.4}
+.card,.tile,.rb,.rhroom{
+  padding:var(--sp-4);
+  margin-bottom:var(--sp-4);
+  border-radius:var(--radius);
+}
+.kpi,.hhq-kpis,.hq-kpis{gap:var(--sp-2)}
+.kpi b,.hhq-kpis b,.hq-kpis b,.gs-k b{
+  font-size:26px;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;
+  line-height:1.15;
+}
+.kpi div,.hhq-kpis div,.hq-kpis div{padding:var(--sp-3) var(--sp-2)}
+table{font-size:var(--fs-sm)}
+th,td{padding:10px 8px}
+nav button{min-height:56px;font-size:12px;line-height:1.15;color:var(--muted)}
+[data-hq-chart],.hq-charts,.hq-panel{width:100%;min-width:0;clear:both}
+nav button.on{color:var(--accent)}
+button,.btn,.btn2,.chip,
+#app select,#app input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]){
+  min-height:48px;
+}
+.hhq-urgent button{min-height:48px!important;font-size:var(--fs-body);padding:10px 0}
+.ihg-choice{min-height:48px}
+.rhgrid span,.ft-badge{font-size:var(--fs-xs)}
+.hq-kicker{
+  margin:0 0 var(--sp-2);
+  font-size:var(--fs-xs);
+  font-weight:800;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.hq-next{margin-top:var(--sp-3)}
+.hq-next .ux-act{min-height:64px;font-size:var(--fs-md);width:100%}
+.hq-panel{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:var(--sp-4);
+  margin:0 0 var(--sp-4);
+}
+.hq-panel h3{margin:0 0 var(--sp-1)}
+.hq-note{margin:0 0 var(--sp-3);color:var(--muted);font-size:var(--fs-sm)}
+.hq-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-2);margin:0 0 var(--sp-3)}
+.hq-kpis div{background:#fff;border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:12px;text-align:center;padding:var(--sp-3) var(--sp-2);box-shadow:none}
+.hq-kpis span{display:block;margin-top:var(--sp-1);color:var(--muted);font-size:var(--fs-xs);font-weight:700}
+.hq-can{position:relative;height:220px;margin:0 0 var(--sp-3)}
+.hq-can:last-child{margin-bottom:0}
+.hq-empty,.hq-loading,.hq-error{
+  background:var(--surface-2);
+  border:1px dashed var(--line);
+  border-radius:12px;
+  padding:var(--sp-4);
+  color:var(--muted);
+  font-size:var(--fs-body);
+}
+.hq-error{border-style:solid;border-color:#f0c2be;background:#fdecea;color:var(--bad)}
+.hq-example{display:inline-block;margin:0 0 var(--sp-2)}
+.ex{color:var(--brand)!important;background:var(--accent-soft)!important}
+@media (min-width:1024px){
+  nav button.on{box-shadow:inset 3px 0 0 var(--brand)}
+}
+@media (min-width:1024px){
+  h2{font-size:32px}
+  .hq-charts{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
+  .hq-charts .hq-panel{margin:0}
+  .hq-charts .hq-span{grid-column:1/-1}
+}
+body.is-login{
+  background:#0c3d5c;
+  background-image:linear-gradient(165deg,#124e72 0%,#0c3d5c 46%,#08283c 100%);
+  min-height:100vh;
+}
+body.is-login main{
+  max-width:440px!important;
+  width:min(440px,calc(100% - 32px))!important;
+  margin:0 auto!important;
+  padding:28px 0 48px!important;
+  background:transparent!important;
+}
+.login-mark{
+  margin:8px 0 18px;
+  text-align:center;
+  font-size:44px;
+  font-weight:800;
+  letter-spacing:-.03em;
+  line-height:1;
+  color:#7ec8d4;
+}
+.login-mark span{color:#f2b705}
+body.is-login .card.login{
+  background:#fff;
+  border:0;
+  border-radius:20px;
+  box-shadow:0 16px 40px rgba(0,0,0,.22);
+  padding:22px 18px 24px;
+}
+.login h2{margin:4px 0 6px;font-size:26px;line-height:1.2;color:#1f2328}
+.login-sub{margin:0 0 14px;color:#3e4a59;font-size:17px;line-height:1.4}
+.login .login-lab{
+  display:block;
+  margin:16px 0 6px;
+  color:#1f2328;
+  font-size:17px;
+  font-weight:750;
+}
+.login input,.login select,#hotelFind{
+  width:100%;
+  min-height:48px;
+  font-size:17px;
+  padding:10px 12px;
+}
+.login .lang button,.login .sites button,.hotel-hits button,.pin-eye,.login-go{min-height:48px;font-size:17px}
+.login-go{grid-column:1 / -1;width:100%;margin-top:8px;background:#0c3d5c;color:#fff;font-weight:750}
+.pin-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pin-head .login-lab{margin-bottom:0}
+.pin-eye{
+  background:#fff;
+  color:#0c3d5c;
+  border:1px solid #e2e6ec;
+  border-radius:10px;
+  padding:0 12px;
+  font-weight:750;
+}
+.login #loginErr:empty{display:none}
+.login #loginErr{
+  display:block;
+  margin:12px 0 0;
+  padding:12px 14px;
+  border:1px solid #f3c7c3;
+  border-radius:12px;
+  background:#fdecea;
+  color:#9f1d14;
+  font-size:17px;
+  font-weight:700;
+}
+.hotel-hits{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.hotel-hits button{
+  width:100%;
+  text-align:left;
+  background:#fff;
+  color:#1c2430;
+  border:1px solid #e2e6ec;
+  border-radius:12px;
+  padding:8px 12px;
+  font-weight:700;
+}
+.hotel-empty{margin:8px 0 0;color:#3e4a59;font-size:17px}
+.hotel-picked{
+  margin:8px 0 0;
+  padding:12px;
+  border-radius:12px;
+  background:#e6eef4;
+  color:#0c3d5c;
+  font-size:17px;
+  font-weight:750;
+}
+.hotel-switch{display:flex;flex-direction:column;gap:0;overflow:visible}
+.hotel-now{margin:0 0 8px}
+.hotel-kicker{
+  display:block;
+  font-size:13px;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:#3e4a59;
+}
+.hotel-now b{display:block;font-size:17px;line-height:1.3;color:#1f2328}
+body.is-login :focus-visible{outline:3px solid #176270;outline-offset:2px}
+#hbt{font-size:14px;font-weight:700}

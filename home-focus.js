@@ -746,7 +746,10 @@
       var hero = document.getElementById("uxHero");
       var hi = hero ? hero.querySelector(".ux-hi") : null;
       var search = hero ? hero.querySelector(".ux-search") : null;
+      var nextBtn = null;
       if (hero) {
+        var pri = hero.querySelector(".ux-act.pri") || hero.querySelector(".ux-act");
+        if (pri) nextBtn = pri.cloneNode(true);
         [].slice.call(hero.querySelectorAll(".ux-act, .ux-acts")).forEach(function (node) { node.remove(); });
         hero.removeAttribute("id");
       }
@@ -765,6 +768,22 @@
       if (window.HHQTiles && HHQTiles.homeHtml) pair.insertAdjacentHTML("beforeend", HHQTiles.homeHtml());
       if (pair.childNodes.length) top.appendChild(pair);
       shell.appendChild(top);
+      if (nextBtn) {
+        var todayEl = shell.querySelector("#hhqToday");
+        if (todayEl) {
+          var next = document.createElement("div");
+          next.className = "hq-next";
+          next.id = "hqNext";
+          var kick = document.createElement("p");
+          kick.className = "hq-kicker";
+          kick.textContent = L("Next", "Siguiente");
+          next.appendChild(kick);
+          next.appendChild(nextBtn);
+          var kpis = todayEl.querySelector(".hhq-kpis");
+          if (kpis) kpis.insertAdjacentElement("afterend", next);
+          else todayEl.appendChild(next);
+        }
+      }
       var more = document.createElement("details");
       more.id = "hhqMore";
       if (window.HHQMore && HHQMore.expanded && HHQMore.expanded()) more.open = true;
