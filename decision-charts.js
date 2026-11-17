@@ -5,6 +5,18 @@
   "use strict";
 
   var FLOOR = 80;
+  var BRAND = "#0c3d5c";
+  var POP = "#176270";
+  var SLATE = "#8b97a6";
+  var GOOD = "#0d7a32";
+  var CLOSE = "#b45309";
+  var SHORT = "#b42318";
+  var GRID = "#e6eaf0";
+  function scoreColor(value, goal) {
+    if (value + 1e-9 >= goal) return GOOD;
+    if (goal - value <= 2) return CLOSE;
+    return SHORT;
+  }
   var SCORE_METRICS = [
     { id: "overall_experience", en: "Overall", es: "General", goal: 83 },
     { id: "overall_service", en: "Service", es: "Servicio", goal: 88 },
@@ -214,8 +226,8 @@
       animation: reduced() ? false : { duration: 280 },
       plugins: { legend: { labels: { color: "#1c1f26", font: { size: 14 }, boxWidth: 12 } } },
       scales: {
-        x: { ticks: { color: "#3d4754", font: { size: 13 } }, grid: { display: false } },
-        y: { beginAtZero: true, ticks: { color: "#3d4754", font: { size: 13 } }, grid: { color: "#e6e8ee" } }
+        x: { ticks: { color: "#3e4a59", font: { size: 13 } }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: "#3e4a59", font: { size: 13 } }, grid: { color: GRID } }
       }
     };
     if (extra) Object.keys(extra).forEach(function (key) { opt[key] = extra[key]; });
@@ -395,9 +407,9 @@
         type: "line",
         data: {
           labels: pace.trend.map(function (row) { return row.label; }),
-          datasets: [{ label: tx(lang, "Occupancy", "Ocupación"), data: pace.trend.map(function (row) { return row.occ; }), borderColor: "#2f4ac4", backgroundColor: "rgba(47,74,196,.15)", fill: true, tension: 0.25, pointRadius: 3 }]
+          datasets: [{ label: tx(lang, "Occupancy", "Ocupación"), data: pace.trend.map(function (row) { return row.occ; }), borderColor: BRAND, backgroundColor: "rgba(12,61,92,.12)", fill: true, tension: 0.25, pointRadius: 3 }]
         },
-        options: baseOptions({ scales: { x: baseOptions().scales.x, y: Object.assign({}, baseOptions().scales.y, { max: 100, ticks: { callback: function (v) { return v + "%"; }, color: "#3d4754", font: { size: 13 } } }) } })
+        options: baseOptions({ scales: { x: baseOptions().scales.x, y: Object.assign({}, baseOptions().scales.y, { max: 100, ticks: { callback: function (v) { return v + "%"; }, color: "#3e4a59", font: { size: 13 } } }) } })
       });
     }
     var occPace = document.getElementById("hqOccPace");
@@ -405,19 +417,19 @@
       var occ = pace.points.lines.occupancy;
       draw(occPace, {
         type: "bar",
-        data: { labels: labels, datasets: [{ label: tx(lang, "Occupancy", "Ocupación"), data: [occ.today, occ.mtd, occ.ytd], backgroundColor: "#2f4ac4", borderRadius: 6 }] },
-        options: baseOptions({ scales: { x: baseOptions().scales.x, y: Object.assign({}, baseOptions().scales.y, { max: 100, ticks: { callback: function (v) { return v + "%"; }, color: "#3d4754", font: { size: 13 } } }) } })
+        data: { labels: labels, datasets: [{ label: tx(lang, "Occupancy", "Ocupación"), data: [occ.today, occ.mtd, occ.ytd], backgroundColor: BRAND, borderRadius: 6 }] },
+        options: baseOptions({ scales: { x: baseOptions().scales.x, y: Object.assign({}, baseOptions().scales.y, { max: 100, ticks: { callback: function (v) { return v + "%"; }, color: "#3e4a59", font: { size: 13 } } }) } })
       });
     }
     var revPace = document.getElementById("hqRevPace");
     if (revPace && pace.points) {
       var sets = [];
-      if (pace.points.lines.adr) sets.push({ label: "ADR", data: [pace.points.lines.adr.today, pace.points.lines.adr.mtd, pace.points.lines.adr.ytd], backgroundColor: "#0d6b32", borderRadius: 6 });
-      if (pace.points.lines.revpar) sets.push({ label: "RevPAR", data: [pace.points.lines.revpar.today, pace.points.lines.revpar.mtd, pace.points.lines.revpar.ytd], backgroundColor: "#8a3b08", borderRadius: 6 });
+      if (pace.points.lines.adr) sets.push({ label: "ADR", data: [pace.points.lines.adr.today, pace.points.lines.adr.mtd, pace.points.lines.adr.ytd], backgroundColor: BRAND, borderRadius: 6 });
+      if (pace.points.lines.revpar) sets.push({ label: "RevPAR", data: [pace.points.lines.revpar.today, pace.points.lines.revpar.mtd, pace.points.lines.revpar.ytd], backgroundColor: POP, borderRadius: 6 });
       draw(revPace, {
         type: "bar",
         data: { labels: labels, datasets: sets },
-        options: baseOptions({ scales: { x: baseOptions().scales.x, y: Object.assign({}, baseOptions().scales.y, { ticks: { callback: function (v) { return "$" + v; }, color: "#3d4754", font: { size: 13 } } }) } })
+        options: baseOptions({ scales: { x: baseOptions().scales.x, y: Object.assign({}, baseOptions().scales.y, { ticks: { callback: function (v) { return "$" + v; }, color: "#3e4a59", font: { size: 13 } } }) } })
       });
     }
     var scoreCanvas = document.getElementById("hqScoreChart");
@@ -428,19 +440,19 @@
         data: {
           labels: score.rows.map(function (row) { return tx(lang, row.en, row.es); }),
           datasets: [
-            { type: "bar", label: tx(lang, "Score", "Calificación"), data: score.rows.map(function (row) { return row.value; }), backgroundColor: score.rows.map(function (row) { return row.value + 1e-9 >= row.goal ? "#0d6b32" : "#9f1d14"; }), borderRadius: 6 },
-            { type: "line", label: tx(lang, "Goal", "Meta"), data: score.rows.map(function (row) { return row.goal; }), borderColor: "#1c1f26", pointRadius: 4, borderDash: [4, 4], fill: false },
-            { type: "line", label: tx(lang, "Floor 80", "Piso 80"), data: score.rows.map(function () { return FLOOR; }), borderColor: "#8a3b08", pointRadius: 0, borderDash: [2, 3], fill: false }
+            { type: "bar", label: tx(lang, "Score", "Calificación"), data: score.rows.map(function (row) { return row.value; }), backgroundColor: score.rows.map(function (row) { return scoreColor(row.value, row.goal); }), borderRadius: 6 },
+            { type: "line", label: tx(lang, "Goal", "Meta"), data: score.rows.map(function (row) { return row.goal; }), borderColor: BRAND, pointRadius: 4, borderDash: [4, 4], fill: false },
+            { type: "line", label: tx(lang, "Floor 80", "Piso 80"), data: score.rows.map(function () { return FLOOR; }), borderColor: SLATE, pointRadius: 0, borderDash: [2, 3], fill: false }
           ]
         },
-        options: baseOptions({ indexAxis: "y", scales: { x: Object.assign({}, baseOptions().scales.y, { max: 100, ticks: { callback: function (v) { return v + "%"; }, color: "#3d4754", font: { size: 13 } } }), y: baseOptions().scales.x } })
+        options: baseOptions({ indexAxis: "y", scales: { x: Object.assign({}, baseOptions().scales.y, { max: 100, ticks: { callback: function (v) { return v + "%"; }, color: "#3e4a59", font: { size: 13 } } }), y: baseOptions().scales.x } })
       });
     }
     var fairCanvas = document.getElementById("hqFairChart");
     var fair = stash.hqFair || {};
     if (fairCanvas && fair.series) {
       var ids = ["MPI", "ARI", "RGI"];
-      var colors = { MPI: "#2f4ac4", ARI: "#0d6b32", RGI: "#8a3b08" };
+      var colors = { MPI: BRAND, ARI: POP, RGI: SLATE };
       draw(fairCanvas, {
         type: "bar",
         data: {
@@ -468,8 +480,8 @@
         data: {
           labels: labor.rows.map(function (row) { return row.name.replace(" (EX)", ""); }),
           datasets: [
-            { label: tx(lang, "Actual", "Real"), data: labor.rows.map(function (row) { return row.actual; }), backgroundColor: "#2f4ac4", borderRadius: 6 },
-            { label: tx(lang, "Plan", "Plan"), data: labor.rows.map(function (row) { return row.plan; }), backgroundColor: "#94a3b8", borderRadius: 6 }
+            { label: tx(lang, "Actual", "Real"), data: labor.rows.map(function (row) { return row.actual; }), backgroundColor: BRAND, borderRadius: 6 },
+            { label: tx(lang, "Plan", "Plan"), data: labor.rows.map(function (row) { return row.plan; }), backgroundColor: SLATE, borderRadius: 6 }
           ]
         },
         options: baseOptions()
@@ -482,7 +494,7 @@
         type: "line",
         data: {
           labels: insp.rows.map(function (row) { return row.room ? row.date + " · " + row.room : row.date; }),
-          datasets: [{ label: tx(lang, "Score", "Puntaje"), data: insp.rows.map(function (row) { return row.score; }), borderColor: "#2f4ac4", backgroundColor: "rgba(47,74,196,.12)", fill: true, tension: 0.2, pointRadius: 4 }]
+          datasets: [{ label: tx(lang, "Score", "Puntaje"), data: insp.rows.map(function (row) { return row.score; }), borderColor: BRAND, backgroundColor: "rgba(12,61,92,.12)", fill: true, tension: 0.2, pointRadius: 4 }]
         },
         options: baseOptions({ scales: { x: baseOptions().scales.x, y: Object.assign({}, baseOptions().scales.y, { max: 100 }) } })
       });
@@ -544,6 +556,31 @@
     script.onload = done;
     document.head.appendChild(script);
   }
+
+  var late = document.createElement("style");
+  late.id = "hqPalette";
+  late.textContent = [
+    "#hhqFocus .ux-act.pri,.ux-act.pri,#uxHelpBtn,.btn,.qa button{background:#0c3d5c!important;color:#fff!important;border-color:transparent!important}",
+    "#welcome{background:#0c3d5c!important}",
+    "#welcome .wl-in{background:#0c3d5c!important}",
+    ".glance-tile,.glance-pill,.glance-table td.glance-good,.glance-table td.glance-watch,.glance-table td.glance-bad,.glance-table td.glance-none{background:#fff!important;color:#1c2430!important}",
+    ".glance-tile{border:1px solid #e2e6ec!important;border-left:4px solid #c5cdd6!important;box-shadow:0 1px 2px rgba(16,24,40,.06)}",
+    ".glance-tile.glance-good,.glance-pill.glance-good{border-left:4px solid #0d7a32!important}",
+    ".glance-tile.glance-watch,.glance-pill.glance-watch{border-left:4px solid #b45309!important}",
+    ".glance-tile.glance-bad,.glance-pill.glance-bad{border-left:4px solid #b42318!important}",
+    ".glance-pill{border:1px solid #e2e6ec;border-left:4px solid #c5cdd6}",
+    ".glance-pill b,.glance-table td.glance-good,.glance-table td.glance-watch,.glance-table td.glance-bad{color:#1c2430!important}",
+    ".glance-table td.glance-good{box-shadow:inset 4px 0 0 #0d7a32}",
+    ".glance-table td.glance-watch{box-shadow:inset 4px 0 0 #b45309}",
+    ".glance-table td.glance-bad{box-shadow:inset 4px 0 0 #b42318}",
+    ".glance-dot{background:#c5cdd6}",
+    ".glance-row.glance-good .glance-dot{background:#0d7a32!important}",
+    ".glance-row.glance-watch .glance-dot{background:#b45309!important}",
+    ".glance-row.glance-bad .glance-dot{background:#b42318!important}",
+    "nav button.on{color:#0c3d5c!important;background:#e6eef4!important}",
+    ".hhq-kpis div,.kpi div,.gs-k div{background:#fff!important;border:1px solid #e2e6ec!important;border-left:4px solid #0c3d5c!important}"
+  ].join("");
+  document.head.appendChild(late);
 
   setTimeout(function () {
     if (typeof render !== "function") return;
