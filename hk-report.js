@@ -453,6 +453,7 @@
     return viewModel({ ledger: ledger(), staff: staff, month: thisMonth(), demo: demoMode(), lang: uiLang() });
   }
   function homeBits() {
+    try { if (typeof S === "undefined" || S.tab !== "home") return; } catch (e) { return; }
     var lang = uiLang();
     var role = "";
     try { role = (typeof authRole === "function" && authRole()) || S.role || ""; } catch (e) { role = ""; }
