@@ -220,7 +220,7 @@
   }
 
   function buttonHtml(lang, room) {
-    var label = tx(lang, "Report a problem", "Reportar un problema");
+    var label = tx(lang, "Report maintenance problem", "Reportar problema de mantenimiento");
     var sub = tx(lang, "Photo required", "Foto requerida");
     var arg = JSON.stringify(room == null ? "" : String(room));
     return '<button type="button" class="hk-report-go" onclick=\'HKReport.open(' + arg + ')\'><span>' + esc(label) + '</span><small>' + esc(sub) + '</small></button>';
@@ -329,7 +329,7 @@
     var photoName = draft.file ? draft.file.name : "";
     var ready = canSubmit({ room: draft.room, category: draft.category, photo: draft.photo });
     return '<div class="hk-sheet" role="dialog" aria-modal="true" aria-labelledby="hkReportTitle"><button type="button" class="hk-x" aria-label="' + esc(tx(lang, "Close", "Cerrar")) + '" onclick="HKReport.close()">✕</button>' +
-      '<h2 id="hkReportTitle">' + esc(tx(lang, "Report a problem", "Reportar un problema")) + "</h2>" +
+      '<h2 id="hkReportTitle">' + esc(tx(lang, "Report maintenance problem", "Reportar problema de mantenimiento")) + "</h2>" +
       roomBlock +
       '<div class="hk-tiles">' + tiles + "</div>" +
       '<label class="hk-lab" for="hkNote">' + esc(tx(lang, "Note, optional", "Nota, opcional")) + "</label>" +
@@ -515,11 +515,12 @@
   var css = document.createElement("style");
   css.id = "hkReportCss";
   css.textContent = [
-    ".hk-report-go{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;width:100%;min-height:56px;margin:8px 0;padding:12px 16px;border:0;border-radius:14px;background:#0c3d5c;color:#fff;font-size:18px;font-weight:800;text-align:left}",
-    ".hk-report-go small{font-size:14px;font-weight:650;color:#d7e6ef}",
+    ".hk-report-go{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;width:100%;height:auto;min-height:56px;margin:8px 0;padding:12px 16px;border:0;border-radius:14px;background:#0c3d5c;color:#fff;font-size:18px;font-weight:800;line-height:1.25;text-align:left;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:break-word}",
+    ".hk-report-go span{display:block;width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:break-word}",
+    ".hk-report-go small{display:block;font-size:14px;font-weight:650;color:#d7e6ef;white-space:normal}",
     "#hkReport{position:fixed;inset:0;z-index:80;background:rgba(8,24,36,.45);display:flex;align-items:flex-end;justify-content:center}",
     ".hk-sheet{background:#f4f6f8;width:min(560px,100%);max-height:100%;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));box-sizing:border-box}",
-    ".hk-sheet h2{margin:0 0 8px;color:#0c3d5c;font-size:28px}",
+    ".hk-sheet h2{margin:0 0 8px;padding-right:56px;color:#0c3d5c;font-size:28px;line-height:1.2;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:break-word}",
     ".hk-x{position:sticky;top:0;float:right;min-width:48px;min-height:48px;border:0;border-radius:12px;background:#fff;color:#0c3d5c;font-size:18px}",
     ".hk-lab{display:block;margin:10px 0 4px;font-size:15px;font-weight:750;color:#243140}",
     ".hk-room-now{font-size:18px;margin:8px 0}",

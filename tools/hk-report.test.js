@@ -35,8 +35,19 @@ test("twelve problem tiles include Spanish labels", () => {
   assert.equal(hk.CATEGORIES.length, 12);
   assert.equal(hk.categoryById("hvac").es, "Aire / calefacción");
   assert.equal(hk.categoryById("pest").en, "Pest");
-  assert.equal(hk.buttonHtml("es", "214").includes("Reportar un problema"), true);
-  assert.equal(hk.buttonHtml("en", "").includes("Report a problem"), true);
+  const enBtn = hk.buttonHtml("en", "");
+  const esBtn = hk.buttonHtml("es", "214");
+  assert.match(enBtn, />Report maintenance problem</);
+  assert.match(esBtn, />Reportar problema de mantenimiento</);
+  assert.doesNotMatch(enBtn, />Report a problem</);
+  assert.doesNotMatch(esBtn, />Reportar un problema</);
+  const src = fs.readFileSync(path.join(__dirname, "../hk-report.js"), "utf8");
+  assert.match(src, /hkReportTitle[\s\S]*Report maintenance problem/);
+  assert.match(src, /Reportar problema de mantenimiento/);
+  assert.match(src, /\.hk-report-go\{[^}]*white-space:normal/);
+  assert.match(src, /\.hk-report-go span\{[^}]*overflow-wrap:break-word/);
+  assert.match(src, /\.hk-sheet h2\{[^}]*white-space:normal/);
+  assert.doesNotMatch(src, /Report a problem"|Reportar un problema/);
 });
 
 test("a new report earns 5 and a still-open duplicate earns 0", () => {
