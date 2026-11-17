@@ -845,6 +845,9 @@ function fillScores(n, pct) {
     demo.today = today;
     return demo;
   }
+  api.currentBundle = function () {
+    try { return bundle(); } catch (e) { return null; }
+  };
 
   function kpi(summary) {
     return '<div class="gs-k">' + ["t14", "mtd", "wave"].map(function (key) {
