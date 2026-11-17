@@ -23,6 +23,161 @@
     { id: "other", en: "Other", es: "Otro" }
   ];
   var BRANDS = ["Visa", "Mastercard", "Amex", "Discover", "Other"];
+  var CHOICES = {
+    chip: ["Chip", "Chip"], swipe: ["Swipe", "Banda"], keyed: ["Keyed", "Digitada"], online: ["Online", "En línea"],
+    yes: ["Yes", "Sí"], no: ["No", "No"], none: ["None on file", "No hay"],
+    damage: ["Damage", "Daño"], smoking: ["Smoking", "Fumar"], incidental: ["Other incidental", "Otro cargo"]
+  };
+  function choice(id, en, es, required, options) {
+    return { id: id, en: en, es: es, required: !!required, options: options || null };
+  }
+  function proof(id, en, es, required) {
+    return { id: id, en: en, es: es, required: !!required };
+  }
+  var CATEGORIES = [
+    {
+      id: "fraud_cnp", en: "Fraud / card not present", es: "Fraude / tarjeta no presente",
+      fields: [
+        choice("cardEntry", "Card entry at check-in", "Cómo se leyó la tarjeta", true, ["chip", "swipe", "keyed", "online"]),
+        choice("authCode", "Authorization code", "Código de autorización", true),
+        choice("avsCvv", "AVS / CVV result", "Resultado AVS / CVV", true),
+        choice("bookingChannel", "IP or booking channel", "IP o canal de reserva", false),
+        choice("bookingEmail", "Booking email", "Correo de la reserva", false),
+        choice("priorStays", "Prior stays by this guest", "Estancias previas de este huésped", false),
+        choice("loyalty", "Loyalty number", "Número de lealtad", false)
+      ],
+      evidence: [
+        proof("registration", "Signed registration card", "Tarjeta de registro firmada", true),
+        proof("id", "Guest ID copy", "Copia de identificación", true),
+        proof("authorization", "Card authorization", "Autorización de tarjeta", true),
+        proof("email", "Booking email", "Correo de la reserva", false),
+        proof("folio", "Folio", "Folio", false)
+      ]
+    },
+    {
+      id: "fraud_cp", en: "Fraud / card present", es: "Fraude / tarjeta presente",
+      fields: [
+        choice("cardEntry", "Card entry at check-in", "Cómo se leyó la tarjeta", true, ["chip", "swipe"]),
+        choice("authCode", "Authorization code", "Código de autorización", false)
+      ],
+      evidence: [
+        proof("chip_log", "Chip read log", "Registro de lectura del chip", true),
+        proof("signature", "Signature", "Firma", true),
+        proof("id_match", "ID matched to the cardholder", "Identificación igual al tarjetahabiente", true),
+        proof("id", "Guest ID copy", "Copia de identificación", false)
+      ]
+    },
+    {
+      id: "no_show", en: "No-show", es: "No se presentó",
+      fields: [
+        choice("policyShown", "Cancellation policy shown at booking", "Política de cancelación mostrada al reservar", true, ["yes", "no"]),
+        choice("cancelNumber", "Cancellation number", "Número de cancelación", true, ["none"])
+      ],
+      evidence: [
+        proof("guarantee", "Guaranteed reservation", "Reserva garantizada", true),
+        proof("policy", "Cancellation policy", "Política de cancelación", true),
+        proof("confirmation_email", "Confirmation email sent", "Correo de confirmación enviado", true),
+        proof("no_show_posting", "Night audit no-show posting", "Cargo de no-show en la auditoría", true)
+      ]
+    },
+    {
+      id: "cancelled", en: "Cancelled but charged", es: "Cancelada pero cobrada",
+      fields: [
+        choice("cancelAt", "Cancel request date and time", "Fecha y hora de la cancelación", true),
+        choice("deadlineAt", "Cancellation deadline", "Límite para cancelar", true),
+        choice("cancelNumber", "Cancellation number given", "Número de cancelación dado", true)
+      ],
+      evidence: [
+        proof("policy", "Cancellation policy", "Política de cancelación", true),
+        proof("email", "Cancel request", "Solicitud de cancelación", false)
+      ]
+    },
+    {
+      id: "not_received", en: "Services not received or not as described", es: "Servicio no recibido o no como se describió",
+      fields: [
+        choice("compensation", "Compensation given", "Compensación dada", true),
+        choice("resolution", "How the complaint was resolved", "Cómo se resolvió la queja", false)
+      ],
+      evidence: [
+        proof("folio", "Folio", "Folio", true),
+        proof("key_log", "Key card log", "Registro de llave", true),
+        proof("complaint", "Guest complaint and resolution", "Queja y resolución", true),
+        proof("guest_history", "Medallia or guest messages", "Medallia o mensajes del huésped", false)
+      ]
+    },
+    {
+      id: "duplicate_amount", en: "Duplicate, wrong amount, or credit not processed", es: "Duplicado, monto incorrecto o crédito no procesado",
+      fields: [
+        choice("explanation", "What was posted and why", "Qué se cargó y por qué", true),
+        choice("refunds", "Refunds, with dates and amounts", "Reembolsos, con fechas y montos", false)
+      ],
+      evidence: [
+        proof("folio", "Folio showing one posting", "Folio con un solo cargo", true),
+        proof("refund", "Refund receipt", "Recibo del reembolso", false)
+      ]
+    },
+    {
+      id: "deposit", en: "Advance deposit or prepaid", es: "Depósito o prepago",
+      fields: [
+        choice("termsAck", "Terms acknowledged", "Términos aceptados", true, ["yes", "no"])
+      ],
+      evidence: [
+        proof("deposit_policy", "Deposit policy", "Política de depósito", true),
+        proof("confirmation_email", "Confirmation showing the terms", "Confirmación con los términos", false)
+      ]
+    },
+    {
+      id: "incidental", en: "Incidental, damage, or smoking fee", es: "Cargo incidental, daño o fumar",
+      fields: [
+        choice("feeKind", "Fee type", "Tipo de cargo", true, ["damage", "smoking", "incidental"])
+      ],
+      evidence: [
+        proof("signed_policy", "Signed policy", "Política firmada", true),
+        proof("photos", "Timestamped photos", "Fotos con fecha y hora", true),
+        proof("work_order", "Maintenance work order", "Orden de mantenimiento", true),
+        proof("cleaning_invoice", "Cleaning invoice", "Factura de limpieza", false)
+      ]
+    }
+  ];
+  var REASON_CODES = [
+    { code: "10.4", brand: "Visa", category: "fraud_cnp" },
+    { code: "10.5", brand: "Visa", category: "fraud_cnp" },
+    { code: "4837", brand: "Mastercard", category: "fraud_cnp" },
+    { code: "4863", brand: "Mastercard", category: "fraud_cnp" },
+    { code: "F29", brand: "Amex", category: "fraud_cnp" },
+    { code: "F24", brand: "Amex", category: "fraud_cnp" },
+    { code: "UA02", brand: "Discover", category: "fraud_cnp" },
+    { code: "10.3", brand: "Visa", category: "fraud_cp" },
+    { code: "10.1", brand: "Visa", category: "fraud_cp" },
+    { code: "4870", brand: "Mastercard", category: "fraud_cp" },
+    { code: "4871", brand: "Mastercard", category: "fraud_cp" },
+    { code: "F10", brand: "Amex", category: "fraud_cp" },
+    { code: "UA01", brand: "Discover", category: "fraud_cp" },
+    { code: "C18", brand: "Amex", category: "no_show" },
+    { code: "4855", brand: "Mastercard", category: "no_show" },
+    { code: "NS", brand: "Discover", category: "no_show" },
+    { code: "13.7", brand: "Visa", category: "cancelled" },
+    { code: "13.2", brand: "Visa", category: "cancelled" },
+    { code: "4841", brand: "Mastercard", category: "cancelled" },
+    { code: "C04", brand: "Amex", category: "cancelled" },
+    { code: "C05", brand: "Amex", category: "cancelled" },
+    { code: "13.1", brand: "Visa", category: "not_received" },
+    { code: "13.3", brand: "Visa", category: "not_received" },
+    { code: "4853", brand: "Mastercard", category: "not_received" },
+    { code: "C08", brand: "Amex", category: "not_received" },
+    { code: "C31", brand: "Amex", category: "not_received" },
+    { code: "RG", brand: "Discover", category: "not_received" },
+    { code: "RN", brand: "Discover", category: "not_received" },
+    { code: "12.6", brand: "Visa", category: "duplicate_amount" },
+    { code: "12.5", brand: "Visa", category: "duplicate_amount" },
+    { code: "13.6", brand: "Visa", category: "duplicate_amount" },
+    { code: "4834", brand: "Mastercard", category: "duplicate_amount" },
+    { code: "4860", brand: "Mastercard", category: "duplicate_amount" },
+    { code: "C02", brand: "Amex", category: "duplicate_amount" },
+    { code: "C14", brand: "Amex", category: "duplicate_amount" },
+    { code: "DP", brand: "Discover", category: "duplicate_amount" },
+    { code: "AW", brand: "Discover", category: "duplicate_amount" }
+  ];
 
   function tx(lang, en, es) { return lang === "es" ? es : en; }
   function esc(s) {
@@ -41,9 +196,31 @@
     for (var i = 0; i < STATUSES.length; i++) if (STATUSES[i].id === id) return STATUSES[i];
     return null;
   }
-  function evidenceById(id) {
-    for (var i = 0; i < EVIDENCE.length; i++) if (EVIDENCE[i].id === id) return EVIDENCE[i];
+  function categoryById(id) {
+    for (var i = 0; i < CATEGORIES.length; i++) if (CATEGORIES[i].id === id) return CATEGORIES[i];
     return null;
+  }
+  function evidenceById(id) {
+    var i, j, ev;
+    for (i = 0; i < EVIDENCE.length; i++) if (EVIDENCE[i].id === id) return EVIDENCE[i];
+    for (i = 0; i < CATEGORIES.length; i++) {
+      ev = CATEGORIES[i].evidence || [];
+      for (j = 0; j < ev.length; j++) if (ev[j].id === id) return ev[j];
+    }
+    return null;
+  }
+  function normCode(code) { return String(code || "").toUpperCase().replace(/\s+/g, ""); }
+  function categoryFor(code, brand) {
+    var key = normCode(code);
+    var want = String(brand || "");
+    var hits = REASON_CODES.filter(function (row) { return normCode(row.code) === key && (!want || row.brand === want); });
+    if (!hits.length) return "";
+    if (!want) {
+      var cats = {};
+      hits.forEach(function (row) { cats[row.category] = 1; });
+      if (Object.keys(cats).length !== 1) return "";
+    }
+    return hits[0].category;
   }
   function addDays(iso, days) {
     var d = new Date(String(iso).slice(0, 10) + "T00:00:00Z");
@@ -76,7 +253,7 @@
 
   function exampleDisputes(today) {
     today = String(today || "2026-11-17").slice(0, 10);
-    function row(id, hotel, guest, amount, status, deadlineDays, kinds) {
+    function row(id, hotel, guest, amount, status, deadlineDays, kinds, category, details) {
       return {
         id: id,
         example: true,
@@ -95,6 +272,8 @@
         received: addDays(today, -5),
         deadline: addDays(today, deadlineDays),
         status: status,
+        category: category || "",
+        details: details || {},
         evidence: (kinds || []).map(function (kind, i) {
           return { id: id + "-e" + i, kind: kind, name: "example-" + kind + ".pdf", example: true };
         }),
@@ -102,11 +281,11 @@
       };
     }
     return [
-      row("ex-cb-1", "MSPWE", "Example Guest A", 186.4, "gathering", 2, ["folio"]),
-      row("ex-cb-2", "MSPWE", "Example Guest B", 420, "new", -1, []),
-      row("ex-cb-3", "MSPAM", "Example Guest C", 250, "won", -12, ["folio", "registration", "authorization"]),
-      row("ex-cb-4", "MSPMS", "Example Guest D", 90, "lost", -8, ["folio"]),
-      row("ex-cb-5", "MSPAM", "Example Guest E", 60, "accepted", -6, ["email"])
+      row("ex-cb-1", "MSPWE", "Example Guest A", 186.4, "gathering", 2, ["folio"], "fraud_cnp", { cardEntry: "online", authCode: "EX123" }),
+      row("ex-cb-2", "MSPWE", "Example Guest B", 420, "new", -1, [], "no_show", { policyShown: "yes" }),
+      row("ex-cb-3", "MSPAM", "Example Guest C", 250, "won", -12, ["folio", "key_log", "complaint"], "not_received", { compensation: "None", resolution: "Example: no complaint was filed." }),
+      row("ex-cb-4", "MSPMS", "Example Guest D", 90, "lost", -8, ["policy"], "cancelled", { cancelAt: "2026-11-01 09:00", deadlineAt: "2026-11-02 18:00", cancelNumber: "none" }),
+      row("ex-cb-5", "MSPAM", "Example Guest E", 60, "accepted", -6, ["email"], "deposit", { termsAck: "yes" })
     ];
   }
 
@@ -180,9 +359,58 @@
   function checklist(dispute) {
     var have = {};
     ((dispute && dispute.evidence) || []).forEach(function (item) { have[item.kind] = true; });
-    return EVIDENCE.map(function (item) {
-      return { id: item.id, en: item.en, es: item.es, attached: !!have[item.id] };
+    var cat = categoryById(dispute && dispute.category);
+    var items = cat ? cat.evidence : EVIDENCE;
+    return items.map(function (item) {
+      return { id: item.id, en: item.en, es: item.es, required: !!item.required, attached: !!have[item.id] };
     });
+  }
+  function fieldFilled(details, field) {
+    return String(details && details[field.id] != null ? details[field.id] : "").trim().length > 0;
+  }
+  function strength(dispute) {
+    var cat = categoryById(dispute && dispute.category);
+    if (!cat) return { ready: false, required: 0, done: 0, missing: [] };
+    var details = (dispute && dispute.details) || {};
+    var have = {};
+    var missing = [];
+    var required = 0;
+    var done = 0;
+    ((dispute && dispute.evidence) || []).forEach(function (item) { have[item.kind] = true; });
+    (cat.fields || []).forEach(function (field) {
+      if (!field.required) return;
+      required += 1;
+      if (fieldFilled(details, field)) done += 1;
+      else missing.push(field.id);
+    });
+    (cat.evidence || []).forEach(function (item) {
+      if (!item.required) return;
+      required += 1;
+      if (have[item.id]) done += 1;
+      else missing.push(item.id);
+    });
+    return { ready: required > 0 && done === required, required: required, done: done, missing: missing };
+  }
+  function categoryRates(rows) {
+    return CATEGORIES.map(function (cat) {
+      var decided = (rows || []).filter(function (row) {
+        return row.category === cat.id && (row.status === "won" || row.status === "lost");
+      });
+      var won = decided.filter(function (row) { return row.status === "won"; }).length;
+      return { id: cat.id, en: cat.en, es: cat.es, won: won, lost: decided.length - won, winRate: decided.length ? won / decided.length : null };
+    }).filter(function (row) { return row.won + row.lost > 0; });
+  }
+  function sanitizeDetails(category, details) {
+    var cat = categoryById(category);
+    var out = {};
+    if (!cat) return out;
+    (cat.fields || []).forEach(function (field) {
+      var value = String(details && details[field.id] != null ? details[field.id] : "").trim().slice(0, 200);
+      if (!value) return;
+      if (field.options && field.options.indexOf(value) < 0) return;
+      out[field.id] = value;
+    });
+    return out;
   }
 
   function cleanLast4(value) {
@@ -233,6 +461,7 @@
     return {
       disputes: (model.disputes || []).map(function (row) {
         return Object.assign({}, row, {
+          details: Object.assign({}, row.details || {}),
           evidence: (row.evidence || []).map(function (item) { return Object.assign({}, item); }),
           events: (row.events || []).map(function (item) { return Object.assign({}, item); })
         });
@@ -251,6 +480,8 @@
     if (!isCorporate(actor.role) && row.hotel !== String(actor.hotel || "").toUpperCase()) {
       return { ok: false, error: "hotel", model: model };
     }
+    var category = categoryById(input.category) ? input.category : categoryFor(row.reasonCode, row.brand);
+    if (input.category && !categoryById(input.category)) return { ok: false, error: "category", model: model };
     var next = copyModel(model);
     var id = "cb-" + (next.disputes.length + 1) + "-" + String(nowIso || "").replace(/\D/g, "").slice(-6);
     next.disputes.unshift({
@@ -271,6 +502,8 @@
       received: row.received,
       deadline: row.deadline,
       status: "new",
+      category: category || "",
+      details: sanitizeDetails(category, input.details),
       evidence: [],
       events: [{ id: id + "-h", status: "new", actor: actor.name || "", at: nowIso || "", example: false }]
     });
@@ -304,11 +537,27 @@
     row.evidence = row.evidence.concat([{ id: id + "-e" + row.evidence.length, kind: kind, name: name, example: false }]);
     return { ok: true, model: next };
   }
+  function setDetails(model, id, details, actor) {
+    actor = actor || {};
+    if (!canSee(actor.role)) return { ok: false, error: "forbidden", model: model };
+    var next = copyModel(model);
+    var row = null;
+    next.disputes.forEach(function (item) { if (item.id === id) row = item; });
+    if (!row) return { ok: false, error: "missing", model: model };
+    if (!isCorporate(actor.role) && row.hotel !== actor.hotel) return { ok: false, error: "hotel", model: model };
+    row.details = sanitizeDetails(row.category, details);
+    return { ok: true, model: next };
+  }
 
   var api = {
     STATUSES: STATUSES,
     EVIDENCE: EVIDENCE,
+    CATEGORIES: CATEGORIES,
     BRANDS: BRANDS,
+    categoryFor: categoryFor,
+    categoryById: categoryById,
+    strength: strength,
+    categoryRates: categoryRates,
     exampleDisputes: exampleDisputes,
     deadlineFlag: deadlineFlag,
     money: money,
@@ -323,6 +572,7 @@
     createDispute: createDispute,
     setStatus: setStatus,
     addEvidence: addEvidence,
+    setDetails: setDetails,
     canSee: canSee,
     isCorporate: isCorporate,
     isGm: isGm
@@ -400,6 +650,15 @@
       '<div><span>' + esc(L("Won", "Ganadas")) + ' ' + sum.wonCount + '</span><i class="cb-won" style="width:' + (sum.wonCount ? bars.wonPct : 0) + '%"></i></div>' +
       '<div><span>' + esc(L("Lost", "Perdidas")) + ' ' + sum.lostCount + '</span><i class="cb-lost" style="width:' + (sum.lostCount ? bars.lostPct : 0) + '%"></i></div></div>';
   }
+  function ratesHtml(rows) {
+    var rates = categoryRates(rows);
+    if (!rates.length) return "";
+    return '<div class="card"><h3>' + esc(L("Win rate by category", "Tasa por categoría")) + "</h3>" +
+      rates.map(function (row) {
+        var rate = row.winRate == null ? "—" : Math.round(row.winRate * 100) + "%";
+        return "<p><b>" + esc(L(row.en, row.es)) + "</b> " + rate + " <small>" + row.won + "–" + row.lost + "</small></p>";
+      }).join("") + "</div>";
+  }
   function rowHtml(row) {
     var mark = row.example ? ' <span class="ex">' + esc(L("Example", "Ejemplo")) + "</span>" : "";
     return '<button type="button" class="cb-row' + flagClass(row) + '" onclick=\'Chargebacks.open(' + JSON.stringify(row.id) + ')\'>' +
@@ -421,13 +680,24 @@
       }).join("") + "</div>";
     var shown = filterRows(rows, corporate ? ui.hotel : actor.hotel, ui.status);
     var example = rows.some(function (row) { return row.example; }) ? '<span class="ex">' + esc(L("Example data", "Datos de ejemplo")) + "</span>" : "";
-    return '<h2>' + esc(L("Chargebacks", "Contracargos")) + "</h2>" + example + summaryHtml(shown) + hotelBits + statuses +
+    return '<h2>' + esc(L("Chargebacks", "Contracargos")) + "</h2>" + example + summaryHtml(shown) + (corporate ? ratesHtml(shown) : "") + hotelBits + statuses +
       '<button type="button" class="btn cb-new" onclick="Chargebacks.compose()">' + esc(L("Log a dispute", "Registrar una disputa")) + "</button>" +
       (shown.map(rowHtml).join("") || '<p class="cb-hint">' + esc(L("No disputes in this view.", "No hay disputas en esta vista.")) + "</p>");
   }
   function detailHtml(row) {
+    var cat = categoryById(row.category);
+    var pack = strength(row);
+    var ready = pack.ready
+      ? '<p class="cb-ready">' + esc(L("Ready to submit", "Listo para enviar")) + " · " + pack.done + "/" + pack.required + "</p>"
+      : '<p class="cb-gap">' + esc(L("Not ready", "Aún no está listo")) + " · " + pack.done + "/" + pack.required + "</p>";
+    var fields = cat ? (cat.fields || []).map(function (field) {
+      var value = (row.details || {})[field.id] || "";
+      var tag = field.required ? L("Required", "Requerido") : L("Recommended", "Recomendado");
+      return "<p><b>" + esc(L(field.en, field.es)) + "</b> · " + esc(tag) + "<br>" + esc(value || "—") + "</p>";
+    }).join("") : "";
     var checks = checklist(row).map(function (item) {
       return '<li class="' + (item.attached ? "on" : "") + '"><span>' + (item.attached ? "✓" : "○") + "</span> " + esc(L(item.en, item.es)) +
+        (cat ? " · " + esc(item.required ? L("Required", "Requerido") : L("Recommended", "Recomendado")) : "") +
         (item.attached ? "" : '<label class="cb-file">' + esc(L("Add", "Agregar")) + '<input type="file" accept="image/*,.pdf,.txt,.eml" onchange=\'Chargebacks.attach(' + JSON.stringify(row.id) + ',' + JSON.stringify(item.id) + ',this)\'></label>') +
         "</li>";
     }).join("");
@@ -444,12 +714,30 @@
       "<p>" + esc(row.confirmation) + " · " + esc(row.arrival) + " – " + esc(row.departure) + "</p>" +
       "<p>" + esc(row.brand) + " ·••• " + esc(row.last4) + "</p>" +
       "<p>" + esc(row.reasonCode) + " · " + esc(row.reason) + "</p>" +
-      "<p>" + esc(row.processor) + " · " + esc(L("Received", "Recibido")) + " " + esc(row.received) + " · " + esc(L("Deadline", "Fecha límite")) + " " + esc(row.deadline) + "</p></div>" +
+      "<p>" + esc(row.processor) + " · " + esc(L("Received", "Recibido")) + " " + esc(row.received) + " · " + esc(L("Deadline", "Fecha límite")) + " " + esc(row.deadline) + "</p>" +
+      (cat ? "<p><b>" + esc(L(cat.en, cat.es)) + "</b></p>" + ready + fields : "") + "</div>" +
       '<div class="card"><h3>' + esc(L("Evidence", "Evidencia")) + "</h3><ul class=\"cb-check\">" + checks + "</ul>" +
       (names ? "<small>" + names + "</small>" : "") + "</div>" +
       '<div class="card"><h3>' + esc(L("Status", "Estado")) + "</h3><div class=\"cb-note-row\"><select id=\"cbStatus\" aria-label=\"" + esc(L("Status", "Estado")) + "\">" + options + "</select>" +
       '<button type="button" class="btn" onclick=\'Chargebacks.saveStatus(' + JSON.stringify(row.id) + ')\'>' + esc(L("Update status", "Actualizar estado")) + "</button></div></div>" +
       '<div class="card"><h3>' + esc(L("History", "Historial")) + "</h3><ol class=\"cb-history\">" + history + "</ol></div>";
+  }
+  function extraFields(category, draft) {
+    var cat = categoryById(category);
+    if (!cat) return "";
+    draft = draft || {};
+    return (cat.fields || []).map(function (field) {
+      var tag = field.required ? L("Required", "Requerido") : L("Recommended", "Recomendado");
+      var value = draft[field.id] || "";
+      if (field.options) {
+        var opts = '<option value=""></option>' + field.options.map(function (opt) {
+          var label = CHOICES[opt] ? L(CHOICES[opt][0], CHOICES[opt][1]) : opt;
+          return '<option value="' + esc(opt) + '"' + (value === opt ? " selected" : "") + ">" + esc(label) + "</option>";
+        }).join("");
+        return '<label class="cb-lab" for="cbx-' + field.id + '">' + esc(L(field.en, field.es)) + " · " + esc(tag) + '</label><select id="cbx-' + field.id + '">' + opts + "</select>";
+      }
+      return '<label class="cb-lab" for="cbx-' + field.id + '">' + esc(L(field.en, field.es)) + " · " + esc(tag) + '</label><input id="cbx-' + field.id + '" value="' + esc(value) + '">';
+    }).join("") + '<p class="cb-hint">' + esc(L("Save the dispute, then attach the required files.", "Guarda la disputa y luego adjunta los archivos requeridos.")) + "</p>";
   }
   function formHtml(actor) {
     var corporate = isCorporate(actor.role);
@@ -460,30 +748,35 @@
           return '<button type="button" class="' + (ui.picked === hotel.id ? "on" : "") + '" onclick=\'Chargebacks.chooseHotel(' + JSON.stringify(hotel.id) + ')\'>' + esc(hotel.id) + " · " + esc(hotel.name) + "</button>";
         }).join("") + "</div><p>" + esc(ui.picked || L("Choose a hotel. Nothing is selected for you.", "Elige un hotel. Nada queda elegido solo.")) + "</p>"
       : '<p><b>' + esc(actor.hotel) + "</b></p>";
-    function field(id, label, type, extra) {
-      return '<label class="cb-lab" for="' + id + '">' + esc(label) + '</label><input id="' + id + '" ' + (type ? 'type="' + type + '" ' : "") + (extra || "") + ">";
+    var draft = ui.draft || {};
+    function field(id, label, type, extra, value) {
+      return '<label class="cb-lab" for="' + id + '">' + esc(label) + '</label><input id="' + id + '" ' + (type ? 'type="' + type + '" ' : "") + 'value="' + esc(value || "") + '" ' + (extra || "") + ">";
     }
-    var brands = BRANDS.map(function (brand) { return '<option value="' + brand + '">' + brand + "</option>"; }).join("");
+    var brands = BRANDS.map(function (brand) { return '<option value="' + brand + '"' + (draft.brand === brand ? " selected" : "") + ">" + brand + "</option>"; }).join("");
     return '<button type="button" class="btn2 cb-back" onclick="Chargebacks.close()">' + esc(L("All disputes", "Todas las disputas")) + "</button>" +
       "<h2>" + esc(L("Log a dispute", "Registrar una disputa")) + "</h2><div class=\"card\">" + hotelField +
-      field("cbGuest", L("Guest name", "Nombre del huésped")) +
-      field("cbConf", L("Confirmation #", "Confirmación")) +
-      field("cbIn", L("Arrival", "Llegada"), "date") +
-      field("cbOut", L("Departure", "Salida"), "date") +
-      field("cbRoom", L("Room", "Cuarto")) +
-      field("cbLast4", L("Card last 4", "Últimos 4"), "text", 'inputmode="numeric" maxlength="4" autocomplete="off"') +
-      '<label class="cb-lab" for="cbBrand">' + esc(L("Card brand", "Marca")) + '</label><select id="cbBrand"><option value="">' + esc(L("Choose", "Elige")) + "</option>" + brands + "</select>" +
-      field("cbAmount", L("Amount", "Monto"), "number", 'min="0" step="0.01"') +
-      field("cbCode", L("Reason code", "Código de razón")) +
-      field("cbReason", L("Reason", "Razón")) +
-      field("cbCase", L("Processor / case #", "Procesador / caso")) +
-      field("cbReceived", L("Date received", "Fecha de recibido"), "date") +
-      field("cbDeadline", L("Response deadline", "Fecha límite de respuesta"), "date") +
+      field("cbGuest", L("Guest name", "Nombre del huésped"), "", "", draft.guest) +
+      field("cbConf", L("Confirmation #", "Confirmación"), "", "", draft.confirmation) +
+      field("cbIn", L("Arrival", "Llegada"), "date", "", draft.arrival) +
+      field("cbOut", L("Departure", "Salida"), "date", "", draft.departure) +
+      field("cbRoom", L("Room", "Cuarto"), "", "", draft.room) +
+      field("cbLast4", L("Card last 4", "Últimos 4"), "text", 'inputmode="numeric" maxlength="4" autocomplete="off"', draft.last4) +
+      '<label class="cb-lab" for="cbBrand">' + esc(L("Card brand", "Marca")) + '</label><select id="cbBrand" onchange="Chargebacks.suggestCategory()"><option value="">' + esc(L("Choose", "Elige")) + "</option>" + brands + "</select>" +
+      field("cbAmount", L("Amount", "Monto"), "number", 'min="0" step="0.01"', draft.amount) +
+      field("cbCode", L("Reason code", "Código de razón"), "text", 'onchange="Chargebacks.suggestCategory()"', draft.reasonCode) +
+      '<p class="cb-hint">' + esc(ui.suggested ? L("This code usually means: ", "Este código suele ser: ") + (categoryById(ui.suggested) ? L(categoryById(ui.suggested).en, categoryById(ui.suggested).es) : "") : "") + "</p>" +
+      '<div class="cb-status">' + CATEGORIES.map(function (item) {
+        return '<button type="button" class="' + (ui.category === item.id ? "on" : "") + '" onclick=\'Chargebacks.pickCategory(' + JSON.stringify(item.id) + ')\'>' + esc(L(item.en, item.es)) + "</button>";
+      }).join("") + "</div>" + extraFields(ui.category, ui.draft) +
+      field("cbReason", L("Reason", "Razón"), "", "", draft.reason) +
+      field("cbCase", L("Processor / case #", "Procesador / caso"), "", "", draft.processor) +
+      field("cbReceived", L("Date received", "Fecha de recibido"), "date", "", draft.received) +
+      field("cbDeadline", L("Response deadline", "Fecha límite de respuesta"), "date", "", draft.deadline) +
       '<p id="cbErr" class="cb-err"></p><button type="button" class="btn cb-new" onclick="Chargebacks.save()">' + esc(L("Save dispute", "Guardar disputa")) + "</button></div>";
   }
 
   function state() {
-    root.__cb = root.__cb || { hotel: "all", status: "all", hotelQ: "", id: "", compose: false, picked: "" };
+    root.__cb = root.__cb || { hotel: "all", status: "all", hotelQ: "", id: "", compose: false, picked: "", category: "", suggested: "", draft: {} };
     return root.__cb;
   }
   function show() {
@@ -504,12 +797,37 @@
   };
   api.open = function (id) { var ui = state(); ui.id = id; ui.compose = false; show(); };
   api.close = function () { var ui = state(); ui.id = ""; ui.compose = false; show(); };
-  api.compose = function () { var ui = state(); ui.compose = true; ui.picked = ""; ui.hotelQ = ""; show(); };
+  api.compose = function () { var ui = state(); ui.compose = true; ui.picked = ""; ui.hotelQ = ""; ui.category = ""; ui.suggested = ""; ui.draft = {}; show(); };
   api.filterHotels = function (q) { state().hotelQ = q || ""; show(); api.focusFind(); };
   api.pickHotel = function (id) { var ui = state(); ui.hotel = ui.hotel === id ? "all" : id; show(); };
   api.pickStatus = function (id) { state().status = id; show(); };
   api.filterNewHotel = function (q) { state().hotelQ = q || ""; show(); api.focusFind(); };
   api.chooseHotel = function (id) { state().picked = id; show(); };
+  function captureDraft() {
+    function val(id) { var el = document.getElementById(id); return el ? el.value : ""; }
+    var draft = Object.assign({}, state().draft || {});
+    var map = { cbGuest: "guest", cbConf: "confirmation", cbIn: "arrival", cbOut: "departure", cbRoom: "room", cbLast4: "last4", cbBrand: "brand", cbAmount: "amount", cbCode: "reasonCode", cbReason: "reason", cbCase: "processor", cbReceived: "received", cbDeadline: "deadline" };
+    Object.keys(map).forEach(function (id) { if (document.getElementById(id)) draft[map[id]] = val(id); });
+    var cat = categoryById(state().category);
+    if (cat) (cat.fields || []).forEach(function (field) {
+      var el = document.getElementById("cbx-" + field.id);
+      if (el) draft[field.id] = el.value;
+    });
+    state().draft = draft;
+    return draft;
+  }
+  api.pickCategory = function (id) {
+    captureDraft();
+    state().category = categoryById(id) ? id : "";
+    show();
+  };
+  api.suggestCategory = function () {
+    var draft = captureDraft();
+    var hit = categoryFor(draft.reasonCode, draft.brand);
+    state().suggested = hit;
+    if (!state().category && hit) state().category = hit;
+    show();
+  };
   api.focusFind = function () {
     var el = document.getElementById("cbFind") || document.getElementById("cbHotelQ");
     if (!el) return;
@@ -521,10 +839,15 @@
     var actor = actorNow();
     var hotel = isCorporate(actor.role) ? state().picked : actor.hotel;
     function val(id) { var el = document.getElementById(id); return el ? el.value : ""; }
+    var draft = captureDraft();
+    var details = {};
+    var cat = categoryById(state().category);
+    if (cat) (cat.fields || []).forEach(function (field) { details[field.id] = draft[field.id] || ""; });
     var result = createDispute(modelNow(), {
       hotel: hotel, guest: val("cbGuest"), confirmation: val("cbConf"), arrival: val("cbIn"), departure: val("cbOut"),
       room: val("cbRoom"), last4: val("cbLast4"), brand: val("cbBrand"), amount: val("cbAmount"),
-      reasonCode: val("cbCode"), reason: val("cbReason"), processor: val("cbCase"), received: val("cbReceived"), deadline: val("cbDeadline")
+      reasonCode: val("cbCode"), reason: val("cbReason"), processor: val("cbCase"), received: val("cbReceived"), deadline: val("cbDeadline"),
+      category: state().category, details: details
     }, actor, new Date().toISOString());
     var err = document.getElementById("cbErr");
     if (!result.ok) { if (err) err.textContent = L("Check the highlighted fields. A card number longer than 4 digits is not saved.", "Revisa los campos. No se guarda un número de tarjeta de más de 4 dígitos."); return; }
@@ -616,6 +939,9 @@
     ".cb-history li{margin:6px 0;font-size:16px}",
     ".cb-hint,.cb-err{color:#3c4a59;font-size:15px}",
     ".cb-err:empty{display:none}",
+    ".cb-ready{font-weight:800;color:#0c3d5c}",
+    ".cb-gap{font-weight:800;color:#8a4b08}",
+    ".cb-status button{white-space:normal;text-align:left;height:auto}",
     ".cb-note-row{display:flex;gap:8px;align-items:center}",
     ".cb-note-row .btn{flex:0 0 auto}"
   ].join("");

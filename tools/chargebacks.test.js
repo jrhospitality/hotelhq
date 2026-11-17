@@ -109,6 +109,51 @@ test("evidence checklist marks the attached types and does not drop earlier file
   assert.equal(rows.every((row) => row.example && /Example Guest/.test(row.guest)), true);
 });
 
+test("reason codes map to a category and an unknown code does not guess", () => {
+  assert.equal(cb.categoryFor("10.4", "Visa"), "fraud_cnp");
+  assert.equal(cb.categoryFor("10.3", "Visa"), "fraud_cp");
+  assert.equal(cb.categoryFor("4837", "Mastercard"), "fraud_cnp");
+  assert.equal(cb.categoryFor("F29", "Amex"), "fraud_cnp");
+  assert.equal(cb.categoryFor("UA02", "Discover"), "fraud_cnp");
+  assert.equal(cb.categoryFor("C18", "Amex"), "no_show");
+  assert.equal(cb.categoryFor("13.7", "Visa"), "cancelled");
+  assert.equal(cb.categoryFor("13.1", "Visa"), "not_received");
+  assert.equal(cb.categoryFor("12.6", "Visa"), "duplicate_amount");
+  assert.equal(cb.categoryFor("10.4", "Mastercard"), "");
+  assert.equal(cb.categoryFor("9999", "Visa"), "");
+  assert.equal(cb.CATEGORIES.length, 8);
+});
+
+test("required fields and files make a dispute ready to submit", () => {
+  const open = cb.exampleDisputes(TODAY)[0];
+  const partial = cb.strength(open);
+  assert.equal(partial.ready, false);
+  assert.ok(partial.missing.indexOf("avsCvv") >= 0);
+  const made = cb.createDispute({ disputes: [] }, input({
+    brand: "Visa",
+    reasonCode: "10.4",
+    category: "fraud_cnp",
+    details: { cardEntry: "chip", authCode: "EX9", avsCvv: "Y/M", loyalty: "EX-LOYAL" }
+  }), GM, "2026-11-17T12:00:00Z");
+  assert.equal(made.model.disputes[0].category, "fraud_cnp");
+  assert.equal(made.model.disputes[0].details.loyalty, "EX-LOYAL");
+  let model = made.model;
+  ["registration", "id", "authorization"].forEach((kind) => {
+    model = cb.addEvidence(model, made.id, kind, "example-" + kind + ".pdf", GM).model;
+  });
+  const ready = cb.strength(model.disputes[0]);
+  assert.equal(ready.ready, true);
+  assert.equal(ready.done, ready.required);
+  const rates = cb.categoryRates(cb.exampleDisputes(TODAY));
+  const received = rates.find((row) => row.id === "not_received");
+  const cancelled = rates.find((row) => row.id === "cancelled");
+  assert.equal(received.winRate, 1);
+  assert.equal(cancelled.winRate, 0);
+  const kept = cb.setDetails(model, made.id, { cardEntry: "online", authCode: "EX9", avsCvv: "Y/M" }, GM);
+  assert.equal(model.disputes[0].events.length, kept.model.disputes[0].events.length);
+  assert.equal(kept.model.disputes[0].details.cardEntry, "online");
+});
+
 test("the migration is additive, events are not writable by clients, and the bucket is private", () => {
   const sql = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261119_chargebacks.sql"), "utf8");
   const page = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
@@ -121,6 +166,11 @@ test("the migration is additive, events are not writable by clients, and the buc
   assert.doesNotMatch(sql, /drop table|delete from public\.|truncate/i);
   assert.match(page, /chargebacks\.js/);
   assert.match(sw, /chargebacks\.js/);
-  assert.match(sw, /hotelhq-shell-v27/);
+  assert.match(sw, /hotelhq-shell-v28/);
+  const types = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261120_chargeback_types.sql"), "utf8");
+  assert.match(types, /add column if not exists category/);
+  assert.match(types, /details jsonb/);
+  assert.match(types, /enable row level security|Row level security on chargebacks/);
+  assert.doesNotMatch(types, /drop table|delete from public\.|truncate/i);
   assert.match(fs.readFileSync(path.join(__dirname, "../home-focus.js"), "utf8"), /Chargebacks\.homeHtml/);
 });
