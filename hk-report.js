@@ -3,9 +3,12 @@
    A known room is 3 taps plus the photo. With no room, they pick one.
    The room is never guessed.
    Photos go to the private work-order-photos bucket. Points are an
-   insert-only ledger: +5 on submit, and a reversal when the same room
-   and problem are already open, or when maintenance rejects it.
-   Demo names that end in (EX) are example data. No dollar value. */
+   insert-only ledger: +5 when a housekeeper submits an accepted report
+   with a photo, and a reversal when the same room and problem are
+   already open, or when maintenance rejects it. The housekeeper sees
+   that point total for the month and nothing else. A manager sees each
+   housekeeper's total. Reference only, never rendered: 50 points are
+   valued at 5 dollars. Demo names that end in (EX) are example data. */
 (function (root) {
   "use strict";
 
@@ -230,21 +233,25 @@
     opts = opts || {};
     var lang = langOf(opts.lang);
     var model = opts.model || viewModel(opts);
+    var manager = opts.mode === "gm";
     var you = tx(lang, "Your points this month", "Tus puntos este mes");
-    var title = opts.mode === "gm"
+    var title = manager
       ? tx(lang, "Housekeeper points", "Puntos de camaristas")
       : tx(lang, "Points", "Puntos");
-    var rows = model.board.map(function (row) {
-      var mark = row.example ? ' <span class="ex">' + esc(tx(lang, "Example", "Ejemplo")) + "</span>" : "";
-      return "<li><span>" + esc(row.staff) + mark + "</span><b>" + row.points + "</b></li>";
-    }).join("");
-    var example = model.example
-      ? '<span class="ex">' + esc(tx(lang, "Example data", "Datos de ejemplo")) + "</span>"
-      : "";
-    var yours = opts.mode === "gm" ? "" : '<p class="hk-you"><b>' + model.you + '</b> ' + esc(you) + "</p>";
-    return '<section class="hk-points" id="' + (opts.mode === "gm" ? "hkGmPoints" : "hkMyPoints") + '">' +
-      example + "<h3>" + esc(title) + "</h3>" + yours +
-      '<ol class="hk-board">' + (rows || "<li>" + esc(tx(lang, "No points yet.", "Aún no hay puntos.")) + "</li>") + "</ol></section>";
+    var yours = manager ? "" : '<p class="hk-you"><b>' + model.you + '</b> ' + esc(you) + "</p>";
+    var board = "";
+    if (manager) {
+      var rows = model.board.map(function (row) {
+        var mark = row.example ? ' <span class="ex">' + esc(tx(lang, "Example", "Ejemplo")) + "</span>" : "";
+        return "<li><span>" + esc(row.staff) + mark + "</span><b>" + row.points + "</b></li>";
+      }).join("");
+      var example = model.example
+        ? '<span class="ex">' + esc(tx(lang, "Example data", "Datos de ejemplo")) + "</span>"
+        : "";
+      board = example + '<ol class="hk-board">' + (rows || "<li>" + esc(tx(lang, "No points yet.", "Aún no hay puntos.")) + "</li>") + "</ol>";
+    }
+    return '<section class="hk-points" id="' + (manager ? "hkGmPoints" : "hkMyPoints") + '">' +
+      "<h3>" + esc(title) + "</h3>" + yours + board + "</section>";
   }
 
   var api = {

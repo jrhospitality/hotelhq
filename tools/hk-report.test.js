@@ -93,10 +93,44 @@ test("the monthly board is points only and example rows stay labeled", () => {
   const html = hk.pointsHtml({ lang: "es", mode: "gm", model: model });
   assert.match(html, /Puntos de camaristas/);
   assert.match(html, /Datos de ejemplo/);
-  assert.doesNotMatch(html, /\$|gift|dólar|dollar/i);
+  assert.match(html, /Example Keeper A \(EX\)/);
+  assert.doesNotMatch(html, /\$|gift|dólar|dollar|tarjeta/i);
   const mine = hk.pointsHtml({ lang: "en", model: model });
   assert.match(mine, /Your points this month/);
-  assert.doesNotMatch(mine, /\$|gift card/i);
+  assert.match(mine, /<b>0<\/b>/);
+  assert.doesNotMatch(mine, /hk-board|Example Keeper|\$|gift card/i);
+});
+
+test("a housekeeper sees the point total and not a gift-card goal", () => {
+  let orders = [];
+  let ledger = [];
+  for (let i = 0; i < 10; i++) {
+    const res = hk.recordSubmit(orders, ledger, draft({ id: "hk" + i, room: String(300 + i), category: i % 2 ? "tv" : "plumbing" }), NOW);
+    assert.equal(res.points, 5);
+    orders.push(res.order);
+    ledger = res.ledger;
+  }
+  assert.equal(hk.total(ledger, "Maria Alvarez", "2026-11"), 50);
+  const dup = hk.recordSubmit(orders, ledger, draft({ id: "hk-dup", room: "300", category: "plumbing" }), NOW);
+  assert.equal(dup.points, 0);
+  assert.equal(hk.total(dup.ledger, "Maria Alvarez", "2026-11"), 50);
+  const rejected = hk.recordReject(dup.ledger, orders[9].id, NOW);
+  assert.equal(hk.total(rejected.ledger, "Maria Alvarez", "2026-11"), 45);
+
+  const earned = hk.viewModel({ ledger: ledger, staff: "Maria Alvarez", month: "2026-11" });
+  const en = hk.pointsHtml({ lang: "en", model: earned });
+  const es = hk.pointsHtml({ lang: "es", model: earned });
+  assert.match(en, /<b>50<\/b>/);
+  assert.match(en, /Your points this month/);
+  assert.match(es, /<b>50<\/b>/);
+  assert.match(es, /Tus puntos este mes/);
+  assert.doesNotMatch(en, /hk-board|\$|gift|card|prepaid|visa|tremendous|of 10|of 50|progress/i);
+  assert.doesNotMatch(es, /hk-board|\$|tarjeta|regalo|visa|tremendous|de 10|de 50|progreso/i);
+
+  const after = hk.viewModel({ ledger: rejected.ledger, staff: "Maria Alvarez", month: "2026-11" });
+  const dropped = hk.pointsHtml({ lang: "en", model: after });
+  assert.match(dropped, /<b>45<\/b>/);
+  assert.doesNotMatch(dropped, /\$|gift|card/i);
 });
 
 test("the migration is additive and photos stay on the private bucket path", () => {
