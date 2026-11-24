@@ -73,6 +73,9 @@ test("the Pages workflow calls the writer and does not fall back to demo", () =>
   const yml = fs.readFileSync(path.join(root, ".github/workflows/pages.yml"), "utf8");
   assert.match(yml, new RegExp(secret));
   assert.match(yml, /node tools\/pages-config\.js/);
+  assert.match(yml, /needs: build/);
+  assert.match(yml, /upload-pages-artifact@v5/);
+  assert.match(yml, /deploy-pages@v5/);
   assert.doesNotMatch(yml, /live\?"live":"demo"/);
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   assert.match(html, /DEMO — example names and PINs/);
