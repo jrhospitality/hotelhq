@@ -560,7 +560,7 @@
   var late = document.createElement("style");
   late.id = "hqPalette";
   late.textContent = [
-    "#hhqFocus .ux-act.pri,.ux-act.pri,#uxHelpBtn,.btn,.qa button{background:#0c3d5c!important;color:#fff!important;border-color:transparent!important}",
+    "#hhqFocus .ux-act.pri,.ux-act.pri,#askHqBtn,.btn,.qa button{background:#0c3d5c!important;color:#fff!important;border-color:transparent!important}",
     "#welcome{background:#0c3d5c!important}",
     "#welcome .wl-in{background:#0c3d5c!important}",
     ".glance-tile,.glance-pill,.glance-table td.glance-good,.glance-table td.glance-watch,.glance-table td.glance-bad,.glance-table td.glance-none{background:#fff!important;color:#1c2430!important}",

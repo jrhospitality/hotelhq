@@ -26,6 +26,9 @@
     }
     btn.textContent = L("Ask HotelHQ", "Pregunta a HotelHQ");
     btn.setAttribute("aria-label", btn.textContent);
+    if (root.HQ && typeof root.HQ.placeFabs === "function") {
+      try { root.HQ.placeFabs(); } catch (e) {}
+    }
   }
   function closeAsk() {
     var panel = document.getElementById("askHqPanel");
@@ -157,13 +160,27 @@
     goBtn.className = "btn";
     goBtn.textContent = L("Ask", "Preguntar");
     goBtn.addEventListener("click", ask);
-    var helpBtn = document.createElement("button");
-    helpBtn.type = "button";
-    helpBtn.className = "btn2";
-    helpBtn.textContent = L("Help", "Ayuda");
-    helpBtn.addEventListener("click", function () { openGuide(guides().guideForRole(roleNow()) ? guides().guideForRole(roleNow()).id : "front_desk", "pin"); });
     row.appendChild(goBtn);
-    row.appendChild(helpBtn);
+    var links = document.createElement("div");
+    links.className = "ask-links";
+    var replay = document.createElement("button");
+    replay.type = "button";
+    replay.className = "ask-link";
+    replay.textContent = L("Replay tour", "Repetir el recorrido");
+    replay.addEventListener("click", function () {
+      closeAsk();
+      if (typeof uxTour === "function") uxTour(1);
+    });
+    var guidesLink = document.createElement("button");
+    guidesLink.type = "button";
+    guidesLink.className = "ask-link";
+    guidesLink.textContent = L("Open guides", "Abrir guías");
+    guidesLink.addEventListener("click", function () {
+      closeAsk();
+      if (typeof go === "function") go("guides");
+    });
+    links.appendChild(replay);
+    links.appendChild(guidesLink);
     var box = document.createElement("div");
     box.id = "askHqA";
     box.className = "ask-answer";
@@ -171,6 +188,7 @@
     sheet.appendChild(note);
     sheet.appendChild(input);
     sheet.appendChild(row);
+    sheet.appendChild(links);
     sheet.appendChild(box);
     panel.appendChild(sheet);
     document.body.appendChild(panel);
@@ -228,15 +246,19 @@
     ensureBtn();
     var css = document.createElement("style");
     css.textContent = [
-      "#askHqBtn{position:fixed;left:12px;bottom:96px;z-index:7;min-height:48px;padding:0 14px;border:0;border-radius:999px;background:#14365d;color:#fff;font-weight:800;font-size:15px;box-shadow:0 8px 20px rgba(16,24,40,.18)}",
-      "body.is-login #askHqBtn,body:has(#app .login) #askHqBtn{top:12px;bottom:auto;right:12px;left:auto}",
+      "#askHqBtn{min-height:48px;padding:0 14px;border:0;border-radius:999px;background:#14365d;color:#fff;font-weight:800;font-size:15px;box-shadow:0 8px 20px rgba(16,24,40,.18)}",
+      "#hhqFabs #askHqBtn{position:static}",
+      "body:has(#app .login) #askHqBtn{position:fixed;top:12px;bottom:auto;right:12px;left:auto;z-index:46}",
+      "body.is-login:has(#app .login) #askHqBtn{top:88px}",
       ".ask-overlay{position:fixed;inset:0;background:#0008;z-index:140;display:flex;align-items:flex-end}",
       ".ask-sheet{background:#fff;width:100%;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;box-sizing:border-box}",
       ".ask-head{display:flex;align-items:center;gap:8px}.ask-head h2{flex:1;margin:0;font-size:20px}",
       ".ask-x{width:44px;height:44px;border:0;background:#eef1f5;border-radius:50%;font-size:18px}",
       ".ask-note,.ask-hint{color:#5c6570;font-size:14px}",
       "#askHqQ{width:100%;box-sizing:border-box;min-height:72px;font-size:16px;margin:8px 0}",
-      ".ask-row{display:flex;gap:8px}.ask-row .btn,.ask-row .btn2{flex:1}",
+      ".ask-row{display:flex;gap:8px}.ask-row .btn{flex:1}",
+      ".ask-links{display:flex;flex-wrap:wrap;gap:8px 16px;margin:4px 0 8px}",
+      ".ask-link{background:none;border:0;padding:8px 0;min-height:44px;color:#14365d;font-weight:750;font-size:16px;text-decoration:underline}",
       ".ask-answer h3{margin:12px 0 6px}.ask-answer p{margin:0 0 8px;white-space:pre-wrap}",
       ".help-video{width:100%;max-height:320px;background:#111;border-radius:12px;margin:8px 0}",
       ".help-lead{margin:0 0 8px}",
@@ -244,7 +266,7 @@
       ".help-guide summary{font-weight:800;min-height:44px;display:flex;align-items:center;cursor:pointer}",
       ".help-sec h3{margin:10px 0 4px;font-size:16px}.help-sec p{margin:0 0 8px}",
       ".help-replay{margin-bottom:8px}",
-      "@media(min-width:1024px){#askHqBtn{bottom:24px;left:24px}.ask-overlay{align-items:center;justify-content:center;padding:24px}.ask-sheet{width:min(640px,100%);max-height:min(80vh,760px);border-radius:16px}}"
+      "@media(min-width:1024px){.ask-overlay{align-items:center;justify-content:center;padding:24px}.ask-sheet{width:min(640px,100%);max-height:min(80vh,760px);border-radius:16px}}"
     ].join("");
     document.head.appendChild(css);
   }

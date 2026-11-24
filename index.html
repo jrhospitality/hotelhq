@@ -174,7 +174,7 @@ small,.wlnote,.hname{font-size:13px}
 :focus-visible{outline:3px solid #1f6feb;outline-offset:2px}
 #side,.pgbar-x{display:none}
 body.is-login{padding:0!important}
-body.is-login header#hdr,body.is-login nav,body.is-login #side,body.is-login #opsBtn,body.is-login #uxHelpBtn,body.is-login #hhqFabs,body.is-login #pwaInstall,body.is-login #opsMount{display:none!important}
+body.is-login header#hdr,body.is-login nav,body.is-login #side,body.is-login #opsBtn,body.is-login #hhqFabs,body.is-login #pwaInstall,body.is-login #opsMount{display:none!important}
 body.is-login main{max-width:480px;margin:28px auto;width:calc(100% - 32px);padding:0}
 @media (min-width:768px){
 body{--rw:88px;padding-left:var(--rw);padding-bottom:0!important}
@@ -364,7 +364,7 @@ table.rt tr.rt-r:nth-child(even) td{background:var(--zebra)}
 .paldlg input{background:var(--surface);color:var(--ink)}
 .paldlg li.sel,.paldlg li:hover{background:var(--accent-soft)}
 .ux-sheet,.hesheet{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
-#uxHelpBtn{background:var(--accent);color:#fff}
+#askHqBtn{background:var(--accent);color:#fff}
 .demo-banner{background:var(--warn-bg);color:var(--ink);border:1px solid var(--warn-line)}
 .demo-banner small{display:block;margin-top:6px;font-weight:650}
 .sites button{background:var(--surface);border:1px solid var(--line);border-radius:12px}
@@ -2093,7 +2093,7 @@ async function signIn(){
   enterApp(u);save();render();
 }
 function clearSessionChrome(){
-  ["welcome","uxSheet","uxTour","ptsToast","hhqFocus","opsBtn","opsMount","uxHelpBtn","hhqFabs"].forEach(function(id){const el=document.getElementById(id);if(el)el.remove()});
+  ["welcome","uxSheet","uxTour","ptsToast","hhqFocus","opsBtn","opsMount","uxHelpBtn","hhqFabs"].forEach(function(id){const el=document.getElementById(id);if(!el)return;if(id==="hhqFabs"){const ask=document.getElementById("askHqBtn");if(ask&&ask.parentNode===el)document.body.appendChild(ask)}el.remove()});
   if(typeof S!=="undefined")S.opsOpen=false;
   document.body.classList.add("is-login");
   document.body.classList.remove("m-phone","m-tab","m-desk","sb-mini","rail-open","he-print");
