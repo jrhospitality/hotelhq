@@ -184,9 +184,10 @@
       return '<button type="button" class="chip ' + (f.cat === c[0] ? "on" : "") + '" onclick="HQ.pick(\'cat\',\'' + c[0] + '\')">' + H(B(c[1], c[2])) + "</button>";
     }).join("") + "</div>" : "";
     var help = f.kind === "houseperson_help" ? "<small>" + H(B("Alerts the house person and the shuttle driver.", "Avisa al houseperson y al conductor del shuttle.")) + "</small>" : "";
+    var photo = f.kind === "work_order" ? '<label class="photo-pick" for="opsPhoto">' + H(B("Add photo", "Agregar foto")) + '<input id="opsPhoto" type="file" accept="image/*" capture="environment" onchange="HQ.photo(this)"></label><img id="opsPrev" class="prev" alt=""' + (f.photo ? ' src="' + f.photo + '"' : " hidden") + ">" : "";
     return '<div class="ops-sheet" id="opsSheet" role="dialog" aria-modal="true" aria-labelledby="opsTitle"><div class="ops-card"><h3 id="opsTitle">' + H(B("New request", "Nueva solicitud")) + '</h3><div class="chips">' + KINDS.map(function (k) {
       return '<button type="button" class="chip ' + (f.kind === k ? "on" : "") + '" onclick="HQ.pick(\'kind\',\'' + k + '\')">' + H(kindLabel(k)) + "</button>";
-    }).join("") + "</div>" + catRow + '<label>' + H(B("Room", "Habitación")) + '<input id="opsRoom" inputmode="numeric" value="' + H(f.room) + '"></label><label>' + H(B("What is needed?", "¿Qué se necesita?")) + '<textarea id="opsNote">' + H(f.note) + "</textarea></label>" + help + '<p><small>' + H(B("Goes to", "Va a")) + " <b>" + H(deptLabel(dept)) + "</b></small></p><div class=\"bad\" id=\"opsErr\" role=\"alert\"></div><div class=\"row\"><button type=\"button\" class=\"btn\" onclick=\"HQ.send()\">" + H(B("Send", "Enviar")) + '</button><button type="button" class="btn2" onclick="HQ.close()">' + H(B("Close", "Cerrar")) + "</button></div></div></div>";
+    }).join("") + "</div>" + catRow + '<label>' + H(B("Room", "Habitación")) + '<input id="opsRoom" inputmode="numeric" value="' + H(f.room) + '"></label><label>' + H(B("What is needed?", "¿Qué se necesita?")) + '<textarea id="opsNote">' + H(f.note) + "</textarea></label>" + photo + help + '<p><small>' + H(B("Goes to", "Va a")) + " <b>" + H(deptLabel(dept)) + "</b></small></p><div class=\"bad\" id=\"opsErr\" role=\"alert\"></div><div class=\"row\"><button type=\"button\" class=\"btn\" onclick=\"HQ.send()\">" + H(B("Send", "Enviar")) + '</button><button type="button" class="btn2" onclick="HQ.close()">' + H(B("Close", "Cerrar")) + "</button></div></div></div>";
   }
 
   function listHtml() {
@@ -236,6 +237,18 @@
     open: function () { S.opsOpen = 1; render(); },
     close: function () { S.opsOpen = 0; render(); },
     pick: function (k, v) { readForm(); S.nrf[k] = v; render(); },
+    photo: function (input) {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        S.nrf = S.nrf || {};
+        S.nrf.photo = String(reader.result || "");
+        var img = document.getElementById("opsPrev");
+        if (img) { img.src = S.nrf.photo; img.hidden = false; }
+      };
+      reader.readAsDataURL(file);
+    },
     act: function (k, v) {
       S.actf = S.actf || { category: "all", room: "" };
       S.actf[k] = v;
@@ -278,7 +291,7 @@
         pushOps({ kind: "houseperson_help", dept: "housekeeping", room: f.room, title: f.note, status: "open", source_table: "reqs", source_id: "" });
       } else if (f.kind === "work_order") {
         var d = D();
-        var wo = { id: (d.wo || []).length + 1, room: f.room || "-", t: f.note, p: "Med", s: "Open", photo: "", photo_paths: [], comments: [] };
+        var wo = { id: (d.wo || []).length + 1, room: f.room || "-", t: f.note, p: "Med", s: "Open", photo: f.photo || "", photo_paths: [], comments: [] };
         d.wo.unshift(wo);
         save();
         pushOps({ kind: "work_order", dept: "maintenance", room: wo.room, title: f.note, status: "open", source_table: "work_orders", source_id: wo.sb_id || "" });
