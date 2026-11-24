@@ -16,3 +16,9 @@ Sales-lead mail is sent by the `sales-lead-email` Edge Function over Gmail SMTP 
 - `HOTELHQ_GMAIL_APP_PASSWORD` — Google app password for that mailbox
 
 Supabase also injects `SUPABASE_URL` and the service-role key. Those stay out of git too.
+
+Ask HotelHQ answers from the how-to guides on the phone. Demo mode never calls the network. Live mode can call the `ask-hotelhq` Edge Function, which only rephrases the matching guide section. That path stays off until this Edge Function secret is set. Do not commit it:
+
+- `HOTELHQ_ASK_API_KEY` — OpenAI-compatible API key. Optional `HOTELHQ_ASK_API_URL` and `HOTELHQ_ASK_MODEL` (default `gpt-4o-mini`).
+
+If the secret is missing, the app keeps the guide steps as the answer. It says it does not know when the question is not in a guide.

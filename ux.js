@@ -106,7 +106,7 @@ function stLabel(s){return STL[s]?s+" · "+L(STL[s][0],STL[s][1]):(s||"")}
 function labelPills(root){root.querySelectorAll(".pill").forEach(p=>{const s=p.textContent.trim();if(STL[s]&&!p.dataset.ux){p.dataset.ux=1;p.title=L(STL[s][0],STL[s][1]);p.insertAdjacentHTML("beforeend",`<span class="ux-pl"> ${L(STL[s][0],STL[s][1])}</span>`)}})}
 /* ---------- guided tour ---------- */
 const TK=()=>"hhq_tour_"+(S.uid||"");
-function steps(){const s=[["#uxHero",L("Your top tasks are right here. Tap one to start.","Tus tareas principales están aquí. Toca una para empezar.")],[".ux-search",L("Search anything: rooms, work orders, screens.","Busca lo que sea: cuartos, órdenes, pantallas.")],["#nav",L("Your main screens. 'More' has everything else.","Tus pantallas principales. 'Más' tiene todo lo demás.")],["#uxHelpBtn",L("Tap ? anytime to replay this tour.","Toca ? cuando quieras para repetir este recorrido.")]];
+function steps(){const s=[["#uxHero",L("Your top tasks are right here. Tap one to start.","Tus tareas principales están aquí. Toca una para empezar.")],[".ux-search",L("Search anything: rooms, work orders, screens.","Busca lo que sea: cuartos, órdenes, pantallas.")],["#nav",L("Your main screens. 'More' has everything else.","Tus pantallas principales. 'Más' tiene todo lo demás.")],["#uxHelpBtn",L("Tap Ask anytime. HotelHQ answers from the how-to guides for your job, in your language.","Toca Pregunta cuando quieras. HotelHQ responde con las guías de tu puesto, en tu idioma.")]];
  if(S.role==="Housekeeper")s.splice(1,0,["#uxHero .ux-act",L("Open My rooms to mark rooms clean and see your out time. Leave on time with all rooms done to earn bonus points.","Abre Mis cuartos para marcar limpio y ver tu hora de salida. Sal a tiempo con todo listo y gana puntos.")]);
  if(leader())s.splice(3,0,["#uxMoreBtn",L("Labor plan, onboarding and reports are under More.","Plan laboral, integración y reportes están en Más.")]);return s}
 let TI=-1;window.uxTourEnd=function(){TI=-1;const o=document.getElementById("uxTour");if(o)o.remove();try{localStorage.setItem(TK(),"1")}catch(e){}};
@@ -128,8 +128,8 @@ render=function(){base.apply(this,arguments);if(!meUser()||meUser().pin_reset_re
  else app.insertAdjacentHTML("afterbegin",`<div class="ux-top"><button class="ux-bk" onclick="go('home')" aria-label="${L("Back to Home","Volver al inicio")}">‹ ${L("Home","Inicio")}</button><b>${M[S.tab]?M[S.tab][0]+" "+E(lbl(S.tab)):""}</b><button class="ux-bk" onclick="uxSheet('search')" aria-label="${L("Search","Buscar")}">🔎</button></div>`);
  labelPills(app);
  app.querySelectorAll(".card").forEach(c=>{if(!c.textContent.trim()&&!c.querySelector("img,canvas,input"))c.innerHTML=`<div class="ux-empty">✨ ${L("Nothing here yet.","Nada aquí todavía.")}</div>`});
- if(!document.getElementById("uxHelpBtn")){const b=document.createElement("button");b.id="uxHelpBtn";b.textContent="?";b.setAttribute("aria-label","Help");b.onclick=()=>uxTour(1);document.body.appendChild(b)}
- document.getElementById("uxHelpBtn").setAttribute("aria-label",L("Help & tour","Ayuda y recorrido"));
+ if(!document.getElementById("uxHelpBtn")){const b=document.createElement("button");b.id="uxHelpBtn";b.type="button";b.onclick=()=>{if(window.HHQAsk)HHQAsk.open();else uxTour(1)};document.body.appendChild(b)}
+ const askBtn=document.getElementById("uxHelpBtn");askBtn.textContent=L("Ask","Pregunta");askBtn.setAttribute("aria-label",L("Ask HotelHQ","Pregunta a HotelHQ"));
  let seen="1";try{seen=localStorage.getItem(TK())}catch(e){}
  if(!seen&&S.tab==="home"&&TI<0&&!document.querySelector(".wl-ov,#welcome,.welcome")){setTimeout(()=>{if(TI<0&&!localStorage.getItem(TK()))uxTour(1)},700)}
 };
@@ -170,7 +170,7 @@ nav button{min-height:60px;font-size:12px}
 .ux-good{color:#2e7d4f;font-weight:700;margin-top:6px}
 .ux-hire{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-bottom:1px solid #eef0f3;background:none;padding:8px 0;min-height:64px}.ux-hire>span:first-child{flex:1}
 .ux-back2{margin-bottom:8px}
-#uxHelpBtn{position:fixed;right:12px;bottom:96px;width:48px;height:48px;border-radius:50%;border:0;background:#3b5bdb;color:#fff;font-size:22px;font-weight:800;z-index:6;box-shadow:0 8px 20px rgba(16,24,40,.18)}
+#uxHelpBtn{position:fixed;right:12px;bottom:96px;height:48px;padding:0 16px;border-radius:999px;border:0;background:#14365d;color:#fff;font-size:16px;font-weight:800;z-index:6;box-shadow:0 8px 20px rgba(16,24,40,.18)}
 #uxTour{position:fixed;inset:0;z-index:200}
 .ux-hole{position:fixed;border-radius:14px;box-shadow:0 0 0 9999px #000a;border:3px solid #f9c74f;pointer-events:none}
 .ux-tip{position:fixed;left:12px;right:12px;background:#fff;border-radius:14px;padding:14px;font-size:16px}.ux-tip p{margin:6px 0 10px}

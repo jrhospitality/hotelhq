@@ -1,0 +1,50 @@
+[
+  {
+    "id": "fd",
+    "lang": "en",
+    "seconds": 78.3,
+    "file": "assets/howto/fd-en.mp4"
+  },
+  {
+    "id": "fd",
+    "lang": "es",
+    "seconds": 78.4,
+    "file": "assets/howto/fd-es.mp4"
+  },
+  {
+    "id": "hk",
+    "lang": "en",
+    "seconds": 84.5,
+    "file": "assets/howto/hk-en.mp4"
+  },
+  {
+    "id": "hk",
+    "lang": "es",
+    "seconds": 84.6,
+    "file": "assets/howto/hk-es.mp4"
+  },
+  {
+    "id": "mt",
+    "lang": "en",
+    "seconds": 89.0,
+    "file": "assets/howto/mt-en.mp4"
+  },
+  {
+    "id": "mt",
+    "lang": "es",
+    "seconds": 89.3,
+    "file": "assets/howto/mt-es.mp4"
+  },
+  {
+    "id": "gm",
+    "lang": "en",
+    "seconds": 72.1,
+    "file": "assets/howto/gm-en.mp4"
+  },
+  {
+    "id": "gm",
+    "lang": "es",
+    "seconds": 72.4,
+    "file": "assets/howto/gm-es.mp4"
+  }
+]

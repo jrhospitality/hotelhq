@@ -76,7 +76,7 @@ test("a saved list replaces defaults, stays inside access, and stops at 8", () =
   assert.doesNotMatch(sql, /drop table/i);
   assert.doesNotMatch(sql, /delete from/i);
   const more = fs.readFileSync(path.join(__dirname, "../more-menu.js"), "utf8");
-  assert.match(more, /photos", "onb"\]/);
+  assert.match(more, /photos", "onb", "howto"\]/);
   const ux = fs.readFileSync(path.join(__dirname, "../ux.js"), "utf8");
   assert.equal(ux.includes("Finish onboarding"), false);
   assert.equal(ux.includes("go('onb')"), false);

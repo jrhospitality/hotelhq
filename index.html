@@ -1560,7 +1560,7 @@ let S=null;try{S=JSON.parse(sget(KEY)||"null")}catch(e){S=null}
 function seed(h,i){const st=["VC","VD","OC","OD","VD","OC","VD","OOO"];const att=["Maria (EX)","Rosa (EX)","Ana (EX)"];
 const rooms=[];for(let f=1;f<=3;f++)for(let r=1;r<=8;r++){const n=f*100+r;rooms.push({n,s:st[(n+i)%8],hk:att[(n)%3]})}
 return{rooms,insp:[{room:105,by:"HK Sup (EX)",score:83,notes:"Dust on headboard",date:"10/25",failed:["Dusting"]},{room:212,by:"HK Sup (EX)",score:67,notes:"Hair in tub",date:"10/25",failed:["Bathroom","Dusting"]},{room:301,by:"GM (EX)",score:100,notes:"",date:"10/24",failed:[]}],
-wo:[{id:1,room:"212",t:"PTAC not cooling",p:"High",s:"Open",photo:""},{id:2,room:"Lobby",t:"Automatic door sticking",p:"Med",s:"In Progress",photo:""},{id:3,room:"118",t:"Running toilet",p:"Low",s:"Open",photo:""}],
+wo:[{id:1,room:"212",t:"PTAC not cooling",p:"High",s:"Open",photo:"assets/howto/example-photo.png"},{id:2,room:"Lobby",t:"Automatic door sticking",p:"Med",s:"In Progress",photo:""},{id:3,room:"118",t:"Running toilet",p:"Low",s:"Open",photo:""}],
 pm:[{a:"Guest room PM (rooms 101-108)",f:"Quarterly",due:"10/28",done:false},{a:"Pool chemical log",f:"Daily",due:"Today",done:false},{a:"Boiler inspection",f:"Monthly",due:"11/02",done:false},{a:"Fire extinguisher check",f:"Monthly",due:"10/20",done:false}],
 notes:[{sh:"Night Audit",by:"Jordan (EX)",t:"2 late arrivals guaranteed. Rm 214 noise complaint resolved.",at:"6:45 AM"}],
 check:{"Front Desk":[["Count drawer",0],["Review arrivals/VIPs",0],["Check key encoder",0],["Lobby walk",0]],Housekeeping:[["Linen par check",0],["Assign boards",0],["Cart restock",0],["Lost & found log",0]],Maintenance:[["Pool/spa test",0],["Boiler room check",0],["Review open WOs",0],["Exterior lights",0]],GM:[["Review flash report",0],["Stand-up meeting",0],["Property walk",0],["Guest reviews reply",0]]},
@@ -5578,4 +5578,6 @@ const css=document.createElement("style");css.textContent=`
 <script src="guest-messages.js"></script>
 <script src="decision-charts.js"></script>
 <script src="hk-report.js"></script>
-<script src="chargebacks.js"></script></body></html>
+<script src="chargebacks.js"></script>
+<script src="howto.js"></script>
+<script src="ask-hotelhq.js"></script></body></html>

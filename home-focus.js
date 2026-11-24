@@ -734,7 +734,11 @@
     section.appendChild(grid);
   }
   function signedIn() {
-    return typeof meUser === "function" && !!meUser();
+    try {
+      var me = typeof meUser === "function" ? meUser() : null;
+      if (!me || me.pin_reset_required) return false;
+      return true;
+    } catch (e) { return false; }
   }
   function fold() {
     if (folding || typeof S === "undefined" || S.tab !== "home" || !signedIn()) return;

@@ -11,7 +11,7 @@
     { id: "housekeeping", en: "Housekeeping", es: "Ama de llaves", accent: "#0f766e", ids: ["rooms", "myrooms", "insp", "ihg", "esc", "rushq", "check", "ckhub", "lreq", "dc", "floors"] },
     { id: "maintenance", en: "Maintenance", es: "Mantenimiento", accent: "#92400e", ids: ["wo", "pm", "equip", "pmsch", "walk", "inv", "order", "logs", "qimp", "winter"] },
     { id: "sales", en: "Sales & Events", es: "Ventas y eventos", accent: "#6d28d9", ids: ["slead", "sleads", "meetings"] },
-    { id: "team", en: "Team", es: "Equipo", accent: "#166534", ids: ["team", "my", "sched", "line", "pts", "goals", "qotd", "fun", "celebr", "about", "avatar", "avcredits", "photos", "onb"] },
+    { id: "team", en: "Team", es: "Equipo", accent: "#166534", ids: ["team", "my", "sched", "line", "pts", "goals", "qotd", "fun", "celebr", "about", "avatar", "avcredits", "photos", "onb", "howto"] },
     { id: "admin", en: "Admin & Reports", es: "Administración y reportes", accent: "#334155", ids: ["labor", "lstd", "lplan", "lcmd", "onclock", "trreq", "fc", "health", "score", "gscores", "rev", "naudit", "gcomm", "train", "inspx", "ifix", "permits", "gmc", "rules", "crep", "audit", "alog", "settings"] }
   ];
 
@@ -26,7 +26,7 @@
     lplan: "calendar", lstd: "clipboard", trreq: "grad", lcmd: "bars", onclock: "clock", onb: "grad", winter: "snow",
     meetings: "calendar", alog: "list", parking: "car", slead: "handshake", sleads: "handshake",
     floors: "map", gscores: "bars", rev: "bars", gchat: "inbox", naudit: "clipboardCheck", gcomm: "mail", train: "grad", inspx: "clipboardCheck", ifix: "check", permits: "file", settings: "gear", ckhub: "clipboardCheck", greq: "bell",
-    find: "search", logs: "clipboard", notice: "pin", dc: "broom", crep: "bars", audit: "eye",
+    find: "search", logs: "clipboard", notice: "pin", dc: "broom", crep: "bars", audit: "eye", howto: "help",
     qimp: "inbox", help: "help", dbrief: "newspaper", hcmp: "building", issue: "alert"
   };
 
