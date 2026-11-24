@@ -217,6 +217,9 @@ test("demo home loads the glance script and live mode never mounts it", () => {
   assert.match(src, /shouldMount\(input\)/);
   assert.match(src, /demoOn/);
   assert.match(src, /No data yet/);
+  assert.doesNotMatch(src, /glance-on \.hhq-done/);
+  const done = fs.readFileSync(path.join(root, "expected-done.js"), "utf8");
+  assert.match(done, /#uxHero\.glance-on #hhqDoneTeam\{display:block!important\}/);
   assert.match(src, /Aún no hay datos/);
   assert.equal(src.includes("supabaseKey"), false);
 });
