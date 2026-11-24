@@ -106,12 +106,12 @@ function stLabel(s){return STL[s]?s+" · "+L(STL[s][0],STL[s][1]):(s||"")}
 function labelPills(root){root.querySelectorAll(".pill").forEach(p=>{const s=p.textContent.trim();if(STL[s]&&!p.dataset.ux){p.dataset.ux=1;p.title=L(STL[s][0],STL[s][1]);p.insertAdjacentHTML("beforeend",`<span class="ux-pl"> ${L(STL[s][0],STL[s][1])}</span>`)}})}
 /* ---------- guided tour ---------- */
 const TK=()=>"hhq_tour_"+(S.uid||"");
-function steps(){const s=[["#uxHero",L("Your top tasks are right here. Tap one to start.","Tus tareas principales están aquí. Toca una para empezar.")],[".ux-search",L("Search anything: rooms, work orders, screens.","Busca lo que sea: cuartos, órdenes, pantallas.")],["#nav",L("Your main screens. 'More' has everything else.","Tus pantallas principales. 'Más' tiene todo lo demás.")],["#uxHelpBtn",L("Tap ? anytime to replay this tour.","Toca ? cuando quieras para repetir este recorrido.")]];
+function steps(){const s=[["#uxHero",L("Your top tasks are right here. Tap one to start.","Tus tareas principales están aquí. Toca una para empezar.")],[".ux-search",L("Search anything: rooms, work orders, screens.","Busca lo que sea: cuartos, órdenes, pantallas.")],["#nav",L("Your main screens. 'More' has everything else.","Tus pantallas principales. 'Más' tiene todo lo demás.")],["#askHqBtn",L("Tap Ask HotelHQ anytime for help or to replay this tour.","Toca Pregunta a HotelHQ cuando quieras para pedir ayuda o repetir este recorrido.")]];
  if(S.role==="Housekeeper")s.splice(1,0,["#uxHero .ux-act",L("Open My rooms to mark rooms clean and see your out time. Leave on time with all rooms done to earn bonus points.","Abre Mis cuartos para marcar limpio y ver tu hora de salida. Sal a tiempo con todo listo y gana puntos.")]);
  if(leader())s.splice(3,0,["#uxMoreBtn",L("Labor plan, onboarding and reports are under More.","Plan laboral, integración y reportes están en Más.")]);return s}
 let TI=-1;window.uxTourEnd=function(){TI=-1;const o=document.getElementById("uxTour");if(o)o.remove();try{localStorage.setItem(TK(),"1")}catch(e){}};
 window.uxTour=function(force){if(force){if(S.tab!=="home"){S.tab="home";render()}TI=0}else if(TI<0)return;const st=steps();if(TI>=st.length){uxTourEnd();const me=myHire();if(me&&!me.done.tour){me.done.tour=1;save()}return}
- let o=document.getElementById("uxTour");if(!o){o=document.createElement("div");o.id="uxTour";document.body.appendChild(o)}const [sel,txt]=st[TI],el=document.querySelector(sel);if(el&&sel!=="#nav"&&sel!=="#uxHelpBtn")el.scrollIntoView({block:"center"});const r=el?el.getBoundingClientRect():{top:120,left:20,width:350,height:60,bottom:180};
+ let o=document.getElementById("uxTour");if(!o){o=document.createElement("div");o.id="uxTour";document.body.appendChild(o)}const [sel,txt]=st[TI],el=document.querySelector(sel);if(el&&sel!=="#nav"&&sel!=="#askHqBtn")el.scrollIntoView({block:"center"});const r=el?el.getBoundingClientRect():{top:120,left:20,width:350,height:60,bottom:180};
  const below=r.top<window.innerHeight/2;o.innerHTML=`<div class="ux-hole" style="top:${r.top-6}px;left:${r.left-6}px;width:${r.width+12}px;height:${r.height+12}px"></div><div class="ux-tip" style="${below?"top:"+Math.min(r.bottom+14,window.innerHeight-220)+"px":"bottom:"+(window.innerHeight-r.top+14)+"px"}"><small>${TI+1} / ${st.length}</small><p>${txt}</p><div class="row"><button class="btn2" onclick="uxTourEnd()">${L("Skip","Saltar")}</button>${TI?`<button class="btn2" onclick="TI_(-1)">${L("Back","Atrás")}</button>`:""}<button class="btn" onclick="TI_(1)">${TI===st.length-1?L("Done","Listo"):L("Next","Siguiente")}</button></div></div>`};
 window.TI_=d=>{TI+=d;uxTour()};
 /* ---------- render wrap ---------- */
@@ -128,8 +128,6 @@ render=function(){base.apply(this,arguments);if(!meUser()||meUser().pin_reset_re
  else app.insertAdjacentHTML("afterbegin",`<div class="ux-top"><button class="ux-bk" onclick="go('home')" aria-label="${L("Back to Home","Volver al inicio")}">‹ ${L("Home","Inicio")}</button><b>${M[S.tab]?M[S.tab][0]+" "+E(lbl(S.tab)):""}</b><button class="ux-bk" onclick="uxSheet('search')" aria-label="${L("Search","Buscar")}">🔎</button></div>`);
  labelPills(app);
  app.querySelectorAll(".card").forEach(c=>{if(!c.textContent.trim()&&!c.querySelector("img,canvas,input"))c.innerHTML=`<div class="ux-empty">✨ ${L("Nothing here yet.","Nada aquí todavía.")}</div>`});
- if(!document.getElementById("uxHelpBtn")){const b=document.createElement("button");b.id="uxHelpBtn";b.textContent="?";b.setAttribute("aria-label","Help");b.onclick=()=>uxTour(1);document.body.appendChild(b)}
- document.getElementById("uxHelpBtn").setAttribute("aria-label",L("Help & tour","Ayuda y recorrido"));
  let seen="1";try{seen=localStorage.getItem(TK())}catch(e){}
  if(!seen&&S.tab==="home"&&TI<0&&!document.querySelector(".wl-ov,#welcome,.welcome")){setTimeout(()=>{if(TI<0&&!localStorage.getItem(TK()))uxTour(1)},700)}
 };
@@ -170,7 +168,6 @@ nav button{min-height:60px;font-size:12px}
 .ux-good{color:#2e7d4f;font-weight:700;margin-top:6px}
 .ux-hire{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-bottom:1px solid #eef0f3;background:none;padding:8px 0;min-height:64px}.ux-hire>span:first-child{flex:1}
 .ux-back2{margin-bottom:8px}
-#uxHelpBtn{position:fixed;right:12px;bottom:calc(84px + 58px + env(safe-area-inset-bottom,0px));width:48px;height:48px;border-radius:50%;border:0;background:#3b5bdb;color:#fff;font-size:22px;font-weight:800;z-index:46;box-shadow:0 8px 20px rgba(16,24,40,.18)}
 #uxTour{position:fixed;inset:0;z-index:200}
 .ux-hole{position:fixed;border-radius:14px;box-shadow:0 0 0 9999px #000a;border:3px solid #f9c74f;pointer-events:none}
 .ux-tip{position:fixed;left:12px;right:12px;background:#fff;border-radius:14px;padding:14px;font-size:16px}.ux-tip p{margin:6px 0 10px}
@@ -179,7 +176,6 @@ nav button{min-height:60px;font-size:12px}
 .ux-sheet{width:min(640px,100%);max-height:min(80vh,760px);border-radius:16px;box-shadow:0 24px 70px #0006}
 .ux-sheet .row{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
 .ux-tip{left:50%;right:auto;width:min(480px,calc(100vw - 48px));transform:translateX(-50%)}
-#uxHelpBtn{bottom:24px;right:24px}
 }
 `;document.head.appendChild(css);
 render();

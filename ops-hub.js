@@ -385,11 +385,17 @@
     };
   }
 
+  function detachAsk(stack) {
+    var ask = document.getElementById("askHqBtn");
+    if (ask && stack && ask.parentNode === stack) document.body.appendChild(ask);
+    return ask;
+  }
   function mount() {
     if (!document.body || typeof meUser !== "function" || !meUser()) {
       var old = document.getElementById("opsBtn"); if (old) old.remove();
       var oldS = document.getElementById("opsMount"); if (oldS) oldS.remove();
-      var oldF = document.getElementById("hhqFabs"); if (oldF) oldF.remove();
+      var oldF = document.getElementById("hhqFabs");
+      if (oldF) { detachAsk(oldF); oldF.remove(); }
       return;
     }
     var btn = document.getElementById("opsBtn");
@@ -404,12 +410,12 @@
     btn.textContent = B("New request", "Nueva solicitud");
     var desk = typeof rMode === "function" && rMode() === "desk" && !(typeof S !== "undefined" && S.sbMini);
     var foot = document.getElementById("sbFoot");
-    var help = document.getElementById("uxHelpBtn");
+    var ask = document.getElementById("askHqBtn");
     var stack = document.getElementById("hhqFabs");
     if (desk && foot) {
       btn.classList.add("ops-in-side");
       foot.insertBefore(btn, foot.firstChild);
-      if (help && help.parentNode !== document.body) document.body.appendChild(help);
+      if (ask && ask.parentNode !== document.body) document.body.appendChild(ask);
       if (stack) stack.remove();
     } else {
       btn.classList.remove("ops-in-side");
@@ -418,7 +424,7 @@
         stack.id = "hhqFabs";
         document.body.appendChild(stack);
       }
-      if (help) stack.appendChild(help);
+      if (ask) stack.appendChild(ask);
       stack.appendChild(btn);
     }
     var mountPoint = document.getElementById("opsMount");
@@ -431,6 +437,7 @@
     var _render = render;
     render = function () { var out = _render.apply(this, arguments); try { mount(); } catch (e) {} return out; };
   }
+  if (root.HQ) root.HQ.placeFabs = mount;
   if (typeof hydrate === "function") {
     var _hy = hydrate;
     hydrate = async function () {
@@ -440,6 +447,6 @@
     };
   }
   var css = document.createElement("style");
-  css.textContent = "#hhqFabs{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:45;display:flex;flex-direction:column;align-items:flex-end;gap:10px}.ops-btn{min-height:48px;padding:0 16px;border:0;border-radius:999px;background:#143d66;color:#fff;font:700 15px/1.2 inherit;box-shadow:0 6px 18px #0003}#hhqFabs #uxHelpBtn,#hhqFabs .ops-btn{position:static}.ops-sheet{position:fixed;inset:0;z-index:60;background:#0b1b2e88;display:flex;align-items:flex-end;justify-content:center}.ops-card{background:#fff;width:min(560px,100%);max-height:88vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px}.ops-card textarea,.ops-card input{width:100%;margin:6px 0}@media(min-width:768px){#hhqFabs{right:16px;bottom:24px}}@media(min-width:1024px){#hhqFabs{right:24px;bottom:24px}.ops-btn.ops-in-side{position:static;width:100%;margin:0 0 8px;border-radius:10px;box-shadow:none}.ops-sheet{align-items:center;justify-content:center;padding:24px}.ops-card{border-radius:16px;width:min(640px,100%);max-height:min(80vh,760px);box-shadow:0 24px 70px #0006}}";
+  css.textContent = "#hhqFabs{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:45;display:flex;flex-direction:column;align-items:flex-end;gap:10px}.ops-btn{min-height:48px;padding:0 16px;border:0;border-radius:999px;background:#143d66;color:#fff;font:700 15px/1.2 inherit;box-shadow:0 6px 18px #0003}#hhqFabs #askHqBtn,#hhqFabs .ops-btn{position:static}#askHqBtn{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:46}.ops-sheet{position:fixed;inset:0;z-index:60;background:#0b1b2e88;display:flex;align-items:flex-end;justify-content:center}.ops-card{background:#fff;width:min(560px,100%);max-height:88vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px}.ops-card textarea,.ops-card input{width:100%;margin:6px 0}@media(min-width:768px){#hhqFabs{right:16px;bottom:24px}#askHqBtn{right:16px;bottom:24px}}@media(min-width:1024px){#hhqFabs{right:24px;bottom:24px}#askHqBtn{right:24px;bottom:24px}.ops-btn.ops-in-side{position:static;width:100%;margin:0 0 8px;border-radius:10px;box-shadow:none}.ops-sheet{align-items:center;justify-content:center;padding:24px}.ops-card{border-radius:16px;width:min(640px,100%);max-height:min(80vh,760px);box-shadow:0 24px 70px #0006}}";
   document.head.appendChild(css);
 })(typeof window !== "undefined" ? window : globalThis);
