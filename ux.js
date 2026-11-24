@@ -170,7 +170,7 @@ nav button{min-height:60px;font-size:12px}
 .ux-good{color:#2e7d4f;font-weight:700;margin-top:6px}
 .ux-hire{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-bottom:1px solid #eef0f3;background:none;padding:8px 0;min-height:64px}.ux-hire>span:first-child{flex:1}
 .ux-back2{margin-bottom:8px}
-#uxHelpBtn{position:fixed;right:12px;bottom:96px;width:48px;height:48px;border-radius:50%;border:0;background:#3b5bdb;color:#fff;font-size:22px;font-weight:800;z-index:6;box-shadow:0 8px 20px rgba(16,24,40,.18)}
+#uxHelpBtn{position:fixed;right:12px;bottom:calc(84px + 58px + env(safe-area-inset-bottom,0px));width:48px;height:48px;border-radius:50%;border:0;background:#3b5bdb;color:#fff;font-size:22px;font-weight:800;z-index:46;box-shadow:0 8px 20px rgba(16,24,40,.18)}
 #uxTour{position:fixed;inset:0;z-index:200}
 .ux-hole{position:fixed;border-radius:14px;box-shadow:0 0 0 9999px #000a;border:3px solid #f9c74f;pointer-events:none}
 .ux-tip{position:fixed;left:12px;right:12px;background:#fff;border-radius:14px;padding:14px;font-size:16px}.ux-tip p{margin:6px 0 10px}

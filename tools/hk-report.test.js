@@ -146,5 +146,5 @@ test("the migration is additive and photos stay on the private bucket path", () 
   assert.match(page, /work-order-photos/);
   assert.match(page, /disabled/);
   assert.match(sw, /hk-report\.js/);
-  assert.match(sw, /hotelhq-shell-v29/);
+  assert.match(sw, /hotelhq-shell-v30/);
 });

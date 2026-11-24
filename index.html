@@ -174,7 +174,7 @@ small,.wlnote,.hname{font-size:13px}
 :focus-visible{outline:3px solid #1f6feb;outline-offset:2px}
 #side,.pgbar-x{display:none}
 body.is-login{padding:0!important}
-body.is-login header#hdr,body.is-login nav,body.is-login #side,body.is-login #opsBtn,body.is-login #uxHelpBtn,body.is-login #pwaInstall,body.is-login #opsMount{display:none!important}
+body.is-login header#hdr,body.is-login nav,body.is-login #side,body.is-login #opsBtn,body.is-login #uxHelpBtn,body.is-login #hhqFabs,body.is-login #pwaInstall,body.is-login #opsMount{display:none!important}
 body.is-login main{max-width:480px;margin:28px auto;width:calc(100% - 32px);padding:0}
 @media (min-width:768px){
 body{--rw:88px;padding-left:var(--rw);padding-bottom:0!important}
@@ -2093,7 +2093,7 @@ async function signIn(){
   enterApp(u);save();render();
 }
 function clearSessionChrome(){
-  ["welcome","uxSheet","uxTour","ptsToast","hhqFocus","opsBtn","opsMount","uxHelpBtn"].forEach(function(id){const el=document.getElementById(id);if(el)el.remove()});
+  ["welcome","uxSheet","uxTour","ptsToast","hhqFocus","opsBtn","opsMount","uxHelpBtn","hhqFabs"].forEach(function(id){const el=document.getElementById(id);if(el)el.remove()});
   if(typeof S!=="undefined")S.opsOpen=false;
   document.body.classList.add("is-login");
   document.body.classList.remove("m-phone","m-tab","m-desk","sb-mini","rail-open","he-print");
@@ -4774,7 +4774,7 @@ function rMode(){const w=innerWidth;return w>=1024?"desk":w>=768?"tab":"phone"}
 function rIds(){const s=new Set(["home",...navFor(S.role),...tilesFor(S.role)]);return [...s].filter(id=>M[id])}
 function rItem(id){return `<button type="button" class="${S.tab===id?"on":""}" ${S.tab===id?'aria-current="page"':""} onclick="go('${id}')"><span aria-hidden="true">${M[id][0]}</span><em>${t(M[id][1])}</em></button>`}
 function respRail(){S.railOpen=!S.railOpen;save();render()}
-function hhqSbToggle(){S.sbMini=!S.sbMini;try{save()}catch(e){}document.body.classList.toggle("sb-mini",!!S.sbMini)}
+function hhqSbToggle(){S.sbMini=!S.sbMini;try{save()}catch(e){}document.body.classList.toggle("sb-mini",!!S.sbMini);if(typeof render==="function")render()}
 function respNav(m){const nav=$("nav");if(m==="phone"){nav.className="";nav.removeAttribute("aria-label");return}
   const open=m==="desk"||!!S.railOpen,ids=rIds();nav.className=open?"open":"";nav.setAttribute("aria-label",bx("Main menu","Menú principal"));let h="";
   if(m==="tab")h+=`<button type="button" class="rtog" aria-expanded="${open}" onclick="respRail()"><span aria-hidden="true">${open?"✕":"☰"}</span><em>${open?bx("Close menu","Cerrar menú"):bx("Menu","Menú")}</em></button>`;
