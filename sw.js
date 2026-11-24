@@ -4,7 +4,7 @@
    The ack action opens /hotelhq/?ack=<alert_id> and does not call the API.
    Shell caching is network-first and versioned. Supabase and other personal API
    responses are never written to the cache. Bump CACHE_VERSION when cache rules change. */
-var CACHE_VERSION = "hotelhq-shell-v30";
+var CACHE_VERSION = "hotelhq-shell-v31";
 var SHELL = [
   "./",
   "./index.html",
@@ -51,6 +51,8 @@ var SHELL = [
   "./decision-charts.js",
   "./hk-report.js",
   "./chargebacks.js",
+  "./help-guides.js",
+  "./ask-hotelhq.js",
   "./readability.css",
   "./vendor/chart.umd.min.js",
   "./room-live.js",
@@ -98,7 +100,7 @@ function cacheMode(url, opts) {
   if (!origin || parsed.origin !== origin) return "bypass";
   if (/\/sw\.js$/i.test(parsed.pathname)) return "bypass";
   if (opts.navigate) return "network-first";
-  if (/\.(?:html?|js|css|json|webmanifest|png|svg|ico|webp|woff2?)$/i.test(parsed.pathname)) return "network-first";
+  if (/\.(?:html?|js|css|json|webmanifest|png|svg|ico|webp|woff2?|mp4|vtt)$/i.test(parsed.pathname)) return "network-first";
   if (/\/$/.test(parsed.pathname)) return "network-first";
   return "bypass";
 }

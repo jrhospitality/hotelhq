@@ -2220,7 +2220,7 @@ function render(){
   const tiles=tilesFor(S.role);
   if(gamifyOff()&&["avatar","avcredits"].includes(S.tab))S.tab="home";
   M.pts[1]=gamifyOff()?"Leaderboard":"Points & Rewards";
-  if(!["home",...nav,...tiles].includes(S.tab)&&!(canSeeReports()&&(S.tab==="health"||S.tab==="score")))S.tab="home";
+  if(!["home","guides",...nav,...tiles].includes(S.tab)&&!(canSeeReports()&&(S.tab==="health"||S.tab==="score")))S.tab="home";
   INIT(dd);ST();["Daily","Weekly","Monthly"].forEach(t=>dd.touched[pk(t)]=1);
   const manyHotels=authRole()=="Above Property"&&Object.keys(HOTELS).length>1;
   $("hotel").className=manyHotels?"hotel-switch":"seg";
@@ -5578,4 +5578,6 @@ const css=document.createElement("style");css.textContent=`
 <script src="guest-messages.js"></script>
 <script src="decision-charts.js"></script>
 <script src="hk-report.js"></script>
-<script src="chargebacks.js"></script></body></html>
+<script src="chargebacks.js"></script>
+<script src="help-guides.js"></script>
+<script src="ask-hotelhq.js"></script></body></html>
