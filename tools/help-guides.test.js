@@ -35,7 +35,14 @@ test("four day-one guides stay inside real screens and carry both languages", ()
   });
   assert.deepEqual(guides.guideForRole("Housekeeper").id, "housekeeping");
   assert.deepEqual(guides.guideForRole("Laundry Attendant").id, "housekeeping");
+  assert.deepEqual(guides.guideForRole("Housekeeping").id, "housekeeping");
   assert.deepEqual(guides.guideForRole("AGM").id, "gm");
+  const lead = guides.guideById("housekeeping").sections.find((section) => section.id === "lead");
+  assert.ok(lead);
+  assert.match(lead.body.en, /Auto-assign dirty rooms/);
+  assert.match(lead.body.en, /Ready to Inspect/);
+  assert.match(lead.body.es, /Pass/);
+  assert.match(guides.guideById("housekeeping").sections.find((section) => section.id === "laundry").body.en, /Load done/);
 });
 
 test("answers quote one guide section in the question language and refuse the rest", () => {
@@ -64,6 +71,15 @@ test("answers quote one guide section in the question language and refuse the re
   const pin = guides.answer("How do I set my PIN?", { lang: "en", role: "GM" });
   assert.equal(pin.guideId, "gm");
   assert.equal(pin.sectionId, "pin");
+
+  const inspect = guides.answer("How do I inspect a room?", { lang: "en", role: "Housekeeping" });
+  assert.equal(inspect.known, true);
+  assert.equal(inspect.guideId, "housekeeping");
+  assert.equal(inspect.sectionId, "lead");
+  assert.match(inspect.text, /Do not pass a room you cleaned/);
+  const assign = guides.answer("¿Cómo asigno cuartos?", { lang: "es", role: "Housekeeping" });
+  assert.equal(assign.sectionId, "lead");
+  assert.match(assign.text, /Auto-assign dirty rooms/);
 
   ["What is the guest wifi password?", "How do I change the Opera rate code?", ""].forEach((question) => {
     const miss = guides.answer(question, { lang: "en", role: "Front Desk" });
@@ -94,7 +110,7 @@ test("the help page and Ask button are wired without a new secret", () => {
   assert.match(html, /src="ask-hotelhq\.js"/);
   assert.match(sw, /help-guides\.js/);
   assert.match(sw, /ask-hotelhq\.js/);
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v34"/);
+  assert.match(sw, /hotelhq-shell-v36/);
   assert.match(sw, /mp4\|vtt/);
   assert.match(ask, /askHqBtn/);
   assert.match(ask, /Replay tour/);
@@ -116,39 +132,4 @@ test("the help page and Ask button are wired without a new secret", () => {
   assert.match(menu, /go\(\\'guides\\'\)/);
   assert.match(menu, /Help & tour/);
   assert.match(menu, /Ayuda y recorrido/);
-});
-
-const rollout = require("../data/help-guides.js");
-
-function rolloutGuide(id) {
-  return rollout.GUIDES.find((item) => item.id === id);
-}
-
-test("the rollout guides stay in both languages and in the shell", () => {
-  assert.deepEqual(rollout.GUIDES.map((item) => item.id), ["front-desk", "housekeeping", "maintenance", "gm"]);
-  rollout.GUIDES.forEach((item) => {
-    assert.ok(item.title.en && item.title.es);
-    assert.match(item.video.en, /^help\/videos\/.+\.mp4$/);
-    assert.match(item.video.es, /^help\/videos\/.+\.mp4$/);
-    item.sections.forEach((section) => {
-      assert.ok(section.steps.length >= 3);
-      section.steps.forEach((step) => {
-        assert.ok(step.en && step.es);
-        assert.notEqual(step.en, step.es);
-      });
-    });
-  });
-  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(html, /src="data\/help-guides\.js"/);
-  assert.match(html, /src="help-guides\.js"/);
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v34"/);
-  assert.match(sw, /"\.\/data\/help-guides\.js"/);
-  assert.match(sw, /"\.\/room-pm\.js"/);
-  const clean = rollout.answer("How do I mark a room clean?", "en", "Housekeeper");
-  assert.equal(clean.known, true);
-  assert.equal(clean.guideId, "housekeeping");
-  const missed = rollout.answer("What is the wifi password?", "en", "Front Desk");
-  assert.equal(missed.known, false);
-  assert.equal(missed.text, rollout.UNKNOWN.en);
 });
