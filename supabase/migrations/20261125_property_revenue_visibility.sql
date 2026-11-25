@@ -1,7 +1,6 @@
--- Property revenue visibility. Additive only. Not applied by this change.
--- Pending until Jay approves. Do not run this on the live project
--- clxvmtbmveusrbxacnxe from the pull request. Merging to main deploys the
--- site, and this file has to be applied by hand before that deploy.
+-- Property revenue visibility. Additive only. No tables, columns, or rows
+-- are dropped. Jay approved applying this to the live project
+-- clxvmtbmveusrbxacnxe on 2026-11-25, before the site deploy.
 --
 -- GM, AGM, and above-property may read property revenue: room revenue,
 -- total revenue, ADR times rooms, and MTD/YTD budget versus actual.

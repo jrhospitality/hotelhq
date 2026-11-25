@@ -147,5 +147,6 @@ test("the revenue migration is additive and locks revenue to GM, AGM, and corpor
   assert.doesNotMatch(sql, /to anon,/);
   assert.doesNotMatch(sql, /sb_publishable_|eyJ/);
   assert.match(sql, /clxvmtbmveusrbxacnxe/);
-  assert.match(sql, /Not applied/);
+  assert.match(sql, /Jay approved/);
+  assert.doesNotMatch(sql, /Not applied/);
 });
