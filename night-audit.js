@@ -5,6 +5,9 @@
    Demo mode keeps the sample check-in. Sample guests start with "Sample" and
    confirmations start with "DEMO". Live mode reads night_audit_reports where
    source is hotelkey, plus night_audit_report_rows and night_audit_items.
+   tools/hotelkey-night-audit.js turns the daily HotelKey CSVs into that
+   payload. Checks the files cannot score are stored as coverage and shown
+   on the review. Unfinished items are overdue after the due time.
    Counts are shown as reported. OOO and stay extensions do not grow a room list.
    Opera, OnQ, and Marriott parsers stay empty until real report samples arrive.
    The mailbox body is not stored. Parsed rows belong in night_audit_report_rows.
@@ -583,6 +586,22 @@
     });
     return "<h3>" + esc(tx(lang, "By hotel", "Por hotel")) + "</h3>" + table([tx(lang, "Hotel", "Hotel"), tx(lang, "Status", "Estado"), "#", "$"], rows);
   }
+  function coverageBlock(model, hotel, lang) {
+    var rows = (model.coverage || []).filter(function (row) {
+      return row.hotel === hotel && row.support === "unsupported" && (row.reasonEn || row.reasonEs);
+    });
+    if (!rows.length) return "";
+    var date = "";
+    rows.forEach(function (row) { if (row.auditDate > date) date = row.auditDate; });
+    var lines = [];
+    var seen = {};
+    rows.forEach(function (row) {
+      if (row.auditDate !== date || seen[row.checkId]) return;
+      seen[row.checkId] = 1;
+      lines.push(esc(lang === "es" ? (row.reasonEs || row.reasonEn) : row.reasonEn));
+    });
+    return "<p class=\"na-note\"><b>" + esc(tx(lang, "Not in these reports", "No está en estos reportes")) + "</b> " + esc(date) + "</p><p class=\"na-note\">" + lines.join("<br>") + "</p>";
+  }
   function itemHtml(item, lang, view) {
     var why = lang === "es" ? item.whyEs : item.whyEn;
     var fix = lang === "es" ? item.fixEs : item.fixEn;
@@ -599,14 +618,15 @@
       return body;
     }
     var id = item.id;
+    var act = view && view.live ? "naLiveAct" : "naAct";
     body += "<div class=\"na-acts\">" +
-      "<button type=\"button\" class=\"btn\" onclick=\"naAct('" + id + "','done')\">" + esc(tx(lang, "Done", "Listo")) + "</button>" +
-      "<button type=\"button\" class=\"btn2\" onclick=\"naAct('" + id + "','not_issue')\">" + esc(tx(lang, "Not an issue", "No es problema")) + "</button>" +
+      "<button type=\"button\" class=\"btn\" onclick=\"" + act + "('" + id + "','done')\">" + esc(tx(lang, "Done", "Listo")) + "</button>" +
+      "<button type=\"button\" class=\"btn2\" onclick=\"" + act + "('" + id + "','not_issue')\">" + esc(tx(lang, "Not an issue", "No es problema")) + "</button>" +
       "<button type=\"button\" class=\"btn2\" onclick=\"naExplain('" + id + "')\">" + esc(tx(lang, "Explain", "Explicar")) + "</button></div>";
     if (view.openId === id) {
       body += "<label class=\"na-note-label\">" + esc(tx(lang, "Note", "Nota")) +
         "<textarea id=\"naNote\" maxlength=\"240\" aria-label=\"" + esc(tx(lang, "Note", "Nota")) + "\"></textarea></label>" +
-        "<button type=\"button\" class=\"btn\" onclick=\"naAct('" + id + "','explain')\">" + esc(tx(lang, "Save note", "Guardar nota")) + "</button>";
+        "<button type=\"button\" class=\"btn\" onclick=\"" + act + "('" + id + "','explain')\">" + esc(tx(lang, "Save note", "Guardar nota")) + "</button>";
       if (view.error === "note") body += "<p class=\"bad\">" + esc(tx(lang, "Add a short note", "Agrega una nota breve")) + "</p>";
     }
     return body + "</article>";
@@ -636,7 +656,8 @@
     } else if (done && !sum.open) {
       banner = "<p class=\"na-done\" role=\"status\">" + esc(tx(lang, "Completed by", "Completado por") + " " + done.by + " · " + fmtClock(done.at, lang)) + "</p>";
     } else if (!sum.open) {
-      banner = "<button type=\"button\" class=\"btn na-wide\" onclick=\"naMark('" + hotel + "')\">" + esc(tx(lang, "Mark check-in complete", "Marcar revisión completa")) + "</button>";
+      var mark = view.live ? "naLiveMark" : "naMark";
+      banner = "<button type=\"button\" class=\"btn na-wide\" onclick=\"" + mark + "('" + hotel + "')\">" + esc(tx(lang, "Mark check-in complete", "Marcar revisión completa")) + "</button>";
     }
     var dueControl = "";
     if (canAct(actor, hotel)) {
@@ -652,14 +673,15 @@
       (status === "no_report" ? "" : "<p class=\"na-note\">" + esc(tx(lang, "Nothing open in this check-in.", "Nada abierto en esta revisión.")) + "</p>");
     var closed = closedRows.length ? "<details class=\"na-closed\"><summary>" + esc(closedRows.length + " " + tx(lang, "resolved", "resueltos")) + "</summary>" + closedRows.map(function (item) { return itemHtml(item, lang, view); }).join("") + "</details>" : "";
     var hotelsBlock = hotels.length > 1 ? hotelTable(model, hotels, now, lang, hotel) + categoryTable(model, hotels, model.today, lang) : categoryTable(model, [hotel], model.today, lang);
+    var sampleNote = view.sample === false ? "" : "<p class=\"na-note\"><span class=\"ex\">EXAMPLE</span> " + esc(tx(lang, "Sample items for this demo. No real guests.", "Casos de ejemplo para esta demostración. No hay huéspedes reales.")) + "</p>";
     return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" +
-      "<p class=\"na-note\"><span class=\"ex\">EXAMPLE</span> " + esc(tx(lang, "Sample items for this demo. No real guests.", "Casos de ejemplo para esta demostración. No hay huéspedes reales.")) + "</p>" +
+      sampleNote +
       hotelsBlock +
       "<section class=\"card na-work\"><div class=\"na-line\"><h3>" + esc(hotel) + "</h3><span class=\"na-badge na-st-" + status + "\">" + esc(badgeStatus(status, lang)) + "</span></div>" +
       "<p class=\"na-note\">" + esc(tx(lang, "Due", "Límite") + " " + fmtDue(due, lang) + " · " + tx(lang, "Streak", "Racha") + " " + streak(model, hotel, now)) + "</p>" +
       dueControl +
       "<div class=\"na-k\"><div><b>" + sum.open + "</b><span>" + esc(tx(lang, "Open", "Abiertos")) + "</span></div><div><b>" + sum.resolved + "</b><span>" + esc(tx(lang, "Resolved", "Resueltos")) + "</span></div><div><b>" + esc(money(sum.amount)) + "</b><span>" + esc(tx(lang, "At risk", "En riesgo")) + "</span></div></div>" +
-      historyHtml(model, hotel, now, lang) + banner + heldNote +
+      historyHtml(model, hotel, now, lang) + banner + heldNote + coverageBlock(model, hotel, lang) +
       "<div class=\"na-chips\">" + chips + "</div>" + list + closed + "</section></div>";
   }
   function homeCard(model, actor, lang) {
@@ -743,6 +765,77 @@
     try { if (typeof showToast === "function") showToast(tx(lang, en, es)); } catch (e) {}
   }
 
+  function isoAt(value) {
+    if (!value) return "";
+    var date = new Date(value);
+    return isNaN(date.getTime()) ? String(value) : date.toISOString();
+  }
+  function liveModel(input) {
+    input = input || {};
+    var now = input.now || new Date().toISOString();
+    var settings = { MSPWE: DEFAULT_DUE, MSPAM: DEFAULT_DUE, MSPMS: DEFAULT_DUE };
+    (input.settings || []).forEach(function (row) {
+      if (!row || HOTELS.indexOf(row.hotel) < 0) return;
+      var due = String(row.due_local || row.due || "").slice(0, 5);
+      if (validDue(due)) settings[row.hotel] = due;
+    });
+    var items = [];
+    (input.items || []).forEach(function (row) {
+      if (!row || HOTELS.indexOf(row.hotel) < 0) return;
+      var next = normalizeFeedItem(row, row.hotel);
+      if (!next) return;
+      next.auditDate = String(row.audit_date || row.auditDate || "").slice(0, 10);
+      next.fingerprint = next.hotel + "|" + next.code + "|" + next.confirmation;
+      items.push(next);
+    });
+    var resolutions = [];
+    (input.resolutions || []).forEach(function (row) {
+      if (!row) return;
+      var action = row.action;
+      var itemId = row.item_id || row.itemId;
+      if (!itemId || ["done", "not_issue", "explain"].indexOf(action) < 0) return;
+      resolutions.push({
+        itemId: itemId, hotel: row.hotel, checkinDate: String(row.checkin_date || row.checkinDate || "").slice(0, 10),
+        action: action, note: row.note || "", by: row.resolved_name || row.by || "", at: isoAt(row.resolved_at || row.at), source: "user"
+      });
+    });
+    var reports = [];
+    (input.reports || []).forEach(function (row) {
+      if (!row || HOTELS.indexOf(row.hotel) < 0) return;
+      var auditDate = String(row.audit_date || row.auditDate || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(auditDate)) return;
+      reports.push({ hotel: row.hotel, auditDate: auditDate, source: row.source || "", status: row.status || "" });
+    });
+    var completions = [];
+    (input.checkins || []).forEach(function (row) {
+      if (!row || !row.completed_at || HOTELS.indexOf(row.hotel) < 0) return;
+      var due = String(row.due_local || DEFAULT_DUE).slice(0, 5);
+      completions.push({
+        hotel: row.hotel, date: String(row.checkin_date || "").slice(0, 10), at: isoAt(row.completed_at),
+        due: validDue(due) ? due : DEFAULT_DUE, by: row.completed_name || "", role: "",
+        openCount: 0, resolvedCount: 0, amountOpen: 0, source: "user"
+      });
+    });
+    var coverage = [];
+    var seen = {};
+    (input.coverage || []).forEach(function (row) {
+      if (!row || HOTELS.indexOf(row.hotel) < 0) return;
+      var checkId = row.check_id || row.checkId || "";
+      var auditDate = String(row.audit_date || row.auditDate || "").slice(0, 10);
+      var key = row.hotel + "|" + auditDate + "|" + checkId;
+      if (!checkId || seen[key]) return;
+      seen[key] = 1;
+      coverage.push({
+        hotel: row.hotel, auditDate: auditDate, checkId: checkId, support: row.support || "",
+        reasonEn: row.reason_en || row.reasonEn || "", reasonEs: row.reason_es || row.reasonEs || ""
+      });
+    });
+    return {
+      origin: "hotelkey", now: now instanceof Date ? now.toISOString() : String(now), today: checkinDate(now),
+      settings: settings, settingsTouched: false, items: items, resolutions: resolutions,
+      reports: reports, completions: completions, suppressions: [], coverage: coverage
+    };
+  }
   var api = {
     HOTELS: HOTELS, CATEGORIES: CATEGORIES, RULES: RULES, DEFAULT_DUE: DEFAULT_DUE, DUE_CHOICES: DUE_CHOICES, TZ: TZ,
     isLeader: isLeader, isCorporate: isCorporate, hotelsFor: hotelsFor, canAct: canAct, demoUi: demoUi,
@@ -753,6 +846,7 @@
     resolve: resolve, markComplete: markComplete, setDue: setDue, isSuppressed: isSuppressed,
     parseReport: parseReport, ingest: ingest, detectSource: detectSource, registerParser: registerParser,
     checkinHtml: checkinHtml, homeCard: homeCard, money: money, cellStatus: cellStatus, badgeStatus: badgeStatus, hasReport: hasReport,
+    liveModel: liveModel,
     reportFromRows: reportFromRows, exampleFeed: exampleFeed, feedHtml: feedHtml, feedForHotel: feedForHotel, fmtStat: fmtStat
   };
 
@@ -1104,7 +1198,7 @@
       var noteHtml = note ? "<p class=\"na-note\">" + esc(note) + "</p>" : "";
       return "<section class=\"na-sec\"><h3>" + esc(label) + "</h3>" + noteHtml + body + "</section>";
     }).join("");
-    var itemBlocks = (model.items || []).map(function (item) {
+    var itemBlocks = opts.hideItems ? [] : (model.items || []).map(function (item) {
       var why = lang === "es" ? item.whyEs : item.whyEn;
       var fix = lang === "es" ? item.fixEs : item.fixEn;
       var guest = item.guest ? esc(item.guest) + " · " : "";
@@ -1123,8 +1217,8 @@
       }
       return "<article class=\"na-item\"><p><b>" + guest + esc(item.confirmation) + "</b> · " + esc(why) + "</p><p class=\"na-fix\">" + esc(fix) + "</p>" + resolved + acts + "</article>";
     }).join("");
-    var itemsHtml = "<h3>" + esc(tx(lang, "Items to review", "Casos por revisar")) + "</h3>" +
-      (itemBlocks || "<p class=\"na-note\">" + esc(tx(lang, "No exceptions on this report.", "No hay excepciones en este reporte.")) + "</p>");
+    var itemsHtml = opts.hideItems ? "" : ("<h3>" + esc(tx(lang, "Items to review", "Casos por revisar")) + "</h3>" +
+      (itemBlocks || "<p class=\"na-note\">" + esc(tx(lang, "No exceptions on this report.", "No hay excepciones en este reporte.")) + "</p>"));
     return "<div class=\"na-feed\" id=\"naFeed\">" + banner + head + gm + counts + earlyTable + itemsHtml + sections + "</div>";
   }
 
@@ -1134,13 +1228,15 @@
 
   var liveState = "";
   var livePack = {};
+  var liveReview = null;
 
-  function mapLiveItem(row) {
-    return {
-      id: row.id, hotel: row.hotel, audit_date: row.audit_date, category: row.category, code: row.code,
-      guest_name: row.guest_name, confirmation: row.confirmation, why_en: row.why_en, why_es: row.why_es,
-      fix_en: row.fix_en, fix_es: row.fix_es, amount: row.amount, room: row.room
-    };
+  function rowsOf(res) {
+    if (!res || res.error || !res.data) return [];
+    return res.data;
+  }
+  function scoped(query, hotels) {
+    if (hotels.length === 1) return query.eq("hotel", hotels[0]);
+    return query;
   }
   function ensureLive() {
     if (demoUi()) return;
@@ -1148,35 +1244,44 @@
     if (typeof useRemote !== "function" || !useRemote() || typeof sb === "undefined" || !sb) {
       liveState = "empty";
       livePack = {};
+      liveReview = liveModel({ now: new Date().toISOString() });
       return;
     }
     liveState = "loading";
     var actor = currentActor();
     var hotels = hotelsFor(actor.role, actor.hotel);
-    var reportQuery = sb.from("night_audit_reports").select("id,hotel,audit_date,source,subject,status").eq("source", "hotelkey").order("audit_date", { ascending: false }).limit(20);
-    if (hotels.length === 1) reportQuery = reportQuery.eq("hotel", hotels[0]);
-    reportQuery.then(function (res) {
-      var reports = (!res || res.error || !res.data) ? [] : res.data.filter(function (row) { return hotels.indexOf(row.hotel) >= 0; });
+    var today = checkinDate(new Date().toISOString());
+    var start = addDays(today, -45);
+    Promise.all([
+      scoped(sb.from("night_audit_reports").select("id,hotel,audit_date,source,subject,status").eq("source", "hotelkey").gte("audit_date", start).order("audit_date", { ascending: false }).limit(80), hotels),
+      scoped(sb.from("night_audit_settings").select("hotel,due_local"), hotels),
+      scoped(sb.from("night_audit_items").select("id,hotel,audit_date,category,code,guest_name,confirmation,why_en,why_es,fix_en,fix_es,amount,room,report_id").gte("audit_date", start).limit(500), hotels),
+      scoped(sb.from("night_audit_resolutions").select("item_id,hotel,checkin_date,action,note,resolved_name,resolved_at").limit(500), hotels),
+      scoped(sb.from("night_audit_checkins").select("hotel,checkin_date,due_local,completed_at,completed_name").gte("checkin_date", start).limit(120), hotels),
+      scoped(sb.from("night_audit_check_coverage").select("hotel,audit_date,check_id,support,reason_en,reason_es").gte("audit_date", start).limit(400), hotels)
+    ]).then(function (parts) {
+      var reports = rowsOf(parts[0]).filter(function (row) { return hotels.indexOf(row.hotel) >= 0; });
       var latest = {};
       reports.forEach(function (row) { if (!latest[row.hotel]) latest[row.hotel] = row; });
       var ids = Object.keys(latest).map(function (hotel) { return latest[hotel].id; });
-      if (!ids.length) {
-        liveState = "empty";
-        livePack = {};
-        try { render(); } catch (e) {}
-        return;
-      }
-      Promise.all([
-        sb.from("night_audit_report_rows").select("report_id,hotel,audit_date,row_no,section,cells").in("report_id", ids).order("row_no").limit(2000),
-        sb.from("night_audit_items").select("id,hotel,audit_date,category,code,guest_name,confirmation,why_en,why_es,fix_en,fix_es,amount,room,report_id").in("report_id", ids).limit(300),
-        sb.from("night_audit_resolutions").select("item_id,hotel,action,note,resolved_name").limit(300)
-      ]).then(function (parts) {
-        var rowRes = parts[0] || {};
-        var itemRes = parts[1] || {};
-        var resRes = parts[2] || {};
-        var allRows = rowRes.error ? [] : (rowRes.data || []);
-        var allItems = itemRes.error ? [] : (itemRes.data || []);
-        var allResolutions = resRes.error ? [] : (resRes.data || []);
+      function finish(allRows) {
+        var coverage = rowsOf(parts[5]).slice();
+        (allRows || []).forEach(function (row) {
+          if (!row || row.section !== "check_coverage" || !row.cells) return;
+          coverage.push({
+            hotel: row.hotel, audit_date: row.audit_date, check_id: row.cells.check_id,
+            support: row.cells.support, reason_en: row.cells.reason_en, reason_es: row.cells.reason_es
+          });
+        });
+        liveReview = liveModel({
+          now: new Date().toISOString(),
+          settings: rowsOf(parts[1]),
+          reports: reports,
+          items: rowsOf(parts[2]),
+          resolutions: rowsOf(parts[3]),
+          checkins: rowsOf(parts[4]),
+          coverage: coverage
+        });
         livePack = {};
         Object.keys(latest).forEach(function (hotel) {
           var report = latest[hotel];
@@ -1187,22 +1292,24 @@
             status: report.status,
             subject: report.subject,
             origin: "hotelkey",
-            rows: allRows.filter(function (row) { return row.report_id === report.id && row.hotel === hotel; }),
-            hideRevenue: !canSeeRevenue(revenueViewerRole()),
-            items: allItems.filter(function (row) { return row.report_id === report.id && row.hotel === hotel; }).map(mapLiveItem),
-            resolutions: allResolutions.filter(function (row) { return row.hotel === hotel; })
+            rows: (allRows || []).filter(function (row) { return row.report_id === report.id && row.hotel === hotel; }),
+            hideRevenue: !canSeeRevenue(revenueViewerRole())
           });
         });
         liveState = "ready";
         try { render(); } catch (e2) {}
-      }, function () {
-        liveState = "empty";
-        livePack = {};
-        try { render(); } catch (e3) {}
-      });
+      }
+      if (!ids.length) {
+        finish([]);
+        return;
+      }
+      sb.from("night_audit_report_rows").select("report_id,hotel,audit_date,row_no,section,cells").in("report_id", ids).order("row_no").limit(2000).then(function (res) {
+        finish(rowsOf(res));
+      }, function () { finish([]); });
     }, function () {
       liveState = "empty";
       livePack = {};
+      liveReview = liveModel({ now: new Date().toISOString() });
       try { render(); } catch (e4) {}
     });
   }
@@ -1212,33 +1319,25 @@
     var hotels = hotelsFor(actor.role, actor.hotel).filter(featureOn);
     if (!hotels.length) return "<div class=\"na\" id=\"naRoot\"></div>";
     var view = pageState();
+    view.live = true;
+    view.sample = false;
     var hotel = hotels.indexOf(view.hotel) >= 0 ? view.hotel : hotels[0];
+    view.hotel = hotel;
     var balance = arNight(actor, hotel, lang);
-    if (liveState === "loading" || liveState === "") {
+    if (liveState === "loading" || liveState === "" || !liveReview) {
       return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" + balance + "<p class=\"na-note\">" + esc(tx(lang, "Loading the HotelKey feed.", "Cargando el reporte HotelKey.")) + "</p></div>";
     }
-    var switcher = hotels.length < 2 ? "" : "<div class=\"na-chips\">" + hotels.map(function (code) {
-      return "<button type=\"button\" class=\"" + (code === hotel ? "on" : "") + "\" onclick=\"naHotel('" + code + "')\">" + esc(code) + "</button>";
-    }).join("") + "</div>";
-    var model = livePack[hotel] || { connected: false, hotel: hotel };
-    return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" + switcher + balance + feedHtml(model, lang, { actions: true, openId: view.openId, error: view.error, role: revenueViewerRole() }) + "</div>";
+    var feed = livePack[hotel] || { connected: false, hotel: hotel };
+    return balance + checkinHtml(liveReview, actor, view) + feedHtml(feed, lang, { hideItems: true, role: revenueViewerRole() });
   }
   function liveHomeHtml(actor, lang) {
     ensureLive();
     var hotels = hotelsFor(actor.role, actor.hotel).filter(featureOn);
     if (!hotels.length) return "";
-    if (liveState === "loading" || liveState === "") {
+    if (liveState === "loading" || liveState === "" || !liveReview) {
       return "<section class=\"na-home\" id=\"naHome\"><h3>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h3><p class=\"na-note\">" + esc(tx(lang, "Loading the HotelKey feed.", "Cargando el reporte HotelKey.")) + "</p></section>";
     }
-    var rows = hotels.map(function (hotel) {
-      var model = livePack[hotel];
-      if (!model || !model.connected) return esc(hotel) + " · " + esc(tx(lang, "Feed not connected", "Fuente no conectada"));
-      var occ = null;
-      (model.lines || []).forEach(function (line) { if (line.key === "occupancy") occ = line; });
-      var open = (model.items || []).filter(function (item) { return !item.resolution; }).length;
-      return esc(hotel) + " · " + esc(model.auditDate || "") + " · " + esc(occ ? fmtStat("pct", occ.today) : "—") + " · " + open + " " + esc(tx(lang, "to review", "por revisar"));
-    });
-    return "<section class=\"na-home\" id=\"naHome\"><div class=\"na-line\"><h3>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h3></div><p class=\"na-note\">" + rows.join("<br>") + "</p><button type=\"button\" class=\"btn na-wide\" onclick=\"naOpen('" + hotels[0] + "')\">" + esc(tx(lang, "Open night audit", "Abrir auditoría")) + "</button></section>";
+    return homeCard(liveReview, actor, lang);
   }
   function arNight(actor, hotel, lang) {
     try {
@@ -1311,6 +1410,16 @@
     if (typeof render === "function") render();
   };
   root.naDue = function (hotel, hhmm) {
+    if (!demoUi()) {
+      if (!validDue(hhmm) || !canAct(currentActor(), hotel)) return;
+      if (typeof sb === "undefined" || !sb || !sb.rpc) return;
+      sb.rpc("set_night_audit_due", { p_hotel: hotel, p_due: hhmm }).then(function (res) {
+        if (res && res.error) return;
+        if (liveReview && liveReview.settings) liveReview.settings[hotel] = hhmm;
+        if (typeof render === "function") render();
+      });
+      return;
+    }
     var result = setDue(bundle(), hotel, hhmm, currentActor());
     if (!result.ok) return;
     remember(result.model);
@@ -1365,15 +1474,47 @@
         if (typeof render === "function") render();
         return;
       }
-      Object.keys(livePack).forEach(function (hotel) {
-        var model = livePack[hotel];
-        if (!model || !model.items) return;
-        model.items.forEach(function (item) {
-          if (item.id === id) item.resolution = { action: action, note: note };
-        });
-      });
+      if (liveReview) {
+        var found = null;
+        (liveReview.items || []).forEach(function (item) { if (item.id === id) found = item; });
+        if (found) {
+          liveReview.resolutions.push({
+            itemId: id, hotel: found.hotel, checkinDate: liveReview.today, action: action,
+            note: note, by: currentActor().name || "", at: new Date().toISOString(), source: "user"
+          });
+          if (!openItems(liveReview, found.hotel, liveReview.today).length && hasReport(liveReview, found.hotel, liveReview.today) && !completionFor(liveReview, found.hotel, liveReview.today)) {
+            liveReview.completions.push({
+              hotel: found.hotel, date: liveReview.today, at: new Date().toISOString(),
+              due: (liveReview.settings && liveReview.settings[found.hotel]) || DEFAULT_DUE,
+              by: currentActor().name || "", role: currentActor().role || "",
+              openCount: 0, resolvedCount: summary(liveReview, found.hotel, liveReview.today).resolved,
+              amountOpen: 0, source: "user"
+            });
+          }
+        }
+      }
       try { S.naItem = ""; S.naErr = ""; } catch (e2) {}
       toast(langNow(), "Recorded", "Anotado");
+      if (typeof render === "function") render();
+    });
+  };
+  root.naLiveMark = function (hotel) {
+    if (demoUi() || HOTELS.indexOf(hotel) < 0 || !canAct(currentActor(), hotel) || !liveReview) return;
+    if (!hasReport(liveReview, hotel, liveReview.today) || openItems(liveReview, hotel, liveReview.today).length) return;
+    if (typeof sb === "undefined" || !sb || !sb.rpc) return;
+    var now = new Date().toISOString();
+    sb.rpc("complete_night_audit_checkin", { p_hotel: hotel, p_checkin: liveReview.today }).then(function (res) {
+      if (res && res.error) return;
+      if (!completionFor(liveReview, hotel, liveReview.today)) {
+        liveReview.completions.push({
+          hotel: hotel, date: liveReview.today, at: now,
+          due: (liveReview.settings && liveReview.settings[hotel]) || DEFAULT_DUE,
+          by: currentActor().name || "", role: currentActor().role || "",
+          openCount: 0, resolvedCount: summary(liveReview, hotel, liveReview.today).resolved,
+          amountOpen: 0, source: "user"
+        });
+      }
+      toast(langNow(), "Check-in complete", "Revisión completa");
       if (typeof render === "function") render();
     });
   };

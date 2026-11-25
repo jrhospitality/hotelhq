@@ -122,6 +122,6 @@ test("the greeting script loads on every home and the shell cache includes it", 
   assert.ok(html.indexOf('src="mention-points.js"') < html.indexOf('src="greetings.js"'));
   assert.doesNotMatch(html, /<<<<<<<|>>>>>>>/);
   assert.match(sw, /\.\/greetings\.js/);
-  assert.match(sw, /hotelhq-shell-v38/);
+  assert.match(sw, /hotelhq-shell-v39/);
   assert.doesNotMatch(fs.readFileSync(path.join(root, "greetings.js"), "utf8"), /eyJ|sb_secret|service_role/);
 });

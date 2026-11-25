@@ -209,7 +209,7 @@ test("live mode reads a HotelKey feed and keeps the sample check-in in demo", ()
   const src = fs.readFileSync(path.join(root, "night-audit.js"), "utf8");
   assert.match(html, /night-audit\.js/);
   assert.match(sw, /night-audit\.js/);
-  assert.match(sw, /hotelhq-shell-v38/);
+  assert.match(sw, /hotelhq-shell-v39/);
   assert.match(home, /NightAudit\.homeHtml/);
   assert.match(src, /!\s*demoUi\(\)/);
   assert.match(src, /source", "hotelkey"/);
@@ -309,4 +309,64 @@ test("a HotelKey feed shows reported counts and does not invent room lists", () 
   assert.match(sampleHtml, /Rate override has no reason/);
   assert.equal(sampleHtml.includes("62.39"), false);
   assert.equal(/[1-9][0-9]{7}/.test(sampleHtml), false);
+  assert.equal(na.feedHtml(built, "en", { hideItems: true }).includes("Items to review"), false);
+});
+
+test("a HotelKey morning is overdue after 10:00 CT until the items are cleared", () => {
+  const late = "2026-11-25T16:30:00.000Z";
+  const early = "2026-11-25T15:30:00.000Z";
+  const item = {
+    id: "11111111-1111-4111-8111-111111111111",
+    hotel: "MSPWE",
+    audit_date: "2026-11-24",
+    category: "cash",
+    code: "cash_short",
+    guest_name: "Cash drawer",
+    confirmation: "CASH",
+    why_en: "Cash drawer is short for the shift",
+    why_es: "Caja faltante en el turno",
+    fix_en: "Recount and note the shortage",
+    fix_es: "Recuenta y anota el faltante",
+    amount: 12.5,
+    room: ""
+  };
+  const open = na.liveModel({
+    now: late,
+    settings: [{ hotel: "MSPWE", due_local: "10:00:00" }],
+    reports: [{ hotel: "MSPWE", audit_date: "2026-11-24", source: "hotelkey", status: "parsed" }],
+    items: [item],
+    coverage: [{
+      hotel: "MSPWE", audit_date: "2026-11-24", check_id: "rate_override", support: "unsupported",
+      reason_en: "No daily file has a rate-override row or a reason column.",
+      reason_es: "Ningún archivo diario trae un cambio de tarifa ni una columna de motivo."
+    }]
+  });
+  assert.equal(na.statusOf(open, "MSPWE", open.today, open.now), "overdue");
+  assert.match(na.homeCard(open, gm, "en"), /Overdue/);
+  assert.match(na.homeCard(open, corp, "en"), /MSPWE/);
+  const before = na.liveModel({
+    now: early,
+    reports: [{ hotel: "MSPWE", audit_date: "2026-11-24", source: "hotelkey", status: "parsed" }],
+    items: [item]
+  });
+  assert.equal(na.statusOf(before, "MSPWE", before.today, before.now), "open");
+  const missing = na.liveModel({
+    now: late,
+    items: [Object.assign({}, item, { audit_date: "2026-11-10" })]
+  });
+  assert.equal(na.statusOf(missing, "MSPWE", missing.today, missing.now), "no_report");
+  const html = na.checkinHtml(open, gm, { hotel: "MSPWE", lang: "en", now: late, live: true, sample: false });
+  assert.equal(html.includes("EXAMPLE"), false);
+  assert.match(html, /naLiveAct\('11111111-1111-4111-8111-111111111111','done'\)/);
+  assert.match(html, /Not an issue/);
+  assert.match(html, /Explain/);
+  assert.match(html, /Not in these reports/);
+  assert.match(html, /rate-override/);
+  assert.equal(html.includes("Sample Guest"), false);
+  const es = na.checkinHtml(open, gm, { hotel: "MSPWE", lang: "es", now: late, live: true, sample: false });
+  assert.match(es, /No está en estos reportes/);
+  assert.match(es, /cambio de tarifa/);
+  const src = fs.readFileSync(path.join(__dirname, "../night-audit.js"), "utf8");
+  assert.match(src, /return homeCard\(liveReview/);
+  assert.match(src, /naLiveMark/);
 });
