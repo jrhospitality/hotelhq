@@ -189,6 +189,114 @@ test("the CLI prints an RPC body and leaves the sample name out", () => {
   assert.equal(bad, 1);
 });
 
+test("raw HotelKey headers from a multi-section final audit and the folio and tax exports", () => {
+  const finalText = [
+    "Room Revenue",
+    "Charge Type Code,Charge Type Name,Actual Today,Adjusted,Net Today,M-T-D,Y-T-D",
+    "NSRR,NO SHOW ROOM REVENUE,0,0,0,0,0",
+    "RR,GUEST ROOM,100.00,0,100.00,3000,36000",
+    "Statistical Counts",
+    "Type,Actual Today,M-T-D,Y-T-D",
+    "No Shows,2,4,10",
+    "Out of Order,1,1,3",
+    "Cash Deposit And Cash Drop",
+    "Type,Actual Today,Adjusted,Net Today,M-T-D",
+    "Cash Over / Short,-1.25,0,-1.25,-1.25",
+    "Revenue & Charges",
+    "Type,Actual Today,Net Today,M-T-D,Y-T-D",
+    "Room Revenue,100.00,100.00,3000,36000",
+    "Totals,100.00,100.00,3000,36000",
+    "Occupancy",
+    "Type,Actual Today,M-T-D,Y-T-D",
+    "\"Occupancy Excluding Out of Order Rooms and Including Comp, House Use Rooms\",80,78,75",
+    "Revenue Statistics",
+    "Type,Actual Today,M-T-D,Y-T-D",
+    "ADR Excluding Comp House Use Rooms,110.00,108.00,105.00",
+    "RevPar Without Out Of Order Rooms,88.00,86.00,84.00"
+  ].join("\n");
+  const audit = hk.loadFinalAudit(finalText);
+  assert.equal(audit.ok, true);
+  assert.equal(audit.rows.some((row) => row.line_code === "NSRR" && row.line_name === "NO SHOW ROOM REVENUE"), true);
+  assert.equal(audit.rows.some((row) => row.line_name === "No Show" && row.actual_today === "2"), true);
+  assert.equal(audit.rows.some((row) => row.section === "revenue_category" && row.line_name === "Room Revenue"), true);
+  assert.equal(audit.rows.some((row) => normHeader(row.line_name) === "totals"), false);
+
+  const closedText = [
+    "Reservations",
+    "Confirmation Number,Today's Ending Balance,Guest Name,Status,Room Number",
+    "DEMO-1001,$42.50,Sample Guest Ames,Checked Out,118",
+    "DEMO-1002,0,Sample Guest Cole,Checked Out,214",
+    "Net Totals",
+    "Module Type,Today's Ending Balance",
+    "Reservations,42.50"
+  ].join("\n");
+  const closed = hk.loadClosedFolios(closedText);
+  assert.equal(closed.ok, true);
+  assert.deepEqual(closed.rows.map((row) => row.folio_ref), ["DEMO-1001", "DEMO-1002"]);
+  assert.equal(closed.rows[0].ending_balance, "$42.50");
+  assert.equal(closed.rows[0].stay_status, "Checked Out");
+  assert.equal(closed.rows[0].room, "118");
+  assert.equal(Object.prototype.hasOwnProperty.call(closed.rows[0], "guest_name"), false);
+
+  const taxText = [
+    "Transaction Number,Room Number,Guest Name,Tax Exemption Category,Exempted Revenue,City Tax",
+    "DEMO-9,204,Sample Guest Ames,Charity,40.00,0",
+    "Totals,,,,40.00,0"
+  ].join("\n");
+  const tax = hk.loadTaxForecast(taxText);
+  assert.equal(tax.ok, true);
+  assert.equal(tax.rows.length, 1);
+  assert.equal(tax.rows[0].folio_ref, "DEMO-9");
+  assert.equal(tax.rows[0].room, "204");
+  assert.equal(tax.rows[0].category, "Charity");
+  assert.equal(tax.rows[0].exempted_revenue, "40.00");
+  assert.equal(tax.headers.indexOf("certificate") >= 0, false);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hk-raw-"));
+  const finalFile = path.join(dir, "final-audit.csv");
+  const closedFile = path.join(dir, "closed-folios-balance.csv");
+  const taxFile = path.join(dir, "tax-exemption-forecast.csv");
+  const rooms = path.join(dir, "rooms.json");
+  fs.writeFileSync(finalFile, finalText);
+  fs.writeFileSync(closedFile, closedText);
+  fs.writeFileSync(taxFile, taxText);
+  fs.writeFileSync(rooms, JSON.stringify([{ room_number: "118", ooo: true }]));
+  let stderr = "";
+  const oldErr = process.stderr.write;
+  process.stderr.write = function (chunk) { stderr += chunk; return true; };
+  let stdout = "";
+  const oldOut = process.stdout.write;
+  process.stdout.write = function (chunk) { stdout += chunk; return true; };
+  const code = hk.runCli([
+    "--hotel", "MSPWE",
+    "--audit-date", "2026-11-24",
+    "--closed", closedFile,
+    "--final", finalFile,
+    "--tax", taxFile,
+    "--rooms", rooms
+  ], MORNING);
+  process.stderr.write = oldErr;
+  process.stdout.write = oldOut;
+  assert.equal(code, 0, stderr);
+  assert.equal(stdout.includes("Sample Guest"), false);
+  assert.equal(stdout.includes("Ames"), false);
+  assert.equal(stdout.includes("Cole"), false);
+  const body = JSON.parse(stdout);
+  assert.equal(body.p.items.some((item) => item.confirmation === "DEMO-1001" && item.code === "checkout_balance" && item.amount === 42.5), true);
+  assert.equal(body.p.items.some((item) => item.confirmation === "Reservations"), false);
+  assert.equal(body.p.items.some((item) => item.code === "noshow_uncharged"), true);
+  assert.equal(body.p.items.some((item) => item.code === "cash_short" && item.amount === 1.25), true);
+  assert.equal(body.p.items.some((item) => item.confirmation === "OOO118"), true);
+  assert.equal(body.p.items.some((item) => item.code === "exempt_no_cert"), false);
+  assert.equal(body.p.coverage.some((row) => row.check_id === "tax_certificate" && row.support === "unsupported"), true);
+  assert.equal(body.p.rows.some((row) => row.section === "gm_revenue" && row.cells.metric === "room_revenue" && row.cells.today === 100), true);
+  assert.equal(body.p.rows.some((row) => row.section === "gm_revenue" && row.cells.metric === "adr" && row.cells.today === 110), true);
+});
+
+function normHeader(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
 test("the migration is insert-only and limited to GM, AGM, and corporate", () => {
   assert.match(sql, /enable row level security/);
   assert.match(sql, /private\.night_audit_allowed\(hotel\)/);
