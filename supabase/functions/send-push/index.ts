@@ -1,4 +1,5 @@
 // Push sender. pm_assigned is the weekly room-PM batch.
+// daily_assigned is a checklist or the property walk for that day.
 // Secrets stay in the function environment. JWT verification stays off
 // because the database cron calls this without a user token.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -13,10 +14,10 @@ type L = "en" | "es";
 const STR = {
   en: { newWO: "New work order", rush: "Rush room", prio: "Priority room", priority: "Priority", ack: "Acknowledge",
         dlNew: "Daily labor", dlOver: "Daily labor overdue", dlItems: "action items", dlStill: "still open at the end of the day",
-        realert: "Reminder", escalate: "Escalated - not acknowledged", room: "Room", pmOver: "PM overdue", pmAsg: "PM assigned", due: "Due", rCleaned: "Ready to inspect", rReady: "Room ready", rFailed: "Inspection failed", by: "by", gc: "Guest complaint", gcHigh: "HIGH guest complaint", gcOver: "Complaint open 24h+", pm: "Missing punch", pmStaff: "Please clock in or tell your manager", pmOut: "Please clock out or tell your manager", cm: "Cleans missing", no_clock_in: "No clock-in", no_clock_out: "No clock-out", open_punch: "Open punch over 12h", missing_meal_break: "Missing meal break", no_cleans: "No rooms marked cleaned", open_turn: "Room left in progress", bar_count_missing: "Bar closing count missing", bar_variance: "Bar variance", bar_comp_void: "Comp/void needs approval", bar_cash_over_short: "Bar cash over/short", bar_below_par: "Bar item below par", fd_no_login: "Front desk not logged in", fd_idle: "Front desk inactive in app", shift: "Shift", lastSeen: "Last seen", never: "never", clocked: "Clocked in (HE), not in app" },
+        realert: "Reminder", escalate: "Escalated - not acknowledged", room: "Room", pmOver: "PM overdue", pmAsg: "PM assigned", ckAsg: "Checklist assigned", walkAsg: "Property walk assigned", due: "Due", rCleaned: "Ready to inspect", rReady: "Room ready", rFailed: "Inspection failed", by: "by", gc: "Guest complaint", gcHigh: "HIGH guest complaint", gcOver: "Complaint open 24h+", pm: "Missing punch", pmStaff: "Please clock in or tell your manager", pmOut: "Please clock out or tell your manager", cm: "Cleans missing", no_clock_in: "No clock-in", no_clock_out: "No clock-out", open_punch: "Open punch over 12h", missing_meal_break: "Missing meal break", no_cleans: "No rooms marked cleaned", open_turn: "Room left in progress", bar_count_missing: "Bar closing count missing", bar_variance: "Bar variance", bar_comp_void: "Comp/void needs approval", bar_cash_over_short: "Bar cash over/short", bar_below_par: "Bar item below par", fd_no_login: "Front desk not logged in", fd_idle: "Front desk inactive in app", shift: "Shift", lastSeen: "Last seen", never: "never", clocked: "Clocked in (HE), not in app" },
   es: { newWO: "Nueva orden de trabajo", rush: "Habitación urgente", prio: "Habitación prioritaria", priority: "Prioridad", ack: "Confirmar",
         dlNew: "Labor del día", dlOver: "Labor del día atrasada", dlItems: "tareas", dlStill: "siguen abiertas al final del día",
-        realert: "Recordatorio", escalate: "Escalada - sin confirmar", room: "Habitación", pmOver: "Mantenimiento preventivo vencido", pmAsg: "MP asignado", due: "Vence", rCleaned: "Lista para inspeccionar", rReady: "Habitación lista", rFailed: "Inspección no aprobada", by: "por", gc: "Queja de huésped", gcHigh: "Queja URGENTE de huésped", gcOver: "Queja abierta más de 24h", pm: "Marcación faltante", pmStaff: "Por favor marque su entrada o avise a su gerente", pmOut: "Por favor marque su salida o avise a su gerente", cm: "Limpiezas faltantes", no_clock_in: "Sin entrada", no_clock_out: "Sin salida", open_punch: "Marcación abierta más de 12h", missing_meal_break: "Falta descanso de comida", no_cleans: "Sin habitaciones marcadas limpias", open_turn: "Habitación quedó en progreso", bar_count_missing: "Falta conteo de cierre del bar", bar_variance: "Variación en el bar", bar_comp_void: "Cortesía/anulación requiere aprobación", bar_cash_over_short: "Sobrante/faltante de caja del bar", bar_below_par: "Artículo del bar bajo el nivel par", fd_no_login: "Recepción sin iniciar sesión", fd_idle: "Recepción inactiva en la app", shift: "Turno", lastSeen: "Última vez", never: "nunca", clocked: "Marcó entrada (HE), no en la app" },
+        realert: "Recordatorio", escalate: "Escalada - sin confirmar", room: "Habitación", pmOver: "Mantenimiento preventivo vencido", pmAsg: "MP asignado", ckAsg: "Lista asignada", walkAsg: "Recorrido asignado", due: "Vence", rCleaned: "Lista para inspeccionar", rReady: "Habitación lista", rFailed: "Inspección no aprobada", by: "por", gc: "Queja de huésped", gcHigh: "Queja URGENTE de huésped", gcOver: "Queja abierta más de 24h", pm: "Marcación faltante", pmStaff: "Por favor marque su entrada o avise a su gerente", pmOut: "Por favor marque su salida o avise a su gerente", cm: "Limpiezas faltantes", no_clock_in: "Sin entrada", no_clock_out: "Sin salida", open_punch: "Marcación abierta más de 12h", missing_meal_break: "Falta descanso de comida", no_cleans: "Sin habitaciones marcadas limpias", open_turn: "Habitación quedó en progreso", bar_count_missing: "Falta conteo de cierre del bar", bar_variance: "Variación en el bar", bar_comp_void: "Cortesía/anulación requiere aprobación", bar_cash_over_short: "Sobrante/faltante de caja del bar", bar_below_par: "Artículo del bar bajo el nivel par", fd_no_login: "Recepción sin iniciar sesión", fd_idle: "Recepción inactiva en la app", shift: "Turno", lastSeen: "Última vez", never: "nunca", clocked: "Marcó entrada (HE), no en la app" },
 };
 const PRI_ES: Record<string, string> = { Low: "Baja", Medium: "Media", High: "Alta", Urgent: "Urgente" };
 
@@ -77,6 +78,31 @@ const EVENTS: Record<string, { roles: string[]; build: (id: number) => Promise<{
         text: (l) => ({
           title: `${STR[l].pmAsg} - ${t?.hotel_id ?? ""}`,
           body: `${l === "es" ? titleEs : titleEn}: ${rooms.join(", ")}`,
+        }),
+      };
+    },
+  },
+  "daily_assigned": {
+    roles: [],
+    build: async (id) => {
+      const { data: a } = await db.from("daily_assignments").select("hotel_id,kind,employee,template_id,due_at").eq("id", id).single();
+      let titleEn = "Checklist";
+      let titleEs = "Lista";
+      if (a?.kind === "walk") {
+        titleEn = "Property walk";
+        titleEs = "Recorrido de la propiedad";
+      } else if (a?.template_id) {
+        const { data: t } = await db.from("checklist_templates").select("name,name_es").eq("id", a.template_id).maybeSingle();
+        titleEn = t?.name || titleEn;
+        titleEs = t?.name_es || titleEn;
+      }
+      const due = a?.due_at ? new Date(a.due_at).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }) : "";
+      return {
+        extra: a?.employee ? [a.employee] : [],
+        url: `${PORTAL}#${a?.kind === "walk" ? "walk" : "check"}`,
+        text: (l) => ({
+          title: `${a?.kind === "walk" ? STR[l].walkAsg : STR[l].ckAsg} - ${a?.hotel_id ?? ""}`,
+          body: [l === "es" ? titleEs : titleEn, due && `${STR[l].due} ${due}`].filter(Boolean).join(" · "),
         }),
       };
     },

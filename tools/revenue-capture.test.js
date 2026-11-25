@@ -222,7 +222,7 @@ test("the migration is insert-only and does not rewrite the feature check", () =
   assert.match(html, /revenue-capture\.js/);
   assert.ok(html.indexOf('src="guest-messages.js"') < html.indexOf('src="revenue-capture.js"'));
   assert.match(sw, /\.\/revenue-capture\.js/);
-  assert.match(sw, /hotelhq-shell-v39/);
+  assert.match(sw, /hotelhq-shell-v42/);
   assert.match(home, /RevenueCapture\.homeHtml/);
   assert.match(src, /revenue_daily_facts/);
   assert.match(src, /parking_car_rates/);

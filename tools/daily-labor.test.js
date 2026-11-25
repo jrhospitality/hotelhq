@@ -159,7 +159,7 @@ test("migration, ingest command, and push events stay additive", () => {
   assert.equal(example.includes("1234"), false);
   assert.match(read("index.html"), /daily-labor\.js/);
   assert.match(read("home-focus.js"), /DailyLabor\.homeHtml/);
-  assert.match(read("sw.js"), /var CACHE_VERSION = "hotelhq-shell-v39"/);
+  assert.match(read("sw.js"), /var CACHE_VERSION = "hotelhq-shell-v42"/);
   assert.match(read("sw.js"), /\.\/daily-labor\.js/);
   assert.match(read("more-menu.js"), /dlabor/);
 });
