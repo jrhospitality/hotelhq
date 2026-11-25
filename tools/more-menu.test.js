@@ -132,7 +132,7 @@ test("the profile column is additive and only the signed-in person can change it
   assert.doesNotMatch(sql, /drop column/i);
   assert.doesNotMatch(sql, /delete from/i);
   const sw = read("sw.js");
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v29"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v34"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v20"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v19"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v18"/);
@@ -144,11 +144,11 @@ test("the profile column is additive and only the signed-in person can change it
   assert.doesNotMatch(sw, /hotelhq-shell-v12"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v11"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v10"/);
-  assert.doesNotMatch(sw, /hotelhq-shell-v9/);
-  assert.doesNotMatch(sw, /hotelhq-shell-v8/);
-  assert.doesNotMatch(sw, /hotelhq-shell-v7/);
-  assert.doesNotMatch(sw, /hotelhq-shell-v6/);
-  assert.doesNotMatch(sw, /hotelhq-shell-v5/);
-  assert.doesNotMatch(sw, /hotelhq-shell-v4/);
-  assert.doesNotMatch(sw, /hotelhq-shell-v3/);
+  assert.doesNotMatch(sw, /hotelhq-shell-v9"/);
+  assert.doesNotMatch(sw, /hotelhq-shell-v8"/);
+  assert.doesNotMatch(sw, /hotelhq-shell-v7"/);
+  assert.doesNotMatch(sw, /hotelhq-shell-v6"/);
+  assert.doesNotMatch(sw, /hotelhq-shell-v5"/);
+  assert.doesNotMatch(sw, /hotelhq-shell-v4"/);
+  assert.doesNotMatch(sw, /hotelhq-shell-v3"/);
 });

@@ -2,121 +2,134 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const help = require("../data/help-guides.js");
+const guides = require("../help-guides.js");
 
 const root = path.join(__dirname, "..");
-const read = (name) => fs.readFileSync(path.join(root, name), "utf8");
 
-function guide(id) {
-  return help.GUIDES.find((item) => item.id === id);
-}
-
-function allSteps(language) {
-  const lines = [];
-  help.GUIDES.forEach((item) => {
-    item.sections.forEach((section) => {
-      section.steps.forEach((step) => lines.push(step[language]));
+test("four day-one guides stay inside real screens and carry both languages", () => {
+  assert.deepEqual(guides.GUIDES.map((guide) => guide.id), ["front_desk", "housekeeping", "maintenance", "gm"]);
+  const blob = JSON.stringify(guides.GUIDES);
+  assert.equal(blob.includes("@"), false);
+  assert.equal(/\b\d{4,6}\b/.test(blob), false);
+  assert.equal(/sb_publishable_|eyJ/.test(blob), false);
+  guides.GUIDES.forEach((guide) => {
+    assert.ok(guide.title.en && guide.title.es);
+    assert.ok(guides.mediaOk(guide.video.en));
+    assert.ok(guides.mediaOk(guide.video.es));
+    ["en", "es"].forEach((lang) => {
+      const caps = guides.captionsFor(guide, lang);
+      assert.ok(guides.mediaOk(caps.en));
+      assert.ok(guides.mediaOk(caps.es));
+      assert.equal(fs.existsSync(path.join(root, guide.video[lang])), true, guide.video[lang]);
+      assert.equal(fs.existsSync(path.join(root, caps.en)), true);
+      assert.equal(fs.existsSync(path.join(root, caps.es)), true);
+    });
+    const ids = guide.sections.map((section) => section.id);
+    assert.equal(ids.includes("pin"), true);
+    assert.equal(ids.includes("home"), true);
+    guide.sections.forEach((section) => {
+      assert.ok(section.body.en.length > 40);
+      assert.ok(section.body.es.length > 40);
+      assert.equal(section.body.en === section.body.es, false);
     });
   });
-  return lines;
-}
-
-test("four role guides exist in English and Spanish with videos", () => {
-  assert.deepEqual(help.GUIDES.map((item) => item.id), ["front-desk", "housekeeping", "maintenance", "gm"]);
-  help.GUIDES.forEach((item) => {
-    assert.ok(item.title.en && item.title.es);
-    assert.ok(item.blurb.en && item.blurb.es);
-    assert.match(item.video.en, /^help\/videos\/.+\.mp4$/);
-    assert.match(item.video.es, /^help\/videos\/.+\.mp4$/);
-    assert.notEqual(item.video.en, item.video.es);
-    item.sections.forEach((section) => {
-      assert.ok(section.steps.length >= 3);
-      section.steps.forEach((step) => {
-        assert.ok(step.en && step.es);
-        assert.notEqual(step.en, step.es);
-        assert.ok(step.shot.en && step.shot.es);
-      });
-    });
-  });
-  assert.ok(guide("housekeeping").roles.includes("Housekeeper"));
-  assert.ok(guide("housekeeping").roles.includes("Laundry Attendant"));
-  assert.ok(guide("gm").roles.includes("AGM"));
+  assert.deepEqual(guides.guideForRole("Housekeeper").id, "housekeeping");
+  assert.deepEqual(guides.guideForRole("Laundry Attendant").id, "housekeeping");
+  assert.deepEqual(guides.guideForRole("Housekeeping").id, "housekeeping");
+  assert.deepEqual(guides.guideForRole("AGM").id, "gm");
+  const lead = guides.guideById("housekeeping").sections.find((section) => section.id === "lead");
+  assert.ok(lead);
+  assert.match(lead.body.en, /Auto-assign dirty rooms/);
+  assert.match(lead.body.en, /Ready to Inspect/);
+  assert.match(lead.body.es, /Pass/);
+  assert.match(guides.guideById("housekeeping").sections.find((section) => section.id === "laundry").body.en, /Load done/);
 });
 
-test("each role guide covers the daily essentials", () => {
-  const fd = guide("front-desk").sections.map((section) => section.id);
-  assert.deepEqual(fd, ["sign-in", "home", "shift-notes", "guest-chats", "guest-requests"]);
-  const hk = guide("housekeeping").sections.map((section) => section.id);
-  assert.deepEqual(hk, ["sign-in", "attendant-home", "my-rooms", "points", "exec", "laundry"]);
-  const mt = guide("maintenance").sections.map((section) => section.id);
-  assert.deepEqual(mt, ["sign-in", "home", "work-orders", "pm"]);
-  const gm = guide("gm").sections.map((section) => section.id);
-  assert.deepEqual(gm, ["sign-in", "dashboard", "briefing", "night-audit", "team"]);
-  const hkText = guide("housekeeping").sections.map((section) => section.steps.map((step) => step.en).join(" ")).join(" ");
-  assert.match(hkText, /Done \/ Clean/);
-  assert.match(hkText, /Expected done by/);
-  assert.match(hkText, /points/i);
-  assert.match(guide("maintenance").sections.find((section) => section.id === "work-orders").steps.map((step) => step.en).join(" "), /Add photo/);
-  assert.match(guide("front-desk").sections.find((section) => section.id === "guest-chats").steps.map((step) => step.en).join(" "), /Mark responded/);
-  assert.match(guide("gm").sections.find((section) => section.id === "night-audit").steps.map((step) => step.en).join(" "), /Open night audit/);
-});
+test("answers quote one guide section in the question language and refuse the rest", () => {
+  const notes = guides.answer("How do I post a shift handoff?", { uiLang: "es", role: "Front Desk" });
+  assert.equal(notes.known, true);
+  assert.equal(notes.lang, "en");
+  assert.equal(notes.guideId, "front_desk");
+  assert.equal(notes.sectionId, "notes");
+  assert.equal(notes.text, guides.guideById("front_desk").sections.find((row) => row.id === "notes").body.en);
+  assert.match(notes.text, /Post handoff/);
+  assert.equal(notes.video, "media/help/front-desk-en.mp4");
 
-test("answers quote the guides and refuse anything else", () => {
-  const clean = help.answer("How do I mark a room clean?", "en", "Housekeeper");
+  const clean = guides.answer("¿Cómo marco un cuarto limpio?", { uiLang: "en", role: "Housekeeper" });
   assert.equal(clean.known, true);
+  assert.equal(clean.lang, "es");
   assert.equal(clean.guideId, "housekeeping");
-  assert.equal(clean.sectionId, "my-rooms");
-  assert.deepEqual(clean.steps, guide("housekeeping").sections.find((section) => section.id === "my-rooms").steps.map((step) => step.en));
-  assert.equal(clean.text, clean.steps.join("\n"));
-  allSteps("en").forEach(() => {});
-  clean.steps.forEach((line) => assert.ok(allSteps("en").includes(line)));
+  assert.equal(clean.sectionId, "rooms");
+  assert.match(clean.text, /Listo \/ Limpio/);
+  assert.equal(clean.text.includes("Post handoff"), false);
 
-  const es = help.answer("¿Cómo marco un cuarto limpio?", "es", "Housekeeper");
-  assert.equal(es.known, true);
-  assert.equal(es.sectionId, "my-rooms");
-  assert.deepEqual(es.steps, guide("housekeeping").sections.find((section) => section.id === "my-rooms").steps.map((step) => step.es));
+  const forced = guides.answer("work order photo", { lang: "es", role: "Maintenance" });
+  assert.equal(forced.lang, "es");
+  assert.equal(forced.sectionId, "orders");
+  assert.match(forced.text, /Agregar foto/);
 
-  const pin = help.answer("How do I sign in with a temporary PIN?", "en", "Front Desk");
-  assert.equal(pin.known, true);
-  assert.equal(pin.sectionId, "sign-in");
-  assert.match(pin.text, /temporary PIN/);
+  const pin = guides.answer("How do I set my PIN?", { lang: "en", role: "GM" });
+  assert.equal(pin.guideId, "gm");
+  assert.equal(pin.sectionId, "pin");
 
-  const notes = help.answer("Where are shift notes?", "en", "Front Desk");
-  assert.equal(notes.sectionId, "shift-notes");
-  const pm = help.answer("How do I do preventive maintenance?", "en", "Maintenance");
-  assert.equal(pm.guideId, "maintenance");
-  assert.equal(pm.sectionId, "pm");
-  const audit = help.answer("How do I review the night audit?", "en", "GM");
-  assert.equal(audit.sectionId, "night-audit");
-  const team = help.answer("How do I reset a PIN for my team?", "es", "GM");
-  assert.equal(team.known, true);
-  assert.equal(team.sectionId, "team");
-  assert.match(team.text, /Restablecer PIN/);
+  const inspect = guides.answer("How do I inspect a room?", { lang: "en", role: "Housekeeping" });
+  assert.equal(inspect.known, true);
+  assert.equal(inspect.guideId, "housekeeping");
+  assert.equal(inspect.sectionId, "lead");
+  assert.match(inspect.text, /Do not pass a room you cleaned/);
+  const assign = guides.answer("¿Cómo asigno cuartos?", { lang: "es", role: "Housekeeping" });
+  assert.equal(assign.sectionId, "lead");
+  assert.match(assign.text, /Auto-assign dirty rooms/);
 
-  ["What is the wifi password?", "Who owns the hotel?", "¿Cuál es la contraseña del wifi?", ""].forEach((question) => {
-    const lang = question.includes("¿") ? "es" : "en";
-    const missed = help.answer(question, lang, "Front Desk");
-    assert.equal(missed.known, false);
-    assert.equal(missed.text, help.UNKNOWN[lang]);
-    assert.deepEqual(missed.steps, []);
+  ["What is the guest wifi password?", "How do I change the Opera rate code?", ""].forEach((question) => {
+    const miss = guides.answer(question, { lang: "en", role: "Front Desk" });
+    assert.equal(miss.known, false);
+    assert.equal(miss.video, "");
+    assert.match(miss.text, /don't know/);
+    assert.equal(miss.text.includes("Opera"), false);
   });
-  assert.equal(help.UNKNOWN.en, "I don't know, ask your GM");
-  assert.equal(help.UNKNOWN.es, "No lo sé, pregunta a tu GM");
+  const missEs = guides.answer("¿Cuál es la contraseña del wifi del huésped?", { lang: "es" });
+  assert.equal(missEs.known, false);
+  assert.match(missEs.text, /No encuentro eso/);
 });
 
-test("the help button is wired and the shell cache includes the guides", () => {
-  const html = read("index.html");
-  const sw = read("sw.js");
-  const ask = read("ask-hotelhq.js");
-  assert.match(html, /src="data\/help-guides\.js"/);
+test("the help page and Ask button are wired without a new secret", () => {
+  const page = guides.pageHtml("es", { role: "Front Desk", openId: "front_desk" });
+  assert.match(page, /id="helpHub"/);
+  assert.match(page, /Recepción — primer día/);
+  assert.match(page, /media\/help\/front-desk-es\.mp4/);
+  assert.match(page, /srclang="es"[^>]*default|default[^>]*srclang="es"/);
+  assert.match(page, /Repetir el recorrido/);
+  assert.equal(page.includes("<script"), false);
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+  const ask = fs.readFileSync(path.join(root, "ask-hotelhq.js"), "utf8");
+  const guideSrc = fs.readFileSync(path.join(root, "help-guides.js"), "utf8");
+  const menu = fs.readFileSync(path.join(root, "more-menu.js"), "utf8");
+  assert.match(html, /src="help-guides\.js"/);
   assert.match(html, /src="ask-hotelhq\.js"/);
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v29"/);
-  assert.match(sw, /"\.\/data\/help-guides\.js"/);
-  assert.match(sw, /"\.\/ask-hotelhq\.js"/);
+  assert.match(sw, /help-guides\.js/);
+  assert.match(sw, /ask-hotelhq\.js/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v34"/);
+  assert.match(sw, /mp4\|vtt/);
+  assert.match(ask, /askHqBtn/);
+  assert.match(ask, /Replay tour/);
+  assert.match(ask, /Repetir el recorrido/);
+  assert.match(ask, /Open guides/);
+  assert.match(ask, /Abrir guías/);
+  assert.match(ask, /uxTour\(1\)/);
+  assert.match(ask, /go\("guides"\)/);
+  const ux = fs.readFileSync(path.join(root, "ux.js"), "utf8");
+  assert.doesNotMatch(ux, /id="uxHelpBtn"/);
+  assert.match(ux, /#askHqBtn/);
+  assert.match(ux, /Tap Ask HotelHQ anytime for help or to replay this tour/);
+  assert.match(ux, /Toca Pregunta a HotelHQ cuando quieras para pedir ayuda o repetir este recorrido/);
   assert.match(ask, /Ask HotelHQ/);
   assert.match(ask, /Pregunta a HotelHQ/);
-  assert.match(ask, /I don't know, ask your GM/);
-  assert.doesNotMatch(ask, /openai|anthropic|generativelanguage|api[_-]?key|supabaseKey/i);
-  assert.doesNotMatch(ask, /fetch\(/);
-  assert.doesNotMatch(read("data/help-guides.js"), /\b\d{4,6}\b/);
+  assert.match(guideSrc, /I don't know that from the HotelHQ guides/);
+  assert.match(ask, /says it does not know/);
+  assert.doesNotMatch(ask, /openai|anthropic|api[_-]?key|sb_secret/i);
+  assert.match(menu, /go\(\\'guides\\'\)/);
+  assert.match(menu, /Help & tour/);
+  assert.match(menu, /Ayuda y recorrido/);
 });

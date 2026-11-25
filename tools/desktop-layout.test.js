@@ -17,6 +17,12 @@ test("desktop layout starts at 1024px and the phone bottom nav stays in the base
   assert.match(ux, /rMode\(\)==="desk"/);
   assert.match(ux, /@media\(min-width:1024px\)\{[\s\S]*\.ux-overlay\{align-items:center/);
   assert.match(ux, /More","Más"/);
+  const hub = read("ops-hub.js");
+  assert.match(hub, /id = "hhqFabs"/);
+  assert.match(hub, /#hhqFabs\{position:fixed;[^}]*flex-direction:column/);
+  assert.match(hub, /#hhqFabs #askHqBtn,#hhqFabs \.ops-btn\{position:static\}/);
+  assert.doesNotMatch(hub, /getElementById\("uxHelpBtn"\)/);
+  assert.doesNotMatch(hub, /bottom:76px/);
 });
 
 test("home stays a today, urgent, and actions grid with English and Spanish labels", () => {
@@ -34,7 +40,7 @@ test("home stays a today, urgent, and actions grid with English and Spanish labe
 
 test("service worker cache version moved so clients pick up the desktop build", () => {
   const sw = read("sw.js");
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v29"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v34"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v20"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v19"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v18"/);

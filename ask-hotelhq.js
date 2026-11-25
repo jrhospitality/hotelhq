@@ -1,177 +1,279 @@
-/* Ask HotelHQ. A help button on every screen.
-   Answers are retrieved from data/help-guides.js only.
-   There is no model call and no API key here. If a question is not in the
-   guides, the answer is "I don't know, ask your GM". */
-(function () {
+/* Ask HotelHQ. Answers only by quoting help-guides.js.
+   The button is on every screen, including sign-in. No network call. */
+(function (root) {
   "use strict";
-  var help = window.HHQHelp;
-  if (!help) return;
-  try { if (/[?&]rec=1(?:&|$)/.test(location.search)) return; } catch (e) {}
 
-  var open = false;
-  var lastQuestion = "";
-  var lastAnswer = null;
-
-  function lang() {
-    try { return (typeof LANG !== "undefined" && LANG === "es") ? "es" : "en"; }
-    catch (e) { return "en"; }
+  function L(en, es) {
+    try { return (typeof LANG !== "undefined" && LANG === "es") ? es : en; } catch (e) { return en; }
   }
-  function L(en, es) { return lang() === "es" ? es : en; }
   function roleNow() {
-    try {
-      if (typeof authRole === "function" && authRole()) return authRole();
-      if (typeof S !== "undefined" && S.role) return S.role;
-    } catch (e) {}
-    return "";
+    try { return (typeof authRole === "function" && authRole()) || (typeof S !== "undefined" && S.role) || ""; }
+    catch (e) { return ""; }
   }
-  function esc(value) {
-    return String(value == null ? "" : value).replace(/[&<>"']/g, function (ch) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[ch];
-    });
+  function uiLang() {
+    try { return (typeof LANG !== "undefined" && LANG === "es") ? "es" : "en"; } catch (e) { return "en"; }
   }
+  function guides() { return root.HelpGuides; }
 
-  function shotOf(step) {
-    if (!step || !step.shot) return "";
-    return lang() === "es" ? (step.shot.es || step.shot.en) : (step.shot.en || step.shot.es);
-  }
-
-  function guideHtml(guide) {
-    var mine = guide.roles.indexOf(roleNow()) >= 0;
-    var sections = guide.sections.map(function (section) {
-      var steps = section.steps.map(function (step) {
-        var src = shotOf(step);
-        var img = src ? '<img class="ask-shot" src="' + esc(src) + '" alt="">' : "";
-        return "<li>" + esc(step[lang()]) + img + "</li>";
-      }).join("");
-      return '<section class="ask-sec" id="ask-sec-' + esc(guide.id) + "-" + esc(section.id) + '"><h4>' + esc(section.title[lang()]) + "</h4><ol>" + steps + "</ol></section>";
-    }).join("");
-    var video = guide.video[lang()];
-    return '<details class="ask-guide" id="ask-guide-' + esc(guide.id) + '"' + (mine ? " open" : "") + ">" +
-      "<summary><b>" + esc(guide.title[lang()]) + "</b><small>" + esc(guide.blurb[lang()]) + "</small></summary>" +
-      '<video class="ask-video" controls playsinline preload="metadata" src="' + esc(video) + '"></video>' +
-      sections + "</details>";
-  }
-
-  function answerHtml(result) {
-    if (!result) return "";
-    if (!result.known) return '<p class="ask-unknown" id="askUnknown">' + esc(result.text) + "</p>";
-    var steps = result.steps.map(function (line) { return "<li>" + esc(line) + "</li>"; }).join("");
-    return '<div class="ask-hit" id="askHit"><p class="ask-from">' + esc(L("From the " + result.title + " guide", "De la guía de " + result.title)) + " · " + esc(result.section) + "</p><ol>" + steps + "</ol>" +
-      '<button type="button" class="btn" onclick="HHQAsk.openGuide(\'' + esc(result.guideId) + "','" + esc(result.sectionId) + "')\">" + esc(L("Open this guide", "Abrir esta guía")) + "</button></div>";
-  }
-
-  function paint() {
-    var button = document.getElementById("askHqBtn");
-    if (!button) {
-      button = document.createElement("button");
-      button.id = "askHqBtn";
-      button.type = "button";
-      button.onclick = function () { window.HHQAsk.toggle(); };
-      document.body.appendChild(button);
+  function ensureBtn() {
+    var btn = document.getElementById("askHqBtn");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.id = "askHqBtn";
+      btn.type = "button";
+      btn.addEventListener("click", openAsk);
+      document.body.appendChild(btn);
     }
-    button.textContent = L("Ask HotelHQ", "Pregunta a HotelHQ");
-    button.setAttribute("aria-label", L("Ask HotelHQ", "Pregunta a HotelHQ"));
-    button.setAttribute("aria-expanded", open ? "true" : "false");
-
+    btn.textContent = L("Ask HotelHQ", "Pregunta a HotelHQ");
+    btn.setAttribute("aria-label", btn.textContent);
+    if (root.HQ && typeof root.HQ.placeFabs === "function") {
+      try { root.HQ.placeFabs(); } catch (e) {}
+    }
+  }
+  function closeAsk() {
     var panel = document.getElementById("askHqPanel");
-    if (!open) {
-      if (panel) panel.remove();
+    if (panel) panel.remove();
+  }
+  function openGuide(guideId, sectionId) {
+    if (typeof meUser === "function" && !meUser()) {
+      var model = guides();
+      var guide = model && model.guideById(guideId);
+      var section = guide && guide.sections.filter(function (row) { return row.id === sectionId; })[0];
+      var box = document.getElementById("askHqA");
+      if (guide && section && box) {
+        var lang = uiLang();
+        paintAnswer(box, {
+          known: true,
+          lang: lang,
+          title: section.title[lang],
+          text: section.body[lang],
+          guideTitle: guide.title[lang],
+          guideId: guide.id,
+          sectionId: section.id,
+          video: guide.video[lang],
+          captions: model.captionsFor(guide, lang)
+        });
+      }
       return;
     }
-    if (!panel) {
-      panel = document.createElement("div");
-      panel.id = "askHqPanel";
-      panel.className = "ask-overlay";
-      panel.onclick = function (event) { if (event.target === panel) window.HHQAsk.close(); };
-      document.body.appendChild(panel);
+    closeAsk();
+    if (typeof go === "function") go("guides");
+    setTimeout(function () {
+      var el = document.getElementById("help-" + guideId + "-" + sectionId) || document.getElementById("help-" + guideId);
+      if (!el) return;
+      var details = el.closest ? el.closest("details") : null;
+      if (details) details.open = true;
+      el.scrollIntoView({ block: "start" });
+    }, 60);
+  }
+  function paintAnswer(box, result) {
+    box.innerHTML = "";
+    var title = document.createElement("h3");
+    title.textContent = result.known ? result.title : (result.lang === "es" ? "Sin respuesta" : "No answer");
+    var text = document.createElement("p");
+    text.textContent = result.text;
+    box.appendChild(title);
+    box.appendChild(text);
+    if (!result.known) {
+      var hint = document.createElement("p");
+      hint.className = "ask-hint";
+      hint.textContent = result.lang === "es"
+        ? "Abre Ayuda para la guía de tu puesto."
+        : "Open Help for your role's guide.";
+      box.appendChild(hint);
+      return;
     }
-    var guides = help.GUIDES.map(guideHtml).join("");
-    panel.innerHTML = '<div class="ask-sheet" role="dialog" aria-modal="true" aria-labelledby="askHqTitle">' +
-      '<button type="button" class="ask-x" aria-label="' + esc(L("Close", "Cerrar")) + '" onclick="HHQAsk.close()">✕</button>' +
-      '<h2 id="askHqTitle">' + esc(L("Ask HotelHQ", "Pregunta a HotelHQ")) + "</h2>" +
-      '<p class="ask-lead">' + esc(L("Answers come only from these role guides.", "Las respuestas salen solo de estas guías.")) + "</p>" +
-      '<form class="ask-form" onsubmit="HHQAsk.submit(event)">' +
-      '<label class="ask-lab" for="askHqQ">' + esc(L("Your question", "Tu pregunta")) + "</label>" +
-      '<input id="askHqQ" autocomplete="off" value="' + esc(lastQuestion) + '" placeholder="' + esc(L("How do I mark a room clean?", "¿Cómo marco un cuarto limpio?")) + '">' +
-      '<button type="submit" class="btn ask-go">' + esc(L("Ask", "Preguntar")) + "</button></form>" +
-      '<div id="askHqA" aria-live="polite">' + answerHtml(lastAnswer) + "</div>" +
-      '<h3 class="ask-h">' + esc(L("Role guides", "Guías por puesto")) + "</h3>" + guides + "</div>";
+    var where = document.createElement("p");
+    where.className = "ask-hint";
+    where.textContent = result.guideTitle || "";
+    box.appendChild(where);
+    if (result.video && guides().mediaOk(result.video)) {
+      var video = document.createElement("video");
+      video.className = "help-video";
+      video.controls = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      video.src = result.video;
+      ["en", "es"].forEach(function (code) {
+        var src = result.captions && result.captions[code];
+        if (!src || !guides().mediaOk(src)) return;
+        var track = document.createElement("track");
+        track.kind = "captions";
+        track.src = src;
+        track.srclang = code;
+        track.label = code === "es" ? "Español" : "English";
+        if (code === result.lang) track.default = true;
+        video.appendChild(track);
+      });
+      box.appendChild(video);
+    }
+    var open = document.createElement("button");
+    open.type = "button";
+    open.className = "btn";
+    open.textContent = result.lang === "es" ? "Abrir esta guía" : "Open this guide";
+    open.addEventListener("click", function () { openGuide(result.guideId, result.sectionId); });
+    box.appendChild(open);
+  }
+  function ask() {
     var input = document.getElementById("askHqQ");
-    if (input && !lastQuestion) input.focus();
+    var box = document.getElementById("askHqA");
+    if (!input || !box || !guides()) return;
+    var result = guides().answer(input.value, { uiLang: uiLang(), role: roleNow() });
+    paintAnswer(box, result);
+  }
+  function openAsk() {
+    if (document.getElementById("askHqPanel")) { closeAsk(); return; }
+    var panel = document.createElement("div");
+    panel.id = "askHqPanel";
+    panel.className = "ask-overlay";
+    panel.addEventListener("click", function (event) { if (event.target === panel) closeAsk(); });
+    var sheet = document.createElement("div");
+    sheet.className = "ask-sheet";
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-modal", "true");
+    var head = document.createElement("div");
+    head.className = "ask-head";
+    var h = document.createElement("h2");
+    h.textContent = L("Ask HotelHQ", "Pregunta a HotelHQ");
+    var x = document.createElement("button");
+    x.type = "button";
+    x.className = "ask-x";
+    x.textContent = "✕";
+    x.setAttribute("aria-label", L("Close", "Cerrar"));
+    x.addEventListener("click", closeAsk);
+    head.appendChild(h);
+    head.appendChild(x);
+    var note = document.createElement("p");
+    note.className = "ask-note";
+    note.textContent = L(
+      "Answers come only from the day-one guides. If it is not in a guide, HotelHQ says it does not know.",
+      "Las respuestas salen solo de las guías del primer día. Si no está en una guía, HotelHQ dice que no lo sabe."
+    );
+    var input = document.createElement("textarea");
+    input.id = "askHqQ";
+    input.rows = 3;
+    input.placeholder = L("Ask about sign-in, your rooms, a work order…", "Pregunta sobre la entrada, tus cuartos, una orden…");
+    var row = document.createElement("div");
+    row.className = "ask-row";
+    var goBtn = document.createElement("button");
+    goBtn.type = "button";
+    goBtn.className = "btn";
+    goBtn.textContent = L("Ask", "Preguntar");
+    goBtn.addEventListener("click", ask);
+    row.appendChild(goBtn);
+    var links = document.createElement("div");
+    links.className = "ask-links";
+    var replay = document.createElement("button");
+    replay.type = "button";
+    replay.className = "ask-link";
+    replay.textContent = L("Replay tour", "Repetir el recorrido");
+    replay.addEventListener("click", function () {
+      closeAsk();
+      if (typeof uxTour === "function") uxTour(1);
+    });
+    var guidesLink = document.createElement("button");
+    guidesLink.type = "button";
+    guidesLink.className = "ask-link";
+    guidesLink.textContent = L("Open guides", "Abrir guías");
+    guidesLink.addEventListener("click", function () {
+      closeAsk();
+      if (typeof go === "function") go("guides");
+    });
+    links.appendChild(replay);
+    links.appendChild(guidesLink);
+    var box = document.createElement("div");
+    box.id = "askHqA";
+    box.className = "ask-answer";
+    sheet.appendChild(head);
+    sheet.appendChild(note);
+    sheet.appendChild(input);
+    sheet.appendChild(row);
+    sheet.appendChild(links);
+    sheet.appendChild(box);
+    panel.appendChild(sheet);
+    document.body.appendChild(panel);
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) ask();
+    });
+    setTimeout(function () { input.focus(); }, 40);
   }
 
-  window.HHQAsk = {
-    toggle: function () { open = !open; paint(); },
-    close: function () { open = false; paint(); },
-    submit: function (event) {
-      if (event && event.preventDefault) event.preventDefault();
-      var input = document.getElementById("askHqQ");
-      lastQuestion = input ? input.value : lastQuestion;
-      lastAnswer = help.answer(lastQuestion, lang(), roleNow());
-      paint();
-      var box = document.getElementById("askHqA");
-      if (box) box.scrollIntoView({ block: "nearest" });
-    },
-    openGuide: function (guideId, sectionId) {
-      open = true;
-      paint();
-      var guide = document.getElementById("ask-guide-" + guideId);
-      if (guide) guide.open = true;
-      var section = document.getElementById("ask-sec-" + guideId + "-" + sectionId);
-      if (section) section.scrollIntoView({ block: "start" });
-    },
-    answer: function (question, language, role) {
-      return help.answer(question, language || lang(), role || roleNow());
+  function boot() {
+    if (typeof M !== "undefined") {
+      M.guides = ["📘", "How-to guides"];
+      if (typeof I18N !== "undefined" && I18N.es) I18N.es["How-to guides"] = "Guías prácticas";
     }
-  };
-
-  var prev = window.render;
-  if (typeof prev === "function") {
-    window.render = function () {
-      var result = prev.apply(this, arguments);
-      paint();
-      return result;
-    };
+    if (typeof V !== "undefined" && guides()) {
+      V.guides = function () {
+        var open = "";
+        try { open = S.helpOpen || ""; } catch (e) { open = ""; }
+        return guides().pageHtml(uiLang(), { role: roleNow(), openId: open });
+      };
+    }
+    if (typeof go === "function") {
+      var prevGo = go;
+      go = function (tab) {
+        if (tab === "guides") {
+          if (typeof meUser === "function" && !meUser()) return;
+          S.tab = "guides";
+          try { save(); } catch (e) {}
+          render();
+          try { scrollTo(0, 0); } catch (e2) {}
+          return;
+        }
+        return prevGo.apply(this, arguments);
+      };
+    }
+    if (typeof render === "function") {
+      var prevRender = render;
+      render = function () {
+        var out = prevRender.apply(this, arguments);
+        ensureBtn();
+        return out;
+      };
+    }
+    if (typeof renderLogin === "function") {
+      var prevLogin = renderLogin;
+      renderLogin = function () {
+        var out = prevLogin.apply(this, arguments);
+        ensureBtn();
+        return out;
+      };
+    }
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") closeAsk();
+    });
+    ensureBtn();
+    var css = document.createElement("style");
+    css.textContent = [
+      "#askHqBtn{min-height:48px;padding:0 14px;border:0;border-radius:999px;background:#14365d;color:#fff;font-weight:800;font-size:15px;box-shadow:0 8px 20px rgba(16,24,40,.18)}",
+      "#hhqFabs #askHqBtn{position:static}",
+      "body:has(#app .login) #askHqBtn{position:fixed;top:12px;bottom:auto;right:12px;left:auto;z-index:46}",
+      "body.is-login:has(#app .login) #askHqBtn{top:88px}",
+      ".ask-overlay{position:fixed;inset:0;background:#0008;z-index:140;display:flex;align-items:flex-end}",
+      ".ask-sheet{background:#fff;width:100%;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;box-sizing:border-box}",
+      ".ask-head{display:flex;align-items:center;gap:8px}.ask-head h2{flex:1;margin:0;font-size:20px}",
+      ".ask-x{width:44px;height:44px;border:0;background:#eef1f5;border-radius:50%;font-size:18px}",
+      ".ask-note,.ask-hint{color:#5c6570;font-size:14px}",
+      "#askHqQ{width:100%;box-sizing:border-box;min-height:72px;font-size:16px;margin:8px 0}",
+      ".ask-row{display:flex;gap:8px}.ask-row .btn{flex:1}",
+      ".ask-links{display:flex;flex-wrap:wrap;gap:8px 16px;margin:4px 0 8px}",
+      ".ask-link{background:none;border:0;padding:8px 0;min-height:44px;color:#14365d;font-weight:750;font-size:16px;text-decoration:underline}",
+      ".ask-answer h3{margin:12px 0 6px}.ask-answer p{margin:0 0 8px;white-space:pre-wrap}",
+      ".help-video{width:100%;max-height:320px;background:#111;border-radius:12px;margin:8px 0}",
+      ".help-lead{margin:0 0 8px}",
+      ".help-guide{background:#fff;border:1px solid #e6e8ee;border-radius:12px;padding:8px 12px;margin:8px 0}",
+      ".help-guide summary{font-weight:800;min-height:44px;display:flex;align-items:center;cursor:pointer}",
+      ".help-sec h3{margin:10px 0 4px;font-size:16px}.help-sec p{margin:0 0 8px}",
+      ".help-replay{margin-bottom:8px}",
+      "@media(min-width:1024px){.ask-overlay{align-items:center;justify-content:center;padding:24px}.ask-sheet{width:min(640px,100%);max-height:min(80vh,760px);border-radius:16px}}"
+    ].join("");
+    document.head.appendChild(css);
   }
-  if (typeof window.renderLogin === "function") {
-    var prevLogin = window.renderLogin;
-    window.renderLogin = function () {
-      var result = prevLogin.apply(this, arguments);
-      paint();
-      return result;
-    };
+
+  root.AskHotelHQ = { open: openAsk, close: closeAsk, ask: ask, openGuide: openGuide };
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+    else boot();
   }
-  paint();
-
-  document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape" && open) window.HHQAsk.close();
-  });
-
-  var css = document.createElement("style");
-  css.textContent = [
-    "#askHqBtn{position:fixed;left:12px;bottom:96px;z-index:10050;min-height:48px;max-width:calc(100vw - 84px);padding:0 14px;border:0;border-radius:999px;background:#14365d;color:#fff;font:800 14px/1.2 system-ui,sans-serif;box-shadow:0 8px 20px rgba(16,24,40,.22)}",
-    "body.is-login #askHqBtn{bottom:16px}",
-    "#askHqPanel.ask-overlay{position:fixed;inset:0;z-index:10060;background:#0008;display:flex;align-items:flex-end}",
-    ".ask-sheet{background:#fff;color:#1c1f26;width:100%;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px 28px;box-sizing:border-box;position:relative}",
-    ".ask-sheet h2{margin:0 36px 6px 0;font-size:22px}",
-    ".ask-lead,.ask-from{color:#3f4854;font-size:14px;margin:0 0 8px}",
-    ".ask-x{position:absolute;right:10px;top:10px;width:44px;height:44px;border:0;background:#eef1f5;border-radius:50%;font-size:18px}",
-    ".ask-form{display:grid;gap:8px;margin:8px 0}",
-    ".ask-lab{font-weight:700;font-size:14px}",
-    ".ask-sheet input{width:100%;box-sizing:border-box;min-height:48px;font-size:16px;border:1px solid #d5dbe3;border-radius:12px;padding:0 12px}",
-    ".ask-go{width:100%;min-height:48px;border-radius:12px}",
-    ".ask-unknown{background:#fff7ed;border:1px solid #fdba74;border-radius:12px;padding:12px;font-weight:750;margin:8px 0}",
-    ".ask-hit{background:#f4f7fb;border-radius:12px;padding:12px;margin:8px 0}",
-    ".ask-hit ol,.ask-sec ol{margin:8px 0 0;padding-left:18px}",
-    ".ask-hit li,.ask-sec li{margin:0 0 8px}",
-    ".ask-h{margin:16px 0 8px;font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:#5c6570}",
-    ".ask-guide{border:1px solid #e6e8ee;border-radius:12px;padding:8px 10px;margin:0 0 8px;background:#fff}",
-    ".ask-guide summary{cursor:pointer;min-height:44px;display:flex;flex-direction:column;justify-content:center}",
-    ".ask-guide summary small{display:block;font-weight:500;color:#5c6570}",
-    ".ask-video{width:100%;border-radius:12px;background:#0f1728;margin:8px 0;max-height:220px}",
-    ".ask-shot{display:block;width:100%;max-width:390px;height:auto;border-radius:12px;border:1px solid #e6e8ee;margin-top:6px}",
-    ".ask-sec h4{margin:12px 0 4px}",
-    "@media(min-width:1024px){#askHqBtn{bottom:24px}#askHqPanel.ask-overlay{align-items:center;justify-content:center;padding:24px}.ask-sheet{width:min(560px,100%);max-height:min(86vh,840px);border-radius:16px}}"
-  ].join("");
-  document.head.appendChild(css);
-})();
+})(typeof window !== "undefined" ? window : globalThis);

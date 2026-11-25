@@ -284,7 +284,7 @@ test("the migration is insert-only and the example loader is not live data", () 
   assert.doesNotMatch(example, /Sample Guest/);
   assert.match(html, /ar\.js/);
   assert.match(sw, /\.\/ar\.js/);
-  assert.match(sw, /hotelhq-shell-v29/);
+  assert.match(sw, /hotelhq-shell-v34/);
   const src = fs.readFileSync(path.join(root, "ar.js"), "utf8");
   assert.doesNotMatch(src, /guest_name/);
   assert.doesNotMatch(src, /Sample Guest/);

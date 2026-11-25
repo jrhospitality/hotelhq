@@ -174,7 +174,7 @@ small,.wlnote,.hname{font-size:13px}
 :focus-visible{outline:3px solid #1f6feb;outline-offset:2px}
 #side,.pgbar-x{display:none}
 body.is-login{padding:0!important}
-body.is-login header#hdr,body.is-login nav,body.is-login #side,body.is-login #opsBtn,body.is-login #uxHelpBtn,body.is-login #pwaInstall,body.is-login #opsMount{display:none!important}
+body.is-login header#hdr,body.is-login nav,body.is-login #side,body.is-login #opsBtn,body.is-login #hhqFabs,body.is-login #pwaInstall,body.is-login #opsMount{display:none!important}
 body.is-login main{max-width:480px;margin:28px auto;width:calc(100% - 32px);padding:0}
 @media (min-width:768px){
 body{--rw:88px;padding-left:var(--rw);padding-bottom:0!important}
@@ -364,7 +364,7 @@ table.rt tr.rt-r:nth-child(even) td{background:var(--zebra)}
 .paldlg input{background:var(--surface);color:var(--ink)}
 .paldlg li.sel,.paldlg li:hover{background:var(--accent-soft)}
 .ux-sheet,.hesheet{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
-#uxHelpBtn{background:var(--accent);color:#fff}
+#askHqBtn{background:var(--accent);color:#fff}
 .demo-banner{background:var(--warn-bg);color:var(--ink);border:1px solid var(--warn-line)}
 .demo-banner small{display:block;margin-top:6px;font-weight:650}
 .sites button{background:var(--surface);border:1px solid var(--line);border-radius:12px}
@@ -2093,7 +2093,7 @@ async function signIn(){
   enterApp(u);save();render();
 }
 function clearSessionChrome(){
-  ["welcome","uxSheet","uxTour","ptsToast","hhqFocus","opsBtn","opsMount","uxHelpBtn"].forEach(function(id){const el=document.getElementById(id);if(el)el.remove()});
+  ["welcome","uxSheet","uxTour","ptsToast","hhqFocus","opsBtn","opsMount","uxHelpBtn","hhqFabs"].forEach(function(id){const el=document.getElementById(id);if(!el)return;if(id==="hhqFabs"){const ask=document.getElementById("askHqBtn");if(ask&&ask.parentNode===el)document.body.appendChild(ask)}el.remove()});
   if(typeof S!=="undefined")S.opsOpen=false;
   document.body.classList.add("is-login");
   document.body.classList.remove("m-phone","m-tab","m-desk","sb-mini","rail-open","he-print");
@@ -2220,7 +2220,7 @@ function render(){
   const tiles=tilesFor(S.role);
   if(gamifyOff()&&["avatar","avcredits"].includes(S.tab))S.tab="home";
   M.pts[1]=gamifyOff()?"Leaderboard":"Points & Rewards";
-  if(!["home",...nav,...tiles].includes(S.tab)&&!(canSeeReports()&&(S.tab==="health"||S.tab==="score")))S.tab="home";
+  if(!["home","guides",...nav,...tiles].includes(S.tab)&&!(canSeeReports()&&(S.tab==="health"||S.tab==="score")))S.tab="home";
   INIT(dd);ST();["Daily","Weekly","Monthly"].forEach(t=>dd.touched[pk(t)]=1);
   const manyHotels=authRole()=="Above Property"&&Object.keys(HOTELS).length>1;
   $("hotel").className=manyHotels?"hotel-switch":"seg";
@@ -3825,7 +3825,7 @@ Object.assign(I18N.es,ES);
 const LV=[[0,"Rookie","Novato"],[250,"Team Member","Miembro del Equipo"],[750,"Pro","Profesional"],[1500,"Star","Estrella"],[3000,"All-Star","Súper Estrella"],[5000,"Captain","Capitán"],[8000,"Legend","Leyenda"]];
 const BADGES=[["On-Time Streak","Racha a Tiempo","🗓️",[5,10,30],"ck"],["Punctual","Puntual","⏰",[5,10,30],"ci"],["Clean Punches","Marcajes Perfectos","✅",[5,10,30],"pu"],["Perfect Week","Semana Perfecta","🌟",[1,4,12],"pw"],["Perfect Month","Mes Perfecto","🏆",[1,3,6],"pm"],["Team Player","Compañero de Equipo","🤝",[5,25,75],"hp"],["Fast Fixer","Reparador Rápido","⚡",[10,50,150],"ft"],["Spotless","Impecable","✨",[10,50,150],"ip"],["Guest Favorite","Favorito de los Huéspedes","💌",[1,3,10],"gc"]];
 const TIER=["🥉","🥈","🥇"];
-const RULES=[["Checklist completed","Lista completada",10],["…on time","…a tiempo",5],["…all items done","…todos los puntos",5],["Urgent ticket ≤1h / ≤4h","Urgente ≤1h / ≤4h","25 / 10"],["High ≤4h / ≤24h","Alta ≤4h / ≤24h","20 / 10"],["Normal ≤24h / ≤72h","Normal ≤24h / ≤72h","15 / 5"],["Photo on ticket","Foto en la orden",2],["Room passed inspection","Habitación aprobada",5],["Room failed inspection","Habitación reprobada",-5],["Daily check-in / 7-day streak","Entrada diaria / racha 7 días","2 / 15"],["Shift note","Nota de turno",3],["Tagged on a guest compliment","Etiquetado en un cumplido de huésped","50 (GM sets)"],["Extra room helped","Habitación extra",5],["Guest cleanliness 10","Limpieza 10 del huésped",25],["Perfect week / month","Semana / mes perfecto","50 / 200"]];
+const RULES=[["Checklist completed","Lista completada",10],["…on time","…a tiempo",5],["…all items done","…todos los puntos",5],["Urgent ticket ≤1h / ≤4h","Urgente ≤1h / ≤4h","25 / 10"],["High ≤4h / ≤24h","Alta ≤4h / ≤24h","20 / 10"],["Normal ≤24h / ≤72h","Normal ≤24h / ≤72h","15 / 5"],["Photo on ticket","Foto en la orden",2],["Room passed inspection","Habitación aprobada",5],["Room failed inspection","Habitación reprobada",-5],["Daily check-in / 7-day streak","Entrada diaria / racha 7 días","2 / 15"],["Shift note","Nota de turno",3],["Tagged on a guest compliment","Etiquetado en un cumplido de huésped","50 (GM sets)"],["Positive name mention in a review","Mención positiva en una reseña","500 after GM/AGM approval"],["Extra room helped","Habitación extra",5],["Guest cleanliness 10","Limpieza 10 del huésped",25],["Perfect week / month","Semana / mes perfecto","50 / 200"]];
 const FIRST=["Ana","Luis","Maria","Kevin","Rosa","Jose","Tina","Omar","Sofia","Marcus","Lupe","Dev"];
 const REWARDS=[5,10,25,50].map(d=>["$"+d+" gift card","Tarjeta de regalo $"+d,d*50]);
 function KEY(){return "jrpts_"+S.hotel+"_"+((meUser()||{}).id||"x")}
@@ -4295,8 +4295,12 @@ function compPtsSet(v){const n=Math.max(0,Math.min(500,Math.round(+v||0)));D().c
 function compPost(){const f=compForm(),txt=($("cmTxt")&&$("cmTxt").value||f.txt||"").trim();f.txt=txt;
   if(!txt){const e=$("cmErr");if(e)e.textContent=bx("Add what the guest said.","Escribe lo que dijo el huésped.");return}
   if(!f.tags.length){const e=$("cmErr");if(e)e.textContent=bx("Tag at least one associate.","Etiqueta al menos a un asociado.");return}
-  const d=D(),pts=compPts(),tags=f.tags.slice();
-  compList().unshift({id:careNextId(d.comp),at:new Date().toISOString(),src:f.src,txt,tags,by:cw(),pts});
+  const d=D(),pts=compPts(),tags=f.tags.slice(),review=f.src==="survey"||f.src==="review";
+  compList().unshift({id:careNextId(d.comp),at:new Date().toISOString(),src:f.src,txt,tags,by:cw(),pts:review?0:pts});
+  if(review&&window.MentionPoints&&MentionPoints.submitTagged){
+    const day=new Date().toISOString().slice(0,10);
+    tags.forEach(n=>{MentionPoints.submitTagged({hotel:S.hotel,staffId:careUid(n),staffName:n,excerpt:txt,source:f.src,reviewDate:day,proposedPoints:pts})});
+    S.cmp={src:f.src,txt:"",tags:[]};save();showToast(bx("Sent to the GM and AGM. Points are not posted yet.","Enviado al GM y al AGM. Los puntos aún no se publican."));render();return}
   tags.forEach(n=>{const u=careUid(n);if(window.ptsAwardTo)ptsAwardTo(u,S.hotel,pts,"Guest compliment","Cumplido de huésped",{gc:1});
     if(u)careAlert(bx("💌 A guest complimented you!","💌 ¡Un huésped te felicitó!"),bx("+"+pts+" pts and the Guest Favorite badge. Thank you for making guests feel welcome.","+"+pts+" pts y la insignia Favorito de los Huéspedes. Gracias por hacer sentir bienvenidos a los huéspedes."),{uid:u})});
   S.cmp={src:f.src,txt:"",tags:[]};save();showToast(bx("Posted. "+tags.length+" associate(s) got +"+pts+" pts.","Publicado. "+tags.length+" asociado(s) recibieron +"+pts+" pts."));render()}
@@ -4308,7 +4312,7 @@ M.comp=["💌","Compliments"];
 V.comp=function(){const f=compForm(),staff=careStaff(),mgr=authRole()==="GM"||authRole()==="AGM",L2=compList();
   const form=compCanLog()?`<div class="card"><h3>${bx("Log a guest compliment","Registrar un cumplido de huésped")}</h3><small>${bx("Where did it come from?","¿De dónde vino?")}</small><div class="chips" role="group">${COMP_SRC.map(x=>`<button type="button" class="chip ${f.src===x[0]?"on":""}" aria-pressed="${f.src===x[0]}" onclick="compSrcSet('${x[0]}')">${bx(x[1],x[2])}</button>`).join("")}</div>
   <textarea id="cmTxt" style="width:100%;min-height:76px" placeholder="${escH(bx("What did the guest say?","¿Qué dijo el huésped?"))}" oninput="compForm().txt=this.value">${escH(f.txt)}</textarea>
-  <small>${bx("Tag the associates (each gets","Etiqueta a los asociados (cada uno recibe")} +${compPts()} pts ${bx("and the Guest Favorite badge)","y la insignia Favorito de los Huéspedes)")}</small><div class="chips">${staff.map(s=>`<button type="button" class="chip ${f.tags.includes(s.n)?"on":""}" aria-pressed="${f.tags.includes(s.n)}" onclick="compTagTog(${escH(JSON.stringify(s.n)).replace(/"/g,"&quot;")})">${escH(String(s.n).split(" ")[0])} <small>${escH(shortRole(s.role))}</small></button>`).join("")}</div>
+  <small>${(f.src==="survey"||f.src==="review")?bx("Tag the associates. A survey or online review waits for the GM or AGM. No points post until they approve.","Etiqueta a los asociados. Una encuesta o reseña en línea espera al GM o al AGM. No se publican puntos hasta que aprueben."):bx("Tag the associates (each gets +"+compPts()+" pts and the Guest Favorite badge)","Etiqueta a los asociados (cada uno recibe +"+compPts()+" pts y la insignia Favorito de los Huéspedes)")}</small><div class="chips">${staff.map(s=>`<button type="button" class="chip ${f.tags.includes(s.n)?"on":""}" aria-pressed="${f.tags.includes(s.n)}" onclick="compTagTog(${escH(JSON.stringify(s.n)).replace(/"/g,"&quot;")})">${escH(String(s.n).split(" ")[0])} <small>${escH(shortRole(s.role))}</small></button>`).join("")}</div>
   <div class="bad" id="cmErr" role="alert"></div><button class="btn" style="width:100%" onclick="compPost()">${bx("Post compliment","Publicar cumplido")}</button></div>`:"";
   const cfg=mgr?`<div class="card"><h3>${bx("Bonus points","Puntos de bono")}</h3><div class="row"><input type="number" min="0" max="500" id="cmPts" value="${compPts()}" aria-label="${escH(bx("Bonus points per tagged associate","Puntos por asociado etiquetado"))}"><button class="btn2" style="flex:0 0 90px" onclick="compPtsSet($('cmPts').value)">${bx("Save","Guardar")}</button></div><small>${bx("Points each tagged associate gets. Default 50.","Puntos que recibe cada asociado etiquetado. Por defecto 50.")}</small></div>`:"";
   return `<h2>💌 ${bx("Guest Compliments","Cumplidos de Huéspedes")}</h2>${form}${careLead()?compMonthTable():""}${cfg}<div class="card"><h3>${bx("Compliment wall","Muro de cumplidos")} · ${escH(S.hotel)}</h3><small>${bx("Real guest words, thanks to our team.","Palabras reales de huéspedes, gracias a nuestro equipo.")}</small></div>${L2.slice(0,20).map(compItem).join("")}`};
@@ -4774,7 +4778,7 @@ function rMode(){const w=innerWidth;return w>=1024?"desk":w>=768?"tab":"phone"}
 function rIds(){const s=new Set(["home",...navFor(S.role),...tilesFor(S.role)]);return [...s].filter(id=>M[id])}
 function rItem(id){return `<button type="button" class="${S.tab===id?"on":""}" ${S.tab===id?'aria-current="page"':""} onclick="go('${id}')"><span aria-hidden="true">${M[id][0]}</span><em>${t(M[id][1])}</em></button>`}
 function respRail(){S.railOpen=!S.railOpen;save();render()}
-function hhqSbToggle(){S.sbMini=!S.sbMini;try{save()}catch(e){}document.body.classList.toggle("sb-mini",!!S.sbMini)}
+function hhqSbToggle(){S.sbMini=!S.sbMini;try{save()}catch(e){}document.body.classList.toggle("sb-mini",!!S.sbMini);if(typeof render==="function")render()}
 function respNav(m){const nav=$("nav");if(m==="phone"){nav.className="";nav.removeAttribute("aria-label");return}
   const open=m==="desk"||!!S.railOpen,ids=rIds();nav.className=open?"open":"";nav.setAttribute("aria-label",bx("Main menu","Menú principal"));let h="";
   if(m==="tab")h+=`<button type="button" class="rtog" aria-expanded="${open}" onclick="respRail()"><span aria-hidden="true">${open?"✕":"☰"}</span><em>${open?bx("Close menu","Cerrar menú"):bx("Menu","Menú")}</em></button>`;
@@ -4869,7 +4873,7 @@ function respPageBar(){const A=$("app");if(!A||S.tab==="home"||!M[S.tab]){return
   let title;if(h&&h.parentNode===A){title=h}else{title=document.createElement("h2");title.textContent=h?h.textContent:M[S.tab][0]+" "+t(M[S.tab][1]);if(h)h.style.display="none"}
   bar.appendChild(title);A.insertBefore(bar,A.firstChild)}
 // first-time tips
-const TIPS={home:["Your most-used actions are the big buttons at the top. Everything else is in the menu.","Las acciones más usadas son los botones grandes de arriba. Todo lo demás está en el menú."],gi:["Pick the room, say what happened, and send. After it is resolved, contact the guest and close the loop.","Elige el cuarto, di qué pasó y envía. Cuando se resuelva, contacta al huésped y cierra el ciclo."],comp:["Post a guest compliment and tag who earned it. They get points right away.","Publica un cumplido de huésped y etiqueta a quien lo ganó. Recibe puntos al instante."],lf:["Log found items with a photo and where you found them, so guests can claim them.","Registra lo encontrado con foto y lugar para que los huéspedes lo reclamen."],recs:["Handy local tips you can share with guests at the desk.","Consejos locales útiles para compartir con los huéspedes."],rushq:["Rooms flagged rush show here with a countdown. Clean these first.","Los cuartos urgentes aparecen aquí con cuenta regresiva. Limpia estos primero."],brief:["Your morning huddle: arrivals, VIPs and events in one place.","Tu reunión de la mañana: llegadas, VIPs y eventos en un solo lugar."],notes:["Leave a note for the next shift so nothing gets missed.","Deja una nota para el siguiente turno para que nada se pierda."]};
+const TIPS={home:["Your most-used actions are the big buttons at the top. Everything else is in the menu.","Las acciones más usadas son los botones grandes de arriba. Todo lo demás está en el menú."],gi:["Pick the room, say what happened, and send. After it is resolved, contact the guest and close the loop.","Elige el cuarto, di qué pasó y envía. Cuando se resuelva, contacta al huésped y cierra el ciclo."],comp:["Post a guest compliment and tag who earned it. A survey or online review waits for the GM or AGM before any points post.","Publica un cumplido de huésped y etiqueta a quien lo ganó. Una encuesta o reseña en línea espera al GM o al AGM antes de publicar puntos."],lf:["Log found items with a photo and where you found them, so guests can claim them.","Registra lo encontrado con foto y lugar para que los huéspedes lo reclamen."],recs:["Handy local tips you can share with guests at the desk.","Consejos locales útiles para compartir con los huéspedes."],rushq:["Rooms flagged rush show here with a countdown. Clean these first.","Los cuartos urgentes aparecen aquí con cuenta regresiva. Limpia estos primero."],brief:["Your morning huddle: arrivals, VIPs and events in one place.","Tu reunión de la mañana: llegadas, VIPs y eventos en un solo lugar."],notes:["Leave a note for the next shift so nothing gets missed.","Deja una nota para el siguiente turno para que nada se pierda."]};
 function tipKey(k){const u=meUser();return "jrtip_"+(u?u.id:"x")+"_"+k}
 function tipSeen(k){try{return localStorage.getItem(tipKey(k))==="1"}catch(e){return true}}
 function respTipX(k){try{localStorage.setItem(tipKey(k),"1")}catch(e){}const e=$("tip_"+k);if(e)e.remove()}
@@ -5579,5 +5583,6 @@ const css=document.createElement("style");css.textContent=`
 <script src="decision-charts.js"></script>
 <script src="hk-report.js"></script>
 <script src="chargebacks.js"></script>
-<script src="data/help-guides.js"></script>
-<script src="ask-hotelhq.js"></script></body></html>
+<script src="help-guides.js"></script>
+<script src="ask-hotelhq.js"></script>
+<script src="mention-points.js"></script></body></html>
