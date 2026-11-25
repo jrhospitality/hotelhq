@@ -58,6 +58,7 @@
     "inspections.manage": ["GM", "Above Property"],
     "licenses.manage": ["GM", "Above Property"],
     "fairshare.see": ["GM", "Above Property"],
+    "capture.see": ["GM", "AGM", "Above Property"],
     "guestchat.respond": ["Front Desk", "AGM"],
     "guestchat.count": ["GM"],
     "ar.invoice": ["GM", "AGM", "Above Property"],
