@@ -16,11 +16,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -30,11 +27,32 @@ jobs:
         with:
           enablement: true
 
+      - name: Refuse a committed key
+        run: |
+          if grep -E 'sb_publishable_[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]{20,}\.' config.js index.html; then
+            echo "A publishable key is committed. Remove it and use the SUPABASE_PUBLISHABLE_KEY secret."
+            exit 1
+          fi
+
+      - name: Write live config.js and the demo site
+        env:
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: node tools/pages-config.js
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
           path: .
 
+  # deploy-pages lists artifacts as soon as it starts. In the same job that
+  # upload often returns zero, so the lookup waits until this later job.
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5

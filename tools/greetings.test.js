@@ -113,3 +113,15 @@ test("the migration is additive, private, and does not store a birth year", () =
   assert.ok(bodies.length >= 5);
   bodies.forEach((body) => assert.match(body, /set search_path = ''/));
 });
+
+test("the greeting script loads on every home and the shell cache includes it", () => {
+  const root = path.join(__dirname, "..");
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+  assert.match(html, /src="greetings\.js"/);
+  assert.ok(html.indexOf('src="mention-points.js"') < html.indexOf('src="greetings.js"'));
+  assert.doesNotMatch(html, /<<<<<<<|>>>>>>>/);
+  assert.match(sw, /\.\/greetings\.js/);
+  assert.match(sw, /hotelhq-shell-v36/);
+  assert.doesNotMatch(fs.readFileSync(path.join(root, "greetings.js"), "utf8"), /eyJ|sb_secret|service_role/);
+});

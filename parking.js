@@ -1,15 +1,24 @@
 /* Parking log for MSPWE, MSPAM, and MSPMS.
-   Front desk, shuttle drivers, GM, AGM, and JR Corporate can log a vehicle.
+   Front desk, AGM, GM, and JR Corporate can see and log a vehicle.
+   Housekeeping, laundry, housepersons, maintenance, breakfast, and drivers cannot.
    GM, AGM, and corporate lay out numbered stalls, room proximity, the long-term
-   area, and the Park & Fly area. Demo plates are fake (EXA / SAMPLE) and the
-   page says so. No guest names. */
+   area, and the Park & Fly area. Airport Park & Fly bookings store a last name
+   and confirmation. A visit still does not store a guest name.
+   Demo plates are fake (EXA / SAMPLE) and the page says so. */
 (function (root) {
   "use strict";
 
   var HOTELS = ["MSPWE", "MSPAM", "MSPMS"];
   var HOTEL_OK = { MSPWE: 1, MSPAM: 1, MSPMS: 1 };
-  var LOG_ROLES = { "Front Desk": 1, "Shuttle Driver": 1, GM: 1, AGM: 1, "Above Property": 1 };
+  var SEE_ROLES = { "Front Desk": 1, GM: 1, AGM: 1, "Above Property": 1 };
   var SETUP_ROLES = { GM: 1, AGM: 1, "Above Property": 1 };
+  var ALERT_ROLES = ["Front Desk", "AGM", "GM", "Above Property"];
+  var MONTHS = [
+    ["January", "Enero"], ["February", "Febrero"], ["March", "Marzo"], ["April", "Abril"],
+    ["May", "Mayo"], ["June", "Junio"], ["July", "Julio"], ["August", "Agosto"],
+    ["September", "Septiembre"], ["October", "Octubre"], ["November", "Noviembre"], ["December", "Diciembre"]
+  ];
+  var WEEKDAYS = [["Su", "Do"], ["Mo", "Lu"], ["Tu", "Ma"], ["We", "Mi"], ["Th", "Ju"], ["Fr", "Vi"], ["Sa", "Sá"]];
   var PHRASES = {
     "Parking": "Estacionamiento",
     "EXAMPLE": "EJEMPLO",
@@ -18,6 +27,7 @@
     "Avg stay": "Estadía promedio",
     "Overstays today": "Excedidos hoy",
     "Park & Fly": "Estaciona y vuela",
+    "Shuttle signup": "Anotar en el shuttle",
     "Returning today": "Regresan hoy",
     "Returning tomorrow": "Regresan mañana",
     "Off": "Apagado",
@@ -155,7 +165,39 @@
     "Status": "Estatus",
     "This stay uses the long-term stalls.": "Esta estadía usa los cajones de larga estancia.",
     "Leave the stall blank to keep the suggestion. Pick another open stall to override it.": "Deja el cajón en blanco para usar la sugerencia. Elige otro cajón libre si quieres cambiarlo.",
-    "Not flagged when the guest checks out of the room. Flagged only after pickup, plus the grace hours.": "No se marca cuando el huésped sale del cuarto. Se marca solo después de la recogida, más las horas de gracia."
+    "Not flagged when the guest checks out of the room. Flagged only after pickup, plus the grace hours.": "No se marca cuando el huésped sale del cuarto. Se marca solo después de la recogida, más las horas de gracia.",
+    "Parking is off at this hotel.": "El estacionamiento está apagado en este hotel.",
+    "JR Corporate can turn it on.": "JR Corporate puede activarlo.",
+    "Cars parked tonight": "Autos estacionados esta noche",
+    "Overnight guests": "Huéspedes de noche",
+    "Open stalls": "Cajones libres",
+    "Tomorrow night": "Mañana en la noche",
+    "projected": "proyectados",
+    "Stall map": "Mapa de cajones",
+    "On the lot list": "Lista de autos en el lote",
+    "Park & Fly calendar": "Calendario de estaciona y vuela",
+    "Arriving": "Llegan",
+    "Leaving": "Salen",
+    "Night": "Noche",
+    "Dropping off": "Dejan el auto",
+    "Picking up": "Recogen el auto",
+    "Parked that night": "Estacionados esa noche",
+    "Add a Park & Fly booking": "Agregar reserva de estaciona y vuela",
+    "Last name": "Apellido",
+    "Expected pickup date": "Fecha prevista de recogida",
+    "Vehicle optional until arrival": "El vehículo es opcional hasta que llegue",
+    "Add vehicle": "Agregar vehículo",
+    "Save booking": "Guardar reserva",
+    "No bookings this day.": "No hay reservas este día.",
+    "Parking isn't on your list.": "El estacionamiento no está en tu lista.",
+    "Park & Fly overdue": "Estaciona y vuela atrasado",
+    "This Park & Fly car is still here after pickup.": "Este auto de estaciona y vuela sigue aquí después de la recogida.",
+    "Previous month": "Mes anterior",
+    "Next month": "Mes siguiente",
+    "Enter the guest last name.": "Escribe el apellido del huésped.",
+    "Booking saved.": "Reserva guardada.",
+    "Booked": "Reservado",
+    "Waiting for the vehicle": "Falta el vehículo"
   };
   var ERRORS = {
     role: "You can't change parking.",
@@ -175,6 +217,7 @@
     zone: "Choose a lot.",
     stall_no: "Enter the stall number.",
     range: "Enter a room range, floor, or wing.",
+    last: "Enter the guest last name.",
     save: "Could not save.",
     missing: "Could not save.",
     out: "Could not save.",
@@ -183,7 +226,8 @@
 
   function pad(n) { return String(n).padStart(2, "0"); }
   function normRole(role) { return role === "JR Corporate" ? "Above Property" : (role || ""); }
-  function canLog(role) { return !!LOG_ROLES[normRole(role)]; }
+  function canSee(role) { return !!SEE_ROLES[normRole(role)]; }
+  function canLog(role) { return canSee(role); }
   function canSetup(role) { return !!SETUP_ROLES[normRole(role)]; }
   function hotelsFor(role, hotel) {
     var r = normRole(role);
@@ -202,8 +246,17 @@
       maxHoursWithoutRoom: 72,
       longTermNights: 7,
       parkFlyEnabled: hotel === "MSPAM" || hotel === "MSPMS",
-      parkFlyGraceHours: 2
+      parkFlyGraceHours: 2,
+      parkingEnabled: hotel !== "MSPWE"
     };
+  }
+  function parkingOn(state, hotel) {
+    try {
+      if (typeof HotelFeatures !== "undefined" && HotelFeatures && HotelFeatures.on) return !!HotelFeatures.on(hotel, "parking");
+    } catch (e) {}
+    var row = state && state.settings && state.settings[hotel];
+    if (!row || row.parkingEnabled == null) return hotel !== "MSPWE";
+    return !!row.parkingEnabled;
   }
   function chicagoParts(iso) {
     var d = new Date(iso);
@@ -258,6 +311,19 @@
   function normPlate(p) { return String(p || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
   function normConfirm(p) { return String(p || "").toUpperCase().replace(/[^A-Z0-9-]/g, ""); }
   function normState(p) { return String(p || "").toUpperCase().replace(/[^A-Z]/g, ""); }
+  function normName(s) {
+    var t = String(s || "").replace(/\s+/g, " ").trim();
+    if (!t || t.length > 40) return "";
+    if (!/^[\p{L}][\p{L} .'\-]{0,39}$/u.test(t)) return "";
+    return t;
+  }
+  function dateDiff(a, b) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(a || "")) || !/^\d{4}-\d{2}-\d{2}$/.test(String(b || ""))) return 0;
+    return Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
+  }
+  function atDate(date, hh, mm) {
+    return fromChicagoLocal(date + "T" + pad(hh) + ":" + pad(mm));
+  }
   function roomNumber(room) {
     var s = String(room || "").trim();
     return /^\d{2,4}$/.test(s) ? Number(s) : null;
@@ -394,9 +460,13 @@
     };
   }
   function logVisit(state, input, actor, now) {
-    if (!canLog(actor && actor.role)) return { ok: false, error: "role" };
-    var hotel = input.hotel;
-    if (!allowed(actor, hotel)) return { ok: false, error: "hotel" };
+    var hotel = input && input.hotel;
+    if (input && input.system) {
+      if (!HOTEL_OK[hotel]) return { ok: false, error: "hotel" };
+    } else {
+      if (!canLog(actor && actor.role)) return { ok: false, error: "role" };
+      if (!allowed(actor, hotel)) return { ok: false, error: "hotel" };
+    }
     var settings = state.settings[hotel] || defaultSettings(hotel);
     var plate = normPlate(input.plate);
     if (!/^[A-Z0-9]{2,8}$/.test(plate)) return { ok: false, error: "plate" };
@@ -508,12 +578,14 @@
     if (!Number.isInteger(nights) || nights < 1 || nights > 365) return { ok: false, error: "note" };
     if (!Number.isInteger(grace) || grace < 0 || grace > 72) return { ok: false, error: "note" };
     var next = clone(state);
+    var prev = (state.settings && state.settings[input.hotel]) || defaultSettings(input.hotel);
     next.settings[input.hotel] = {
       hotel: input.hotel,
       maxHoursWithoutRoom: hours,
       longTermNights: nights,
       parkFlyEnabled: !!input.parkFlyEnabled,
-      parkFlyGraceHours: grace
+      parkFlyGraceHours: grace,
+      parkingEnabled: prev.parkingEnabled == null ? input.hotel !== "MSPWE" : !!prev.parkingEnabled
     };
     return { ok: true, state: next };
   }
@@ -675,21 +747,44 @@
     rows.forEach(function (v) { sum += durationMs(v, now); });
     return sum / rows.length;
   }
+  function openStallCount(state, hotel) {
+    var n = 0;
+    (state.stalls || []).forEach(function (s) {
+      if (s.hotel !== hotel || s.active === false) return;
+      var z = zoneById(state, s.zoneId);
+      if (!z || z.active === false) return;
+      if (!openVisitInStall(state, s.id)) n += 1;
+    });
+    return n;
+  }
   function stats(state, hotel, now) {
     var settings = state.settings[hotel] || defaultSettings(hotel);
     var live = liveList(state, hotel, now);
     var ret = returning(state, hotel, now);
+    var guests = 0;
+    var longTerm = 0;
+    var parkFly = 0;
+    live.forEach(function (v) {
+      if (v.vehicleType === "park_fly") parkFly += 1;
+      else if (v.longTerm) longTerm += 1;
+      else guests += 1;
+    });
     return {
       cars: live.length,
       avgMs: avgStayMs(state, hotel, now),
       overstays: live.filter(function (v) { return isOverstay(v, settings, now).over; }).length,
-      parkFly: live.filter(function (v) { return v.vehicleType === "park_fly"; }).length,
+      parkFly: parkFly,
+      guests: guests,
+      longTerm: longTerm,
+      openStalls: openStallCount(state, hotel),
       returningToday: ret.today.length,
       returningTomorrow: ret.tomorrow.length
     };
   }
   function homeSummary(state, actor, now, lang) {
-    return hotelsFor(actor.role, actor.hotel).map(function (hotel) {
+    return hotelsFor(actor.role, actor.hotel).filter(function (hotel) {
+      return parkingOn(state, hotel);
+    }).map(function (hotel) {
       var s = stats(state, hotel, now);
       var settings = state.settings[hotel] || defaultSettings(hotel);
       return {
@@ -702,6 +797,305 @@
       };
     });
   }
+  function blankBooking(row) {
+    return {
+      id: row.id,
+      hotel: row.hotel,
+      lastName: row.lastName || "",
+      confirm: row.confirm || "",
+      dropoff: row.dropoff || "",
+      pickup: row.pickup || "",
+      plate: row.plate || "",
+      state: row.state || "",
+      make: row.make || "",
+      model: row.model || "",
+      color: row.color || "",
+      visitId: row.visitId || "",
+      cancelledAt: row.cancelledAt || ""
+    };
+  }
+  function bookingsOf(state) { return (state && state.bookings) || []; }
+  function calendarOn(state, hotel) {
+    if (hotel !== "MSPAM" && hotel !== "MSPMS") return false;
+    if (!parkingOn(state, hotel)) return false;
+    var settings = state.settings[hotel] || defaultSettings(hotel);
+    return !!settings.parkFlyEnabled;
+  }
+  function departureIso(visit) {
+    if (!visit) return "";
+    if (visit.vehicleType === "park_fly") return visit.pfPickup || visit.expectedOut || "";
+    return visit.expectedOut || "";
+  }
+  function coversLotNight(visit, day, now) {
+    if (!visit || visit.hotel == null) return false;
+    var start = chicagoDate(visit.checkedIn);
+    if (!start || start > day) return false;
+    if (visit.checkedOut) {
+      var out = chicagoDate(visit.checkedOut);
+      if (out && out <= day) return false;
+    }
+    var depIso = departureIso(visit);
+    var dep = depIso ? chicagoDate(depIso) : "";
+    if (!dep || dep > day) return true;
+    if (depIso && now && Date.parse(depIso) <= Date.parse(now) && !visit.checkedOut) return true;
+    return false;
+  }
+  function coversFlyNight(visit, day) {
+    if (!visit || visit.vehicleType !== "park_fly") return false;
+    var start = visit.pfDropoff || chicagoDate(visit.checkedIn);
+    if (!start || start > day) return false;
+    if (visit.checkedOut) {
+      var out = chicagoDate(visit.checkedOut);
+      if (out && out <= day) return false;
+    }
+    var end = visit.pfPickup ? chicagoDate(visit.pfPickup) : "";
+    if (end && end <= day) return false;
+    return true;
+  }
+  function bookingCovers(b, day) {
+    return !!(b && !b.cancelledAt && !b.visitId && b.dropoff && b.pickup && b.dropoff <= day && b.pickup > day);
+  }
+  function projectedLot(state, hotel, day, now) {
+    var n = 0;
+    (state.visits || []).forEach(function (v) {
+      if (v.hotel === hotel && coversLotNight(v, day, now)) n += 1;
+    });
+    bookingsOf(state).forEach(function (b) {
+      if (b.hotel === hotel && bookingCovers(b, day)) n += 1;
+    });
+    return n;
+  }
+  function flyDropoffs(state, hotel, day) {
+    var rows = [];
+    bookingsOf(state).forEach(function (b) {
+      if (b.hotel === hotel && !b.cancelledAt && !b.visitId && b.dropoff === day) rows.push({ kind: "booking", booking: b });
+    });
+    (state.visits || []).forEach(function (v) {
+      if (v.hotel !== hotel || v.vehicleType !== "park_fly") return;
+      var d = v.pfDropoff || chicagoDate(v.checkedIn);
+      if (d === day) rows.push({ kind: "visit", visit: v });
+    });
+    return rows;
+  }
+  function flyPickups(state, hotel, day) {
+    var rows = [];
+    bookingsOf(state).forEach(function (b) {
+      if (b.hotel === hotel && !b.cancelledAt && !b.visitId && b.pickup === day) rows.push({ kind: "booking", booking: b });
+    });
+    (state.visits || []).forEach(function (v) {
+      if (v.hotel !== hotel || v.vehicleType !== "park_fly" || !v.pfPickup) return;
+      if (chicagoDate(v.pfPickup) === day) rows.push({ kind: "visit", visit: v });
+    });
+    return rows;
+  }
+  function flyNightCount(state, hotel, day) {
+    var n = 0;
+    (state.visits || []).forEach(function (v) {
+      if (v.hotel === hotel && coversFlyNight(v, day)) n += 1;
+    });
+    bookingsOf(state).forEach(function (b) {
+      if (b.hotel === hotel && bookingCovers(b, day)) n += 1;
+    });
+    return n;
+  }
+  function flyStaying(state, hotel, day) {
+    var rows = [];
+    (state.visits || []).forEach(function (v) {
+      if (v.hotel === hotel && coversFlyNight(v, day)) rows.push({ kind: "visit", visit: v });
+    });
+    bookingsOf(state).forEach(function (b) {
+      if (b.hotel === hotel && bookingCovers(b, day)) rows.push({ kind: "booking", booking: b });
+    });
+    return rows;
+  }
+  function monthDays(ym) {
+    var parts = String(ym || "").split("-");
+    var year = Number(parts[0]);
+    var month = Number(parts[1]);
+    if (!year || month < 1 || month > 12) return [];
+    var first = parts[0] + "-" + pad(month) + "-01";
+    var days = [];
+    var cursor = first;
+    while (cursor.slice(0, 7) === first.slice(0, 7)) {
+      days.push(cursor);
+      cursor = addDays(cursor, 1);
+    }
+    var startDow = new Date(first + "T12:00:00Z").getUTCDay();
+    return { year: year, month: month, startDow: startDow, days: days };
+  }
+  function calendarModel(state, hotel, ym, selected, now) {
+    var grid = monthDays(ym || chicagoDate(now).slice(0, 7));
+    var days = grid.days.map(function (date) {
+      return {
+        date: date,
+        dropoffs: flyDropoffs(state, hotel, date).length,
+        pickups: flyPickups(state, hotel, date).length,
+        parked: flyNightCount(state, hotel, date),
+        selected: date === selected
+      };
+    });
+    return {
+      hotel: hotel,
+      month: grid.year + "-" + pad(grid.month),
+      year: grid.year,
+      monthIndex: grid.month,
+      startDow: grid.startDow,
+      days: days,
+      selected: selected || "",
+      detail: selected ? {
+        date: selected,
+        dropoffs: flyDropoffs(state, hotel, selected),
+        pickups: flyPickups(state, hotel, selected),
+        staying: flyStaying(state, hotel, selected),
+        parked: flyNightCount(state, hotel, selected)
+      } : null
+    };
+  }
+  function openBooking(state, hotel, confirm) {
+    return bookingsOf(state).some(function (b) {
+      return b.hotel === hotel && !b.cancelledAt && !b.visitId && b.confirm === confirm;
+    });
+  }
+  function saveBooking(state, input, actor, now) {
+    if (!canLog(actor && actor.role)) return { ok: false, error: "role" };
+    var hotel = input && input.hotel;
+    if (!allowed(actor, hotel)) return { ok: false, error: "hotel" };
+    if (!calendarOn(state, hotel)) return { ok: false, error: "park_fly_off" };
+    var lastName = normName(input.lastName);
+    if (!lastName) return { ok: false, error: "last" };
+    var confirm = normConfirm(input.confirm);
+    if (!/^[A-Z0-9-]{2,24}$/.test(confirm)) return { ok: false, error: "confirm" };
+    var dropoff = String(input.dropoff || "");
+    var pickup = String(input.pickup || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dropoff)) return { ok: false, error: "dropoff" };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(pickup) || pickup < dropoff) return { ok: false, error: "pickup" };
+    if (dateDiff(dropoff, pickup) > 60) return { ok: false, error: "days" };
+    var plate = normPlate(input.plate);
+    var st = normState(input.state);
+    if (plate && !/^[A-Z0-9]{2,8}$/.test(plate)) return { ok: false, error: "plate" };
+    if (plate && !/^[A-Z]{2}$/.test(st)) return { ok: false, error: "state" };
+    if (!plate) { plate = ""; st = ""; }
+    var make = clip(input.make, 30);
+    var model = clip(input.model, 30);
+    var color = clip(input.color, 30);
+    if (make == null || model == null || color == null) return { ok: false, error: "note" };
+    if (openBooking(state, hotel, confirm)) return { ok: false, error: "already" };
+    var next = clone(state);
+    if (!next.bookings) next.bookings = [];
+    var row = blankBooking({
+      id: "bk-" + hotel + "-" + confirm,
+      hotel: hotel,
+      lastName: lastName,
+      confirm: confirm,
+      dropoff: dropoff,
+      pickup: pickup,
+      plate: plate,
+      state: st,
+      make: make,
+      model: model,
+      color: color
+    });
+    next.bookings.push(row);
+    var settled = settleBookings(next, now);
+    var saved = bookingsOf(settled.state).filter(function (b) { return b.confirm === confirm && b.hotel === hotel; }).pop();
+    return { ok: true, state: settled.state, booking: saved || row };
+  }
+  function arriveBooking(state, id, input, actor, now) {
+    if (!canLog(actor && actor.role)) return { ok: false, error: "role" };
+    var next = clone(state);
+    var row = null;
+    bookingsOf(next).forEach(function (b) { if (String(b.id) === String(id)) row = b; });
+    if (!row || row.cancelledAt || row.visitId) return { ok: false, error: "missing" };
+    if (!allowed(actor, row.hotel)) return { ok: false, error: "hotel" };
+    if (!calendarOn(next, row.hotel)) return { ok: false, error: "park_fly_off" };
+    var plate = normPlate(input && input.plate);
+    var st = normState(input && input.state);
+    if (!/^[A-Z0-9]{2,8}$/.test(plate)) return { ok: false, error: "plate" };
+    if (!/^[A-Z]{2}$/.test(st)) return { ok: false, error: "state" };
+    var make = clip(input.make, 30);
+    var model = clip(input.model, 30);
+    var color = clip(input.color, 30);
+    if (make == null || model == null || color == null) return { ok: false, error: "note" };
+    row.plate = plate;
+    row.state = st;
+    if (make) row.make = make;
+    if (model) row.model = model;
+    if (color) row.color = color;
+    var settled = settleBookings(next, now);
+    var saved = null;
+    bookingsOf(settled.state).forEach(function (b) { if (String(b.id) === String(id)) saved = b; });
+    return { ok: true, state: settled.state, booking: saved };
+  }
+  function settleBookings(state, now) {
+    if (!state || state.origin === "supabase" || state.origin === "loading") return { ok: true, state: state, changed: false };
+    var today = chicagoDate(now);
+    var due = bookingsOf(state).some(function (b) {
+      return !b.cancelledAt && !b.visitId && b.plate && b.dropoff && b.dropoff <= today && calendarOn(state, b.hotel);
+    });
+    if (!due) return { ok: true, state: state, changed: false };
+    var next = state;
+    var changed = false;
+    bookingsOf(state).forEach(function (b) {
+      if (b.cancelledAt || b.visitId || !b.plate || !b.dropoff || b.dropoff > today) return;
+      if (!calendarOn(next, b.hotel)) return;
+      var nights = dateDiff(b.dropoff, b.pickup);
+      if (nights < 1) nights = 1;
+      if (nights > 60) return;
+      var checkedIn = b.dropoff === today ? now : atDate(b.dropoff, 12, 0);
+      var res = logVisit(next, {
+        system: true,
+        hotel: b.hotel,
+        plate: b.plate,
+        state: b.state || "MN",
+        make: b.make,
+        model: b.model,
+        color: b.color,
+        vehicleType: "park_fly",
+        checkedIn: checkedIn,
+        pfConfirm: b.confirm,
+        pfDays: nights,
+        pfDropoff: b.dropoff,
+        pfPickup: atDate(b.pickup, 15, 0)
+      }, null, now);
+      if (!res.ok) return;
+      next = res.state;
+      bookingsOf(next).forEach(function (row) {
+        if (String(row.id) === String(b.id)) row.visitId = res.visit.id;
+      });
+      changed = true;
+    });
+    return { ok: true, state: next, changed: changed };
+  }
+  function isParkingAlert(a) {
+    if (!a) return false;
+    var kind = String(a.kind || "");
+    if (kind === "parking" || kind === "park_fly") return true;
+    var text = String(a.title || "") + " " + String(a.body || "") + " " + String(a.message || "");
+    return /park\s*&\s*fly|estaciona y vuela/i.test(text);
+  }
+  function parkingAlertRows(state, actor, now, lang) {
+    if (!state || !canSee(actor && actor.role)) return [];
+    var rows = [];
+    hotelsFor(actor.role, actor.hotel).forEach(function (hotel) {
+      if (!parkingOn(state, hotel)) return;
+      var settings = state.settings[hotel] || defaultSettings(hotel);
+      if (!settings.parkFlyEnabled) return;
+      liveList(state, hotel, now).forEach(function (v) {
+        if (v.vehicleType !== "park_fly") return;
+        if (!isOverstay(v, settings, now).over) return;
+        rows.push({
+          id: "pk-" + hotel + "-" + v.id,
+          kind: "parking",
+          hotel: hotel,
+          roles: ALERT_ROLES.slice(),
+          title: label("Park & Fly overdue", lang),
+          body: v.plate + " — " + label("This Park & Fly car is still here after pickup.", lang)
+        });
+      });
+    });
+    return rows;
+  }
+  function showParkingTile(role, hotelOn) { return !!hotelOn && canSee(role); }
   function typeName(visit, lang) {
     if (visit.vehicleType === "park_fly") return label("Park & Fly", lang);
     if (visit.unknown) return label("Unknown", lang);
@@ -764,17 +1158,22 @@
   function pageModel(state, actor, now, hotel, ui) {
     var settings = state.settings[hotel] || defaultSettings(hotel);
     var q = normPlate(ui && ui.q);
+    var today = chicagoDate(now);
     function hit(v) { return !q || v.plate.indexOf(q) >= 0; }
     return {
       hotel: hotel,
       hotels: hotelsFor(actor.role, actor.hotel),
       settings: settings,
       stats: stats(state, hotel, now),
+      tonight: stats(state, hotel, now),
+      tomorrowCount: projectedLot(state, hotel, addDays(today, 1), now),
+      calendar: calendarOn(state, hotel) ? calendarModel(state, hotel, (ui && ui.month) || today.slice(0, 7), (ui && ui.day) || "", now) : null,
       board: board(state, hotel, now),
       live: liveList(state, hotel, now).filter(hit),
       history: historyList(state, hotel, now).filter(hit),
       returning: settings.parkFlyEnabled ? returning(state, hotel, now) : { today: [], tomorrow: [] },
       canLog: canLog(actor.role),
+      canSee: canSee(actor.role),
       canSetup: canSetup(actor.role),
       query: q
     };
@@ -872,7 +1271,13 @@
       car({ id: "ms-v3", hotel: "MSPMS", plate: "EXA3103", stallId: "ms-p2", vehicleType: "park_fly", pfConfirm: "SAMPLE7", pfDays: 8, pfDropoff: addDays(chicagoDate(now), -2), pfPickup: atLocal(now, 5, 12, 0), expectedOut: atLocal(now, -1, 11, 0), checkedIn: shift(now, -40) }),
       car({ id: "ms-v4", hotel: "MSPMS", plate: "EXA3104", room: "202", checkedIn: shift(now, -20), checkedOut: shift(now, -10), expectedOut: shift(now, -10) })
     ];
-    return { origin: "example", demoVersion: 2, settings: settings, zones: zones, stalls: stalls, ranges: ranges, visits: visits };
+    var today = chicagoDate(now);
+    var bookings = [
+      blankBooking({ id: "am-b1", hotel: "MSPAM", lastName: "Sample", confirm: "SAMPLE9", dropoff: addDays(today, 1), pickup: addDays(today, 5) }),
+      blankBooking({ id: "am-b2", hotel: "MSPAM", lastName: "Sample", confirm: "SAMPLE10", dropoff: addDays(today, 3), pickup: addDays(today, 8), plate: "EXA2990", state: "MN" }),
+      blankBooking({ id: "ms-b1", hotel: "MSPMS", lastName: "Sample", confirm: "SAMPLE11", dropoff: addDays(today, 2), pickup: addDays(today, 6) })
+    ];
+    return { origin: "example", demoVersion: 3, settings: settings, zones: zones, stalls: stalls, ranges: ranges, visits: visits, bookings: bookings };
   }
   function mapSettings(row) {
     return {
@@ -880,7 +1285,8 @@
       maxHoursWithoutRoom: Number(row.max_hours_without_room),
       longTermNights: Number(row.long_term_nights),
       parkFlyEnabled: !!row.park_fly_enabled,
-      parkFlyGraceHours: Number(row.park_fly_grace_hours)
+      parkFlyGraceHours: Number(row.park_fly_grace_hours),
+      parkingEnabled: row.parking_enabled == null ? row.hotel !== "MSPWE" : !!row.parking_enabled
     };
   }
   function mapZone(row) {
@@ -926,6 +1332,23 @@
       note: row.note || ""
     });
   }
+  function mapBooking(row) {
+    return blankBooking({
+      id: String(row.id),
+      hotel: row.hotel,
+      lastName: row.last_name || "",
+      confirm: row.confirm || "",
+      dropoff: row.dropoff || "",
+      pickup: row.pickup || "",
+      plate: row.plate || "",
+      state: row.plate_state || "",
+      make: row.make || "",
+      model: row.model || "",
+      color: row.color || "",
+      visitId: row.visit_id == null ? "" : String(row.visit_id),
+      cancelledAt: row.cancelled_at || ""
+    });
+  }
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -962,6 +1385,7 @@
     var over = c.overstay === label("Yes", lang);
     var cls = over ? "pk-over" : (visit.unknown ? "pk-unk" : "");
     var out = withOut ? "<td data-label=\"" + esc(label("Out", lang)) + "\"><button type=\"button\" class=\"btn2 pk-out\" onclick=\"pkOut('" + esc(visit.id) + "')\">" + esc(label("Mark out", lang)) + "</button></td>" : "";
+    var shuttle = shuttleCell(visit, lang);
     return "<tr class=\"" + cls + "\">" + [
       td(label("Plate", lang), c.plate),
       td(label("Stall", lang), c.stall),
@@ -979,10 +1403,17 @@
       td(label("Color", lang), c.color),
       td(label("Permit", lang), c.permit),
       td(label("Paid", lang), c.paid)
-    ].join("") + out + "</tr>";
+    ].join("") + shuttle + out + "</tr>";
+  }
+  function shuttleCell(visit, lang) {
+    if (typeof root.shParkingAction !== "function") return "";
+    var html = "";
+    try { html = root.shParkingAction(visit, lang) || ""; } catch (e) { html = ""; }
+    return "<td data-label=\"" + esc(label("Shuttle signup", lang)) + "\">" + html + "</td>";
   }
   function liveHeaders(lang, withOut) {
     var h = ["Plate", "Stall", "Parked", "Room", "Overstay", "Unknown", "Type", "Checkout", "Pickup", "State", "Lot", "Make", "Model", "Color", "Permit", "Paid"].map(function (k) { return label(k, lang); });
+    if (typeof root.shParkingAction === "function") h.push(label("Shuttle signup", lang));
     if (withOut) h.push(label("Out", lang));
     return h;
   }
@@ -1023,7 +1454,13 @@
     var now = opts.now;
     var ui = opts.ui || { screen: "board", q: "" };
     var hotel = opts.hotel;
-    if (!canLog(actor.role) || !hotel) {
+    if (!canSee(actor && actor.role)) {
+      return "<div class=\"raw pk\" id=\"pkRoot\"><h2>" + esc(label("Parking", lang)) + "</h2><p id=\"pkDenied\">" + esc(label("Parking isn't on your list.", lang)) + "</p></div>";
+    }
+    if (hotel && !parkingOn(state, hotel)) {
+      return "<div class=\"raw pk\" id=\"pkRoot\"><h2>" + esc(label("Parking", lang)) + "</h2><p id=\"pkOff\">" + esc(label("Parking is off at this hotel.", lang)) + "</p><p class=\"pk-note\">" + esc(label("JR Corporate can turn it on.", lang)) + "</p></div>";
+    }
+    if (!hotel) {
       return "<div class=\"raw pk\" id=\"pkRoot\"><h2>" + esc(label("Parking", lang)) + "</h2><p>" + esc(label("You can't change parking.", lang)) + "</p></div>";
     }
     var model = pageModel(state, actor, now, hotel, ui);
@@ -1034,13 +1471,16 @@
     }).join("") + "</div>" : "";
     var back = screen === "board" ? "" : "<button type=\"button\" class=\"btn2 pk-back\" onclick=\"pkScreen('board')\">" + esc(label("Back", lang)) + "</button>";
     var err = ui.error ? "<p class=\"fe\" id=\"pkErr\">" + esc(label(ERRORS[ui.error] || "Could not save.", lang)) + "</p>" : "";
-    var notice = ui.notice ? "<p class=\"pk-note\" id=\"pkNotice\">" + esc(label(ui.notice === "out" ? "Vehicle marked out." : ui.notice === "in" ? "Vehicle saved." : "Sample data reset.", lang)) + "</p>" : "";
+    var noticeText = ui.notice === "out" ? "Vehicle marked out." : ui.notice === "in" ? "Vehicle saved." : ui.notice === "book" ? "Booking saved." : "Sample data reset.";
+    var notice = ui.notice ? "<p class=\"pk-note\" id=\"pkNotice\">" + esc(label(noticeText, lang)) + "</p>" : "";
     var body = "";
     if (screen === "log") body = renderLog(state, model, ui, now, lang);
     else if (screen === "walk") body = renderWalk(state, model, lang);
     else if (screen === "history") body = renderHistory(model, state, now, lang);
     else if (screen === "setup") body = renderSetup(state, model, lang);
-    else body = renderBoard(state, model, now, lang);
+    else if (screen === "book") body = renderBook(model, ui, lang);
+    else if (screen === "arrive") body = renderArrive(state, ui, lang);
+    else body = heroHtml(model, lang) + renderCalendar(model, state, now, lang) + renderBoard(state, model, now, lang);
     var actions = screen === "board" ? "<div class=\"pk-actions\">" +
       "<button type=\"button\" class=\"btn\" id=\"pkLogBtn\" onclick=\"pkScreen('log')\">" + esc(label("Log a vehicle", lang)) + "</button>" +
       "<button type=\"button\" class=\"btn2\" id=\"pkWalkBtn\" onclick=\"pkScreen('walk')\">" + esc(label("Lot walk", lang)) + "</button>" +
@@ -1048,17 +1488,94 @@
       (model.canSetup ? "<button type=\"button\" class=\"btn2\" id=\"pkSetupBtn\" onclick=\"pkScreen('setup')\">" + esc(label("Stall setup", lang)) + "</button>" : "") +
       (state.origin === "example" ? "<button type=\"button\" class=\"btn2\" onclick=\"pkReset()\">" + esc(label("Reset sample data", lang)) + "</button>" : "") +
       "</div>" : "";
-    return "<div class=\"raw pk\" id=\"pkRoot\"><h2>" + esc(label("Parking", lang)) + "</h2>" + banner + hotels + back + err + notice + (screen === "board" ? statsKpi(model, lang) + "<p class=\"pk-note\">" + esc(label("Avg is completed guest stays, last 30 days.", lang)) + "</p>" : "") + actions + body + "</div>";
+    var head = "<div class=\"raw pk\" id=\"pkRoot\"><h2>" + esc(label("Parking", lang)) + "</h2>" + banner + hotels + back + err + notice;
+    if (screen === "board") return head + heroHtml(model, lang) + actions + renderCalendar(model, state, now, lang) + renderBoard(state, model, now, lang) + "</div>";
+    return head + actions + body + "</div>";
+  }
+  function heroHtml(model, lang) {
+    var s = model.tonight;
+    var breakdown = s.guests + " " + label("Overnight guests", lang) + " / " + s.parkFly + " " + label("Park & Fly", lang) + " / " + s.longTerm + " " + label("Long-term", lang);
+    var openLine = s.openStalls + " " + label("Open stalls", lang);
+    var nextLine = label("Tomorrow night", lang) + ": " + model.tomorrowCount + " " + label("projected", lang);
+    return "<section class=\"pk-hero\" id=\"pkHero\"><p class=\"pk-hero-label\">" + esc(label("Cars parked tonight", lang)) + "</p><p class=\"pk-hero-num\" id=\"pkCars\">" + esc(s.cars) + "</p><p class=\"pk-hero-break\" id=\"pkBreak\">" + esc(breakdown) + "</p><p class=\"pk-hero-open\" id=\"pkOpenStalls\">" + esc(openLine) + "</p><p class=\"pk-hero-next\" id=\"pkTomorrow\">" + esc(nextLine) + "</p></section>";
+  }
+  function dayRows(title, rows, lang, today) {
+    var showArrive = rows.some(function (row) { return row.kind === "booking" && !row.booking.plate && row.booking.dropoff <= today; });
+    var headers = [label("Last name", lang), label("Confirmation", lang), label("Plate", lang)];
+    if (showArrive) headers.push(label("Add vehicle", lang));
+    var body = rows.map(function (row) {
+      var last = "";
+      var confirm = "";
+      var plate = "";
+      if (row.kind === "visit") {
+        confirm = row.visit.pfConfirm || "";
+        plate = row.visit.plate || "";
+      } else {
+        last = row.booking.lastName || "";
+        confirm = row.booking.confirm || "";
+        plate = row.booking.plate || "";
+      }
+      var arrive = "";
+      if (showArrive) {
+        if (row.kind === "booking" && !row.booking.plate && row.booking.dropoff <= today) {
+          arrive = "<td data-label=\"" + esc(label("Add vehicle", lang)) + "\"><button type=\"button\" class=\"btn2\" onclick=\"pkArriveOpen('" + esc(row.booking.id) + "')\">" + esc(label("Add vehicle", lang)) + "</button></td>";
+        } else arrive = td(label("Add vehicle", lang), "");
+      }
+      return "<tr>" + td(label("Last name", lang), last) + td(label("Confirmation", lang), confirm) + td(label("Plate", lang), plate) + arrive + "</tr>";
+    });
+    return "<h3>" + esc(title) + "</h3>" + (rows.length ? table(headers, body) : "<p>" + esc(label("No bookings this day.", lang)) + "</p>");
+  }
+  function renderCalendar(model, state, now, lang) {
+    var cal = model.calendar;
+    if (!cal) return "";
+    var monthName = MONTHS[cal.monthIndex - 1];
+    var title = (lang === "es" ? monthName[1] : monthName[0]) + " " + cal.year;
+    var heads = WEEKDAYS.map(function (d) { return "<div class=\"pk-dow\">" + esc(lang === "es" ? d[1] : d[0]) + "</div>"; }).join("");
+    var blanks = "";
+    for (var i = 0; i < cal.startDow; i++) blanks += "<div></div>";
+    var cells = cal.days.map(function (d) {
+      var num = Number(d.date.slice(8));
+      var on = d.selected ? " on" : "";
+      return "<button type=\"button\" class=\"pk-day" + on + "\" onclick=\"pkCalDay('" + d.date + "')\"><b>" + num + "</b><small>" + d.dropoffs + " " + esc(label("Arriving", lang)) + "</small><small>" + d.pickups + " " + esc(label("Leaving", lang)) + "</small><small>" + d.parked + " " + esc(label("Night", lang)) + "</small></button>";
+    }).join("");
+    var detail = "";
+    if (cal.detail) {
+      var today = chicagoDate(now);
+      detail = "<section class=\"card\" id=\"pkDay\"><h3>" + esc(cal.detail.date) + "</h3><p class=\"pk-note\" id=\"pkNight\">" + esc(cal.detail.parked + " " + label("Parked that night", lang)) + "</p>" +
+        dayRows(label("Dropping off", lang), cal.detail.dropoffs, lang, today) +
+        dayRows(label("Picking up", lang), cal.detail.pickups, lang, today) +
+        dayRows(label("Parked that night", lang), cal.detail.staying, lang, today) + "</section>";
+    }
+    return "<section class=\"card\" id=\"pkCal\"><h3>" + esc(label("Park & Fly calendar", lang)) + "</h3><div class=\"pk-cal-nav\"><button type=\"button\" class=\"btn2\" onclick=\"pkCalMove(-1)\">" + esc(label("Previous month", lang)) + "</button><b id=\"pkMonth\">" + esc(title) + "</b><button type=\"button\" class=\"btn2\" onclick=\"pkCalMove(1)\">" + esc(label("Next month", lang)) + "</button></div><div class=\"pk-cal\">" + heads + blanks + cells + "</div><button type=\"button\" class=\"btn\" id=\"pkBookBtn\" onclick=\"pkScreen('book')\">" + esc(label("Add a Park & Fly booking", lang)) + "</button>" + detail + "</section>";
+  }
+  function renderBook(model, ui, lang) {
+    var d = (ui && ui.draft) || {};
+    return "<form class=\"card pk-form\" id=\"pkBook\" onsubmit=\"window.pkSaveBooking(event)\"><h3>" + esc(label("Add a Park & Fly booking", lang)) + "</h3><p class=\"pk-note\">" + esc(label("Vehicle optional until arrival", lang)) + "</p>" +
+      field(label("Last name", lang), "<input id=\"pkLast\" maxlength=\"40\" value=\"" + esc(d.lastName || "") + "\" required>") +
+      field(label("Confirmation", lang), "<input id=\"pkBookConfirm\" maxlength=\"24\" autocapitalize=\"characters\" value=\"" + esc(d.confirm || "") + "\" required>") +
+      field(label("Drop-off date", lang), "<input id=\"pkBookDrop\" type=\"date\" value=\"" + esc(d.dropoff || "") + "\" required>") +
+      field(label("Expected pickup date", lang), "<input id=\"pkBookPickup\" type=\"date\" value=\"" + esc(d.pickup || "") + "\" required>") +
+      field(label("Plate", lang) + " (" + label("Optional", lang) + ")", "<input id=\"pkBookPlate\" autocapitalize=\"characters\" maxlength=\"12\" value=\"" + esc(d.plate || "") + "\">") +
+      field(label("State", lang) + " (" + label("Optional", lang) + ")", "<input id=\"pkBookState\" autocapitalize=\"characters\" maxlength=\"2\" value=\"" + esc(d.state || "") + "\">") +
+      field(label("Color", lang) + " (" + label("Optional", lang) + ")", "<input id=\"pkBookColor\" maxlength=\"30\" value=\"" + esc(d.color || "") + "\">") +
+      "<button type=\"submit\" class=\"btn\" id=\"pkBookSave\">" + esc(label("Save booking", lang)) + "</button></form>";
+  }
+  function renderArrive(state, ui, lang) {
+    var row = null;
+    bookingsOf(state).forEach(function (b) { if (String(b.id) === String(ui.bookingId || "")) row = b; });
+    if (!row) return "<p>" + esc(label("Could not save.", lang)) + "</p>";
+    return "<form class=\"card pk-form\" id=\"pkArrive\" onsubmit=\"window.pkSaveArrive(event)\"><h3>" + esc(label("Add vehicle", lang)) + "</h3><p class=\"pk-note\">" + esc(row.lastName + " " + row.confirm) + "</p>" +
+      field(label("Plate", lang), "<input id=\"pkArrPlate\" autocapitalize=\"characters\" maxlength=\"12\" required>") +
+      field(label("State", lang), "<input id=\"pkArrState\" autocapitalize=\"characters\" maxlength=\"2\" value=\"MN\" required>") +
+      field(label("Color", lang) + " (" + label("Optional", lang) + ")", "<input id=\"pkArrColor\" maxlength=\"30\">") +
+      "<button type=\"submit\" class=\"btn\" id=\"pkArriveSave\">" + esc(label("Save vehicle", lang)) + "</button></form>";
+  }
+  function fold(id, title, inner) {
+    return "<details class=\"pk-fold\" id=\"" + id + "\"><summary>" + esc(title) + "</summary>" + inner + "</details>";
   }
   function renderBoard(state, model, now, lang) {
     var q = model.query ? "<p class=\"pk-note\" id=\"pkSearchNote\">" + esc(model.query) + "</p>" : "";
     var search = "<label class=\"pk-field\">" + esc(label("Search plate", lang)) + "<input id=\"pkQ\" autocomplete=\"off\" autocapitalize=\"characters\" value=\"" + esc(model.query) + "\" oninput=\"pkSearch(this.value)\"></label>";
-    var ret = "";
-    if (model.settings.parkFlyEnabled) {
-      ret = "<section class=\"card\" id=\"pkReturn\"><h3>" + esc(label("Returning today", lang)) + "</h3>" + returnTable(model.returning.today, state, lang) +
-        "<h3>" + esc(label("Returning tomorrow", lang)) + "</h3>" + returnTable(model.returning.tomorrow, state, lang) +
-        "<p class=\"pk-note\">" + esc(label("Not flagged when the guest checks out of the room. Flagged only after pickup, plus the grace hours.", lang)) + "</p></section>";
-    }
     var boardHtml = "<section class=\"card\" id=\"pkBoard\"><h3>" + esc(label("Stall board", lang)) + "</h3>";
     if (!model.board.length) boardHtml += "<p>" + esc(label("No stalls yet.", lang)) + " " + esc(label("A GM can add lots and stall numbers.", lang)) + "</p>";
     model.board.forEach(function (z) {
@@ -1085,7 +1602,8 @@
       hist = "<section class=\"card\" id=\"pkHits\"><h3>" + esc(label("History matches", lang)) + "</h3>" +
         (hrows.length ? table(liveHeaders(lang, false), hrows) : "<p>" + esc(label("No matches.", lang)) + "</p>") + "</section>";
     }
-    return search + q + ret + boardHtml + list + hist;
+    var note = "<p class=\"pk-note\">" + esc(label("Avg is completed guest stays, last 30 days.", lang)) + "</p>";
+    return fold("pkMapFold", label("Stall map", lang), boardHtml) + fold("pkListFold", label("On the lot list", lang), search + q + note + list + hist);
   }
   function returnTable(rows, state, lang) {
     if (!rows.length) return "<p>" + esc(label("No vehicles on the lot.", lang)) + "</p>";
@@ -1099,9 +1617,11 @@
         td(label("Confirmation", lang), v.pfConfirm),
         td(label("Days", lang), v.pfDays),
         td(label("Extra", lang), v.pfExtra)
-      ].join("") + "</tr>";
+      ].join("") + shuttleCell(v, lang) + "</tr>";
     });
-    return table(["Plate", "Stall", "Pickup", "Flight", "Confirmation", "Days", "Extra"].map(function (k) { return label(k, lang); }), body);
+    var heads = ["Plate", "Stall", "Pickup", "Flight", "Confirmation", "Days", "Extra"].map(function (k) { return label(k, lang); });
+    if (typeof root.shParkingAction === "function") heads.push(label("Shuttle signup", lang));
+    return table(heads, body);
   }
   function renderHistory(model, state, now, lang) {
     var rows = model.history.map(function (v) { return liveRow(v, state, now, lang, false); });
@@ -1263,7 +1783,9 @@
     PHRASES: PHRASES,
     label: label,
     canLog: canLog,
+    canSee: canSee,
     canSetup: canSetup,
+    showParkingTile: showParkingTile,
     hotelsFor: hotelsFor,
     defaultSettings: defaultSettings,
     chicagoDate: chicagoDate,
@@ -1288,6 +1810,15 @@
     returning: returning,
     stats: stats,
     homeSummary: homeSummary,
+    projectedLot: projectedLot,
+    calendarModel: calendarModel,
+    calendarOn: calendarOn,
+    saveBooking: saveBooking,
+    arriveBooking: arriveBooking,
+    settleBookings: settleBookings,
+    isParkingAlert: isParkingAlert,
+    parkingAlertRows: parkingAlertRows,
+    mapBooking: mapBooking,
     cellsFor: cellsFor,
     board: board,
     pageModel: pageModel,
@@ -1298,6 +1829,7 @@
     mapRange: mapRange,
     mapVisit: mapVisit,
     renderParking: renderParking,
+    parkingOn: parkingOn,
     homeCardHtml: homeCardHtml,
     atLocal: atLocal,
     shift: shift
@@ -1335,7 +1867,7 @@
       var raw = localStorage.getItem(KEY);
       if (!raw) return null;
       var data = JSON.parse(raw);
-      if (!data || data.demoVersion !== 2 || !data.visits || !data.settings) return null;
+      if (!data || data.demoVersion !== 3 || !data.visits || !data.settings || !data.bookings) return null;
       return data;
     } catch (e) { return null; }
   }
@@ -1345,13 +1877,13 @@
   function emptyState() {
     var settings = {};
     HOTELS.forEach(function (h) { settings[h] = defaultSettings(h); });
-    return { origin: "loading", settings: settings, zones: [], stalls: [], ranges: [], visits: [] };
+    return { origin: "loading", settings: settings, zones: [], stalls: [], ranges: [], visits: [], bookings: [] };
   }
   function ensureRemote() {
     if (!remoteOn() || remoteState === "loading" || remoteState === "ready" || remoteState === "demo") return;
     remoteState = "loading";
     Promise.all([
-      sb.from("parking_settings").select("hotel,max_hours_without_room,long_term_nights,park_fly_enabled,park_fly_grace_hours"),
+      sb.from("parking_settings").select("hotel,max_hours_without_room,long_term_nights,park_fly_enabled,park_fly_grace_hours,parking_enabled"),
       sb.from("parking_zones").select("id,hotel,name,purpose,active,sort_order"),
       sb.from("parking_stalls").select("id,hotel,zone_id,stall_no,notes,active,sort_order"),
       sb.from("parking_stall_ranges").select("id,hotel,stall_id,room_lo,room_hi,floor,wing,rank,active"),
@@ -1370,9 +1902,24 @@
         zones: (res[1].data || []).map(mapZone),
         stalls: stalls,
         ranges: (res[3].data || []).map(mapRange),
-        visits: visits
+        visits: visits,
+        bookings: []
       };
       remoteState = "ready";
+      sb.from("parking_bookings").select("id,hotel,last_name,confirm,dropoff,pickup,plate,plate_state,make,model,color,visit_id,cancelled_at").then(function (r) {
+        if (!mem || mem.origin !== "supabase") return;
+        mem.bookings = !r || r.error ? [] : (r.data || []).map(mapBooking);
+        render();
+      }, function () {});
+      if (!ui.settledRemote && canSee(actorNow().role)) {
+        ui.settledRemote = true;
+        sb.rpc("parking_settle_bookings").then(function (r) {
+          if (r && r.error) return;
+          remoteState = "";
+          mem = null;
+          ensureRemote();
+        }, function () {});
+      }
       render();
     }, function () { remoteState = "demo"; mem = readStore() || buildDemo(nowISO()); render(); });
   }
@@ -1382,8 +1929,14 @@
       if (!mem) mem = emptyState();
       return mem;
     }
-    if (mem) return mem;
-    mem = readStore() || buildDemo(nowISO());
+    if (!mem) mem = readStore() || buildDemo(nowISO());
+    if (mem && mem.origin !== "loading") {
+      var settled = settleBookings(mem, nowISO());
+      if (settled.changed) {
+        mem = settled.state;
+        writeStore(mem);
+      }
+    }
     return mem;
   }
   function hotelNow(actor) {
@@ -1405,6 +1958,9 @@
   }
   function pageHtml() {
     var actor = actorNow();
+    if (!canSee(actor.role)) {
+      return renderParking({ settings: {}, visits: [], zones: [], stalls: [], ranges: [], bookings: [] }, { actor: actor, now: nowISO(), hotel: actor.hotel, lang: langNow(), ui: ui });
+    }
     var state = current();
     if (state.origin === "loading") return "<div class=\"raw pk\" id=\"pkRoot\"><h2>" + esc(L("Parking")) + "</h2><p>" + esc(L("Loading parking…")) + "</p></div>";
     return renderParking(state, { actor: actor, now: nowISO(), hotel: hotelNow(actor), lang: langNow(), ui: ui });
@@ -1421,7 +1977,94 @@
       var now = nowISO();
       ui.draft = { vehicleType: "guest", plate: "", state: "MN", make: "", model: "", color: "", room: "", checkedInLocal: toChicagoLocal(now), expectedLocal: "", longTerm: false, stallTouched: false, stallId: "", permit: "", paid: false, rateNote: "", pfConfirm: "", pfDays: "", pfDropoff: chicagoDate(now), pfPickupLocal: "", pfFlight: "", pfExtra: "", note: "" };
     }
+    if (screen === "book") {
+      var day = chicagoDate(nowISO());
+      ui.draft = { lastName: "", confirm: "", dropoff: addDays(day, 1), pickup: addDays(day, 5), plate: "", state: "", color: "" };
+    }
     render();
+  };
+  root.pkCalDay = function (date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return;
+    ui.screen = "board";
+    ui.month = date.slice(0, 7);
+    ui.day = ui.day === date ? "" : date;
+    ui.error = "";
+    render();
+  };
+  root.pkCalMove = function (delta) {
+    var base = ((ui.month || chicagoDate(nowISO()).slice(0, 7)) + "-01");
+    var shifted = addDays(base, delta > 0 ? 32 : -2);
+    ui.month = shifted.slice(0, 7);
+    if (ui.day && ui.day.slice(0, 7) !== ui.month) ui.day = "";
+    ui.screen = "board";
+    render();
+  };
+  root.pkArriveOpen = function (id) {
+    ui.bookingId = id;
+    ui.screen = "arrive";
+    ui.error = "";
+    ui.notice = "";
+    render();
+  };
+  root.pkSaveBooking = function (ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var actor = actorNow();
+    var input = {
+      hotel: hotelNow(actor),
+      lastName: val("pkLast"),
+      confirm: val("pkBookConfirm"),
+      dropoff: val("pkBookDrop"),
+      pickup: val("pkBookPickup"),
+      plate: val("pkBookPlate"),
+      state: val("pkBookState"),
+      color: val("pkBookColor")
+    };
+    var res = saveBooking(current(), input, actor, nowISO());
+    if (!res.ok) return showError(res.error);
+    if (remoteOn()) {
+      sb.rpc("parking_save_booking", {
+        p_hotel: input.hotel, p_last_name: input.lastName, p_confirm: input.confirm, p_dropoff: input.dropoff, p_pickup: input.pickup,
+        p_plate: input.plate || null, p_state: input.state || null, p_make: null, p_model: null, p_color: input.color || null
+      }).then(function (r) {
+        if (r.error) return showError("save");
+        ui.screen = "board";
+        ui.notice = "book";
+        ui.day = input.dropoff;
+        ui.month = input.dropoff.slice(0, 7);
+        remoteState = "";
+        mem = null;
+        ensureRemote();
+      });
+      return;
+    }
+    ui.screen = "board";
+    ui.notice = "book";
+    ui.day = input.dropoff;
+    ui.month = input.dropoff.slice(0, 7);
+    commit(res.state);
+  };
+  root.pkSaveArrive = function (ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var actor = actorNow();
+    var input = { plate: val("pkArrPlate"), state: val("pkArrState"), color: val("pkArrColor") };
+    var res = arriveBooking(current(), ui.bookingId, input, actor, nowISO());
+    if (!res.ok) return showError(res.error);
+    if (remoteOn()) {
+      sb.rpc("parking_arrive_booking", {
+        p_id: Number(ui.bookingId), p_plate: input.plate, p_state: input.state, p_make: null, p_model: null, p_color: input.color || null
+      }).then(function (r) {
+        if (r.error) return showError("save");
+        ui.screen = "board";
+        ui.notice = "in";
+        remoteState = "";
+        mem = null;
+        ensureRemote();
+      });
+      return;
+    }
+    ui.screen = "board";
+    ui.notice = "in";
+    commit(res.state);
   };
   root.pkHotel = function (hotel) {
     if (HOTELS.indexOf(hotel) < 0) return;
@@ -1431,6 +2074,7 @@
     render();
   };
   root.pkOpen = function (hotel) {
+    if (!canSee(actorNow().role)) return;
     if (HOTELS.indexOf(hotel) >= 0) ui.hotel = hotel;
     ui.screen = "board";
     if (typeof go === "function") go("parking");
@@ -1725,16 +2369,76 @@
     var prevTiles = tilesFor;
     root.tilesFor = function (role) {
       var list = (prevTiles(role) || []).slice();
-      if ((role === "GM" || role === "Front Desk" || role === "Shuttle Driver") && list.indexOf("parking") < 0) list = list.concat(["parking"]);
+      var hotel = "";
+      try { hotel = S.hotel; } catch (e) { hotel = ""; }
+      var on = true;
+      try { on = parkingOn(current(), hotel); } catch (e2) { on = hotel !== "MSPWE"; }
+      list = list.filter(function (id) { return id !== "parking"; });
+      if (showParkingTile(role, on)) list = list.concat(["parking"]);
       return list;
     };
+    api.noteModule = function (hotel, enabled) {
+      try {
+        var state = current();
+        if (!state.settings || !state.settings[hotel]) return;
+        state.settings[hotel].parkingEnabled = !!enabled;
+        if (!remoteOn() && state.origin === "example") writeStore(state);
+      } catch (e) {}
+    };
   }
-  try { if (typeof RSEC !== "undefined") RSEC[0][2].push("parking"); } catch (e) {}
+  function syncParkingAlerts() {
+    if (typeof S === "undefined" || !S || !Array.isArray(S.alerts)) return;
+    var fresh = parkingAlertRows(current(), actorNow(), nowISO(), langNow());
+    var ids = {};
+    fresh.forEach(function (a) { ids[String(a.id)] = 1; });
+    S.alerts = S.alerts.filter(function (a) {
+      if (!isParkingAlert(a) || a.acknowledged_at) return true;
+      return !!ids[String(a.id)];
+    });
+    fresh.forEach(function (a) {
+      if (!S.alerts.some(function (x) { return String(x.id) === String(a.id); })) S.alerts.push(a);
+    });
+  }
+  if (typeof alertsCard === "function") {
+    var prevAlerts = alertsCard;
+    root.alertsCard = function () {
+      if (typeof ensureDemoAlerts === "function") ensureDemoAlerts();
+      try { syncParkingAlerts(); } catch (e1) {}
+      return prevAlerts();
+    };
+  }
+  if (typeof alertForMe === "function") {
+    var prevAlertForMe = alertForMe;
+    root.alertForMe = function (a) {
+      if (isParkingAlert(a)) {
+        var role = "";
+        try { role = authRole(); } catch (e2) { role = ""; }
+        if (!canSee(role)) return false;
+        if (a.hotel && !parkingOn(current(), a.hotel)) return false;
+      }
+      return prevAlertForMe(a);
+    };
+  }
+  try { if (typeof RSEC !== "undefined" && RSEC[0][2].indexOf("parking") < 0) RSEC[0][2].push("parking"); } catch (e) {}
   try { if (typeof NOCOLS !== "undefined" && NOCOLS.indexOf("parking") < 0) NOCOLS.push("parking"); } catch (e) {}
   try { if (typeof RQL !== "undefined") RQL.parking = ["Parking", "Estacionamiento"]; } catch (e) {}
 
   var style = document.createElement("style");
   style.textContent = [
+    ".pk-hero{background:#14365d;color:#fff;border-radius:16px;padding:18px 12px 14px;text-align:center;margin:8px 0}",
+    ".pk-hero-label{margin:0;font-size:15px}",
+    ".pk-hero-num{margin:2px 0 8px;font-size:72px;font-weight:800;line-height:.95}",
+    ".pk-hero-break,.pk-hero-open,.pk-hero-next{margin:4px 0 0;font-size:14px;color:#d6e4f5}",
+    ".pk-fold{background:#fff;border:1px solid #e1e6ee;border-radius:12px;margin:8px 0;padding:4px 10px 8px}",
+    ".pk-fold summary{font-weight:800;min-height:44px;display:flex;align-items:center;cursor:pointer}",
+    ".pk-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}",
+    ".pk-cal-nav{display:flex;gap:8px;align-items:center;margin:8px 0}",
+    ".pk-cal-nav b{flex:1;text-align:center}",
+    ".pk-dow{text-align:center;font-size:11px;font-weight:800;color:#3c4658}",
+    ".pk-day{min-height:68px;background:#eef3fa;border:0;border-radius:8px;padding:3px;font-size:10px;line-height:1.2}",
+    ".pk-day b{display:block;font-size:14px}",
+    ".pk-day small{display:block}",
+    ".pk-day.on{outline:2px solid #14365d;background:#d9e8ff}",
     ".pk-note{font-size:13px;color:#3c4658;margin:6px 0}",
     ".pk-kpi{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0}",
     ".pk-kpi div{background:#eef3fa;border-radius:8px;padding:8px 4px;text-align:center}",
@@ -1764,7 +2468,11 @@
     ".pk-unk{background:#f6f0fb}",
     ".pk-form .btn{width:100%}",
     "@media(min-width:700px){.pk-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}.pk-actions{flex-direction:row;flex-wrap:wrap}.pk-actions .btn,.pk-actions .btn2{width:auto;flex:1}}",
-    "@media(max-width:1200px){.pk-t thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.pk-t,.pk-t tbody,.pk-t tr,.pk-t td{display:block;width:100%}.pk-t tr{border:1px solid #e1e6ee;border-radius:12px;margin:0 0 10px;padding:6px 8px;background:#fff}.pk-t td{display:grid;grid-template-columns:46% 54%;gap:6px;border:0;padding:4px 0}.pk-t td:before{content:attr(data-label);font-weight:700;color:#3c4658}.pk-over{background:#fde2e1}.pk-unk{background:#f6f0fb}}"
+    "@media(max-width:1023px){.pk-t thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.pk-t,.pk-t tbody,.pk-t tr,.pk-t td{display:block;width:100%}.pk-t tr{border:1px solid #e1e6ee;border-radius:12px;margin:0 0 10px;padding:6px 8px;background:#fff}.pk-t td{display:grid;grid-template-columns:46% 54%;gap:6px;border:0;padding:4px 0}.pk-t td:before{content:attr(data-label);font-weight:700;color:#3c4658}.pk-over{background:#fde2e1}.pk-unk{background:#f6f0fb}}"
   ].join("");
   document.head.appendChild(style);
+  (function (spec) {
+    if (root.HotelFeatures && root.HotelFeatures.register) root.HotelFeatures.register(spec);
+    else (root.HF_QUEUE = root.HF_QUEUE || []).push(spec);
+  })({ id: "parking", en: "Parking", es: "Estacionamiento", order: 10 });
 })(typeof window !== "undefined" ? window : globalThis);

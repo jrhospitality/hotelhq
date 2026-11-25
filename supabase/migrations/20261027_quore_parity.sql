@@ -1,4 +1,7 @@
--- HotelHQ · Quore parity (DESIGN ONLY — not applied). The app keeps this data in localStorage today.
+-- HotelHQ · Quore parity (original design).
+-- This file already ran on project clxvmtbmveusrbxacnxe as hotelhq_quore_parity.
+-- Do not edit the statements below. 20261030_quore_parity_shared.sql replaces the
+-- policies: hotel = any((select private.my_hotels())::text[]), anon revoked.
 -- Depends on hq_is_corporate(), hq_my_hotel(), hq_is_gm_agm() from 20261027_labor_plan_edits.sql.
 -- Privacy: guests are stored as room + last initial only. No guest names, phones or emails.
 

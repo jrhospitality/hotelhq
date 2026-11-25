@@ -1,1 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#14365d"/><text x="256" y="250" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="104" fill="#fff">Hotel</text><text x="256" y="380" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="150" fill="#f9c74f">HQ</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#14365d"/>
+  <polygon points="256,92 332,148 180,148" fill="#f9c74f"/>
+  <text x="256" y="268" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="78" fill="#ffffff">Hotel</text>
+  <text x="256" y="400" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="132" fill="#f9c74f">HQ</text>
+</svg>

@@ -30,16 +30,25 @@ test("chicago clock and park-and-fly defaults", () => {
   assert.equal(pk.defaultSettings("MSPAM").maxHoursWithoutRoom, 72);
   assert.equal(pk.defaultSettings("MSPAM").longTermNights, 7);
   assert.equal(pk.defaultSettings("MSPAM").parkFlyGraceHours, 2);
+  assert.equal(pk.defaultSettings("MSPWE").parkingEnabled, false);
+  assert.equal(pk.defaultSettings("MSPAM").parkingEnabled, true);
+  assert.equal(pk.parkingOn(demo(), "MSPWE"), false);
+  assert.equal(pk.parkingOn(demo(), "MSPAM"), true);
 });
 
 test("roles and hotels", () => {
-  assert.equal(pk.canLog("Front Desk"), true);
-  assert.equal(pk.canLog("Shuttle Driver"), true);
-  assert.equal(pk.canLog("GM"), true);
-  assert.equal(pk.canLog("AGM"), true);
-  assert.equal(pk.canLog("Above Property"), true);
-  assert.equal(pk.canLog("JR Corporate"), true);
-  assert.equal(pk.canLog("Housekeeper"), false);
+  ["Front Desk", "GM", "AGM", "Above Property", "JR Corporate"].forEach((role) => {
+    assert.equal(pk.canSee(role), true, role);
+    assert.equal(pk.canLog(role), true, role);
+  });
+  ["Shuttle Driver", "Housekeeper", "Housekeeping", "Laundry Attendant", "House Person", "Maintenance", "Breakfast Attendant"].forEach((role) => {
+    assert.equal(pk.canSee(role), false, role);
+    assert.equal(pk.canLog(role), false, role);
+    assert.equal(pk.showParkingTile(role, true), false, role);
+  });
+  assert.equal(pk.showParkingTile("Front Desk", true), true);
+  assert.equal(pk.showParkingTile("Front Desk", false), false);
+  assert.equal(pk.showParkingTile("GM", true), true);
   assert.equal(pk.canSetup("GM"), true);
   assert.equal(pk.canSetup("AGM"), true);
   assert.equal(pk.canSetup("JR Corporate"), true);
@@ -47,7 +56,7 @@ test("roles and hotels", () => {
   assert.equal(pk.canSetup("Shuttle Driver"), false);
   assert.deepEqual(pk.hotelsFor("JR Corporate", null), ["MSPWE", "MSPAM", "MSPMS"]);
   assert.deepEqual(pk.hotelsFor("GM", "MSPAM"), ["MSPAM"]);
-  assert.deepEqual(pk.hotelsFor("Shuttle Driver", "MSPMS"), ["MSPMS"]);
+  assert.deepEqual(pk.hotelsFor("Shuttle Driver", "MSPMS"), []);
   assert.deepEqual(pk.hotelsFor("Housekeeper", "MSPWE"), []);
 });
 
@@ -134,7 +143,12 @@ test("live list, stats, search, and history", () => {
   assert.equal(pk.pageModel(state, gm, NOW, "MSPAM", { q: "2104" }).live.length, 1);
   assert.equal(pk.pageModel(state, gm, NOW, "MSPAM", { q: "2108" }).history[0].plate, "EXA2108");
 
-  const summary = pk.homeSummary(state, corp, NOW, "es");
+  const hidden = pk.homeSummary(state, corp, NOW, "es");
+  assert.equal(hidden.length, 2);
+  assert.equal(hidden.some((row) => row.hotel === "MSPWE"), false);
+  const shown = demo();
+  shown.settings.MSPWE.parkingEnabled = true;
+  const summary = pk.homeSummary(shown, corp, NOW, "es");
   assert.equal(summary.length, 3);
   assert.equal(summary[0].parkFly, "Apagado");
   assert.equal(summary[1].parkFly, "4");
@@ -160,7 +174,11 @@ test("log, override, mark out, and setup", () => {
   const fly = pk.logVisit(state, {
     hotel: "MSPAM", plate: "EXA2999", state: "WI", vehicleType: "park_fly", room: "201",
     pfConfirm: "sample-9", pfDays: 4, pfDropoff: "2026-10-28", pfPickup: pk.atLocal(NOW, 3, 15, 0), pfFlight: "SAMPLE 300"
-  }, driver, NOW);
+  }, { role: "Front Desk", hotel: "MSPAM" }, NOW);
+  assert.equal(pk.logVisit(state, {
+    hotel: "MSPAM", plate: "EXA2998", state: "WI", vehicleType: "park_fly",
+    pfConfirm: "SAMPLE8", pfDays: 2, pfDropoff: "2026-10-28", pfPickup: pk.atLocal(NOW, 2, 9, 0)
+  }, driver, NOW).error, "role");
   assert.equal(fly.ok, true);
   assert.equal(stallNo(fly.state, fly.visit.stallId), "P5");
   assert.equal(fly.visit.pfConfirm, "SAMPLE-9");
@@ -213,23 +231,45 @@ test("one value per cell, both languages, and sample labeling", () => {
   assert.match(en, /class="raw pk"/);
   assert.match(en, /EXAMPLE/);
   assert.match(en, /Sample vehicles for this demo/);
-  assert.match(en, /Cars now/);
-  assert.match(en, /Returning today/);
+  assert.match(en, /id="pkHero"/);
+  assert.match(en, /id="pkCars">6</);
+  assert.match(en, /Cars parked tonight/);
+  assert.match(en, /1 Overnight guests \/ 4 Park &amp; Fly \/ 1 Long-term/);
+  assert.match(en, /id="pkOpenStalls"/);
+  assert.match(en, /id="pkTomorrow"/);
+  assert.match(en, /id="pkCal"/);
+  assert.match(en, /<details class="pk-fold" id="pkMapFold">/);
+  assert.match(en, /<details class="pk-fold" id="pkListFold">/);
+  assert.equal(en.includes("<details class=\"pk-fold\" id=\"pkMapFold\" open>"), false);
   assert.match(en, /id="pkSuggest"|pkBoard/);
   assert.match(es, /EJEMPLO/);
   assert.match(es, /Vehículos de ejemplo/);
-  assert.match(es, /Regresan hoy/);
+  assert.match(es, /Autos estacionados esta noche/);
+  assert.match(es, /Calendario de estaciona y vuela/);
   assert.match(es, /Estaciona y vuela/);
-  ["Cars now", "Avg stay", "Overstays today", "Log a vehicle", "Lot walk", "Sample vehicles for this demo. Not real plates or guests."].forEach((enText) => {
+  ["Cars parked tonight", "Overnight guests", "Open stalls", "Tomorrow night", "Park & Fly calendar", "Log a vehicle", "Lot walk", "Sample vehicles for this demo. Not real plates or guests.", "Arriving", "Leaving"].forEach((enText) => {
     assert.equal(es.includes(enText), false, enText);
   });
   const cellsHtml = [...en.matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map((m) => m[1]);
   assert.ok(cellsHtml.length > 5);
   cellsHtml.forEach((text) => assert.equal(text.includes(" · "), false, text));
-  const we = pk.renderParking(state, { actor: { role: "GM", hotel: "MSPWE" }, now: NOW, hotel: "MSPWE", lang: "en", ui: { screen: "board" } });
+  const weOff = pk.renderParking(state, { actor: { role: "GM", hotel: "MSPWE" }, now: NOW, hotel: "MSPWE", lang: "en", ui: { screen: "board" } });
+  assert.match(weOff, /id="pkOff"/);
+  assert.equal(weOff.includes("id=\"pkBoard\""), false);
+  const weState = demo();
+  weState.settings.MSPWE.parkingEnabled = true;
+  const we = pk.renderParking(weState, { actor: { role: "GM", hotel: "MSPWE" }, now: NOW, hotel: "MSPWE", lang: "en", ui: { screen: "board" } });
+  assert.equal(we.includes("id=\"pkCal\""), false);
+  assert.match(we, /id="pkHero"/);
   assert.equal(we.includes("Returning today"), false);
-  assert.match(we, />Off</);
-  const log = pk.renderParking(state, { actor: fd, now: NOW, hotel: "MSPWE", lang: "es", ui: { screen: "log", draft: { room: "102", vehicleType: "guest", state: "MN" } } });
+  const denied = pk.renderParking(state, { actor: hk, now: NOW, hotel: "MSPAM", lang: "en", ui: { screen: "board" } });
+  assert.match(denied, /id="pkDenied"/);
+  assert.equal(denied.includes("EXA2106"), false);
+  assert.equal(denied.includes("id=\"pkCars\""), false);
+  assert.equal(pk.renderParking(state, { actor: driver, now: NOW, hotel: "MSPAM", lang: "en", ui: { screen: "board" } }).includes("id=\"pkHero\""), false);
+  const logState = demo();
+  logState.settings.MSPWE.parkingEnabled = true;
+  const log = pk.renderParking(logState, { actor: fd, now: NOW, hotel: "MSPWE", lang: "es", ui: { screen: "log", draft: { room: "102", vehicleType: "guest", state: "MN" } } });
   assert.match(log, /id="pkSaveBtn"/);
   assert.equal(log.includes("id=\"pkSave\""), false);
   assert.match(log, /onsubmit="window.pkSave\(event\)"/);
@@ -239,7 +279,7 @@ test("one value per cell, both languages, and sample labeling", () => {
   const home = pk.homeCardHtml(state, corp, NOW, "en");
   assert.match(home, /id="pkHome"/);
   assert.match(home, /EXAMPLE/);
-  assert.match(home, /MSPWE/);
+  assert.equal(home.includes(">MSPWE<"), false);
   assert.match(home, /MSPAM/);
   assert.match(home, /MSPMS/);
 
@@ -290,4 +330,68 @@ test("migration locks parking down and stores no sample plates", () => {
   assert.equal(row.vehicleType, "park_fly");
   assert.equal(row.pfConfirm, "SAMPLE1");
   assert.equal(row.expectedOut, "");
+});
+
+test("park and fly calendar, hero, and role alerts", () => {
+  const state = demo();
+  const model = pk.pageModel(state, gm, NOW, "MSPAM", { screen: "board" });
+  assert.equal(model.tonight.cars, 6);
+  assert.equal(model.tonight.guests, 1);
+  assert.equal(model.tonight.parkFly, 4);
+  assert.equal(model.tonight.longTerm, 1);
+  assert.equal(model.tonight.openStalls, 3);
+  assert.equal(model.tomorrowCount, 4);
+  assert.equal(model.calendar.days.find((d) => d.date === "2026-10-29").dropoffs, 1);
+  assert.equal(model.calendar.days.find((d) => d.date === "2026-10-29").parked, 2);
+  assert.equal(pk.calendarOn(state, "MSPWE"), false);
+  assert.equal(pk.calendarOn(state, "MSPAM"), true);
+  const day = pk.renderParking(state, { actor: gm, now: NOW, hotel: "MSPAM", lang: "es", ui: { screen: "board", month: "2026-10", day: "2026-10-29" } });
+  assert.match(day, /id="pkDay"/);
+  assert.match(day, /SAMPLE9/);
+  assert.match(day, /Octubre 2026/);
+  const saved = pk.saveBooking(state, {
+    hotel: "MSPAM", lastName: "Sample", confirm: "SAMPLE12", dropoff: "2026-10-28", pickup: "2026-10-31", plate: "EXA2888", state: "WI"
+  }, { role: "Front Desk", hotel: "MSPAM" }, NOW);
+  assert.equal(saved.ok, true);
+  assert.ok(saved.booking.visitId);
+  assert.equal(saved.state.visits.some((v) => v.plate === "EXA2888" && !v.checkedOut), true);
+  const future = pk.saveBooking(state, {
+    hotel: "MSPAM", lastName: "Sample", confirm: "SAMPLE13", dropoff: "2026-11-02", pickup: "2026-11-06"
+  }, gm, NOW);
+  assert.equal(future.ok, true);
+  assert.equal(future.booking.visitId, "");
+  assert.equal(future.booking.plate, "");
+  const arrived = pk.arriveBooking(future.state, future.booking.id, { plate: "EXA2771", state: "MN" }, gm, NOW);
+  assert.equal(arrived.booking.plate, "EXA2771");
+  assert.equal(arrived.booking.visitId, "");
+  const later = pk.settleBookings(arrived.state, "2026-11-02T18:00:00.000Z");
+  assert.equal(later.changed, true);
+  assert.ok(later.state.bookings.find((b) => b.confirm === "SAMPLE13").visitId);
+  assert.equal(pk.saveBooking(state, {
+    hotel: "MSPWE", lastName: "Sample", confirm: "SAMPLE14", dropoff: "2026-11-02", pickup: "2026-11-04"
+  }, { role: "GM", hotel: "MSPWE" }, NOW).error, "park_fly_off");
+  assert.equal(pk.saveBooking(state, {
+    hotel: "MSPAM", lastName: "Sample", confirm: "SAMPLE15", dropoff: "2026-11-02", pickup: "2026-11-04"
+  }, hk, NOW).error, "role");
+  const alerts = pk.parkingAlertRows(state, gm, NOW, "en");
+  assert.equal(alerts.some((a) => a.kind === "parking" && a.hotel === "MSPAM"), true);
+  assert.equal(pk.parkingAlertRows(state, hk, NOW, "en").length, 0);
+  assert.equal(pk.parkingAlertRows(state, driver, NOW, "en").length, 0);
+  assert.equal(pk.isParkingAlert({ kind: "parking", title: "Room" }), true);
+  assert.equal(pk.isParkingAlert({ title: "Park & Fly overdue", body: "Still here" }), true);
+  assert.equal(pk.isParkingAlert({ title: "Room 214 do not disturb" }), false);
+  assert.equal(pk.homeSummary(state, driver, NOW, "en").length, 0);
+  const roleSql = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261101_parking_roles_and_bookings.sql"), "utf8");
+  assert.match(roleSql, /private\.my_role\(\) in \('front_desk', 'gm', 'agm', 'above_property'\)/);
+  assert.doesNotMatch(roleSql, /shuttle_driver/);
+  assert.match(roleSql, /create table if not exists public\.parking_bookings/);
+  assert.match(roleSql, /hotel in \('MSPAM', 'MSPMS'\)/);
+  assert.match(roleSql, /hotel = any \(\(select private\.my_hotels\(\)\)::text\[\]\)/);
+  assert.match(roleSql, /set search_path = ''/);
+  assert.match(roleSql, /security invoker/);
+  assert.doesNotMatch(roleSql, /drop table/i);
+  assert.doesNotMatch(roleSql, /delete from/i);
+  assert.equal(/anon execute/i.test(roleSql), false);
+  const bodies = roleSql.split(/create or replace function/i).slice(1);
+  bodies.forEach((body) => assert.match(body, /set search_path = ''/));
 });

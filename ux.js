@@ -66,29 +66,31 @@ V.onb=function(){const mgr=canManage(),me=myHire();
 /* ---------- role home ---------- */
 const NAV5={Housekeeper:["home","myrooms","check","sched"],"House Person":["home","my","line","sched"],"Laundry Attendant":["home","my","line","sched"],"Breakfast Attendant":["home","my","line","sched"],"Shuttle Driver":["home","my","shut","line"],"Front Desk":["home","greq","rooms","notes"],Maintenance:["home","wo","pm","my"],Housekeeping:["home","myrooms","rooms","insp"],GM:["home","greq","wo","labor"]};
 function allowed(){return [...new Set(["home",...navFor(S.role),...tilesFor(S.role),...((typeof canSeeReports==="function"&&canSeeReports())?["health","score"]:[])])].filter(x=>M[x])}
+window.uxAllowed=allowed;
 function lbl(id){return t(M[id][1])}
 function act(ic,en,es,fn,sub,primary){return `<button class="ux-act ${primary?"pri":""}" onclick="${fn}"><span class="ic">${ic}</span><span><b>${L(en,es)}</b>${sub?`<small>${sub}</small>`:""}</span><span class="chev">›</span></button>`}
 function hero(){const d=D(),r=S.role,ok=allowed(),a=[],g=x=>ok.includes(x);
- const openWO=d.wo.filter(w=>w.s!="Done").length,mine=(typeof myReqs==="function"?myReqs():[]).filter(x=>x.st!="Done").length,gr=(d.greq||d.gr||[]).length;
- if(r==="Housekeeper"){a.push(act("🛏️","My rooms · mark clean","Mis cuartos · marcar limpio","go('myrooms')",L("Your board and projected out time","Tu tablero y hora de salida"),1));a.push(act("🙋","Request help","Pedir ayuda","uxSheet('help')",L("Linens, trash, heavy lifting","Ropa, basura, cargas")));a.push(act("🔧","Report issue + photo","Reportar falla + foto","uxSheet('wo')"));a.push(act("✅","My checklist","Mi lista","go('check')"))}
+ const openWO=d.wo.filter(function(w){return typeof woOpen==="function"?woOpen(w):w.s!="Done"}).length,mine=(typeof myReqs==="function"?myReqs():[]).filter(x=>x.st!="Done").length,gr=(d.greq||d.gr||[]).length;
+ if(r==="Housekeeper"){a.push(act("🛏️","My rooms · mark clean","Mis cuartos · marcar limpio","go('myrooms')",L("Your board and projected out time","Tu tablero y hora de salida"),1));a.push(act("🙋","Request help","Pedir ayuda","uxSheet('help')",L("Linens, trash, heavy lifting","Ropa, basura, cargas")));a.push(act("🔧","Report maintenance problem","Reportar problema de mantenimiento","HKReport.open('')",L("Photo required","Foto requerida")));a.push(act("✅","My checklist","Mi lista","go('check')"))}
  else if(["House Person","Laundry Attendant","Breakfast Attendant","Shuttle Driver"].includes(r)){a.push(act("📋","My tasks","Mis tareas","go('my')",mine?L(mine+" open",mine+" abiertas"):L("All caught up","Todo al día"),1));a.push(act(M.line[0],M.line[1],M.line[1],"go('line')",L("Projected out time & station","Hora de salida y estación")));a.push(act("🙋","Request help","Pedir ayuda","uxSheet('help')"));a.push(act("🔧","Report issue + photo","Reportar falla + foto","uxSheet('wo')"))}
  else if(r==="Front Desk"){if(g("greq"))a.push(act("🛎️","Log guest request","Registrar solicitud","go('greq')","",1));a.push(act("🔧","Work order + photo","Orden + foto","uxSheet('wo')"));a.push(act("🛏️","Room status","Estado de cuartos","go('rooms')"));a.push(act("📝","Shift notes","Notas de turno","go('notes')"))}
  else if(r==="Maintenance"){a.push(act("🔧","Open work orders","Órdenes abiertas","go('wo')",openWO+" "+L("open","abiertas"),1));a.push(act("📷","New work order + photo","Nueva orden + foto","uxSheet('wo')"));a.push(act("🗓️","Today's PMs","PMs de hoy","go('pm')"));a.push(act("👤","My tasks","Mis tareas","go('my')"))}
- else if(r==="Housekeeping"){a.push(act("🛏️","My rooms · mark clean","Mis cuartos · marcar limpio","go('myrooms')",L("Your out time and bonus","Tu hora de salida y bono"),1));a.push(act("🔍","Inspect rooms","Inspeccionar","go('insp')",L("Rooms you cleaned go to GM/AGM or another lead","Tus cuartos los inspecciona GM/AGM u otro supervisor")));a.push(act("⏱️","Team out times & board","Salidas del equipo y tablero","go('rooms')"));if(g("rushq"))a.push(act("⚡","Rush rooms","Cuartos urgentes","go('rushq')"));a.push(act("🔧","Work order + photo","Orden + foto","uxSheet('wo')"))}
- else {if(g("onclock"))a.push(act("🕒","On the clock","En turno","go('onclock')","",1));if(g("lcmd"))a.push(act("📊","Labor Win/Loss","Labor Win/Loss","go('lcmd')"));if(g("greq"))a.push(act("🛎️","Guest requests","Solicitudes","go('greq')"));a.push(act("🔧","Work orders","Órdenes","go('wo')",openWO+" "+L("open","abiertas")));if(g("onb"))a.push(act("🎓","New-hire onboarding","Integración","go('onb')"))}
- const me=myHire();if(me&&!me.gm)a.splice(1,0,act("🎓","Finish onboarding","Terminar integración","go('onb')",pct(me)+"% "+L("complete","completo")));
+ else if(r==="Housekeeping"){a.push(act("🔍","Inspect rooms","Inspeccionar cuartos","go('insp')",L("Start with rooms waiting for a check","Empieza por los cuartos que esperan revisión"),1));a.push(act("🛏️","My rooms","Mis cuartos","go('myrooms')",L("Your out time and bonus","Tu hora de salida y bono")));a.push(act("⏱️","Team board","Tablero del equipo","go('rooms')"));if(g("rushq"))a.push(act("⚡","Rush rooms","Cuartos urgentes","go('rushq')"));a.push(act("🔧","Work order + photo","Orden + foto","uxSheet('wo')"))}
+ else if(r==="GM"||r==="AGM"){if(g("gscores"))a.push(act("📈","Scores vs goals","Calificaciones contra metas","go('gscores')",L("See what is short of the goal","Ve qué está bajo la meta"),1));else if(g("naudit"))a.push(act("🌙","Night audit","Auditoría nocturna","go('naudit')",L("Occupancy, ADR, and RevPAR","Ocupación, ADR y RevPAR"),1));else if(g("labor"))a.push(act("⏱️","Labor","Labor","go('labor')","",1));if(g("onclock"))a.push(act("🕒","On the clock","En turno","go('onclock')"));if(g("lcmd"))a.push(act("📊","Labor win or loss","Labor gana o pierde","go('lcmd')"));if(g("greq"))a.push(act("🛎️","Guest requests","Solicitudes","go('greq')"));a.push(act("🔧","Work orders","Órdenes","go('wo')",openWO+" "+L("open","abiertas")))}
+ else if(r==="Above Property"){if(g("gscores"))a.push(act("📈","Scores vs goals","Calificaciones contra metas","go('gscores')",L("Every hotel against its goals","Cada hotel contra sus metas"),1));else if(g("crep"))a.push(act("📈","Reports","Reportes","go('crep')","",1));if(g("naudit"))a.push(act("🌙","Night audit","Auditoría nocturna","go('naudit')"));a.push(act("🔧","Work orders","Órdenes","go('wo')",openWO+" "+L("open","abiertas")))}
+ else {if(g("onclock"))a.push(act("🕒","On the clock","En turno","go('onclock')","",1));if(g("lcmd"))a.push(act("📊","Labor win or loss","Labor gana o pierde","go('lcmd')"));if(g("greq"))a.push(act("🛎️","Guest requests","Solicitudes","go('greq')"));a.push(act("🔧","Work orders","Órdenes","go('wo')",openWO+" "+L("open","abiertas")))}
  const hr=new Date().getHours(),u=meUser();
  return `<section class="ux-hero"><div class="ux-hi">${hr<12?L("Good morning","Buenos días"):hr<18?L("Good afternoon","Buenas tardes"):L("Good evening","Buenas noches")}, ${E((u.name||"").split(" ")[0])}</div><button class="ux-search" onclick="uxSheet('search')">🔎 ${L("Search rooms, tasks, screens…","Buscar cuartos, tareas, pantallas…")}</button><div class="ux-acts">${a.slice(0,5).join("")}</div></section><h3 class="ux-sec">${L("Updates","Novedades")}</h3>`}
 /* ---------- sheets ---------- */
 window.uxClose=()=>{const s=document.getElementById("uxSheet");if(s)s.remove()};
-window.uxSheet=function(kind){uxClose();const w=document.createElement("div");w.id="uxSheet";w.className="ux-overlay";w.onclick=e=>{if(e.target===w)uxClose()};let h="";
- if(kind==="more"){const ok=allowed().filter(x=>x!=="home");h=`<h3>${L("All screens","Todas las pantallas")}</h3><input id="uxMq" placeholder="${L("Filter…","Filtrar…")}" oninput="uxFilt(this.value)"><div class="ux-grid">${ok.map(id=>`<button data-k="${E((M[id][1]+" "+lbl(id)).toLowerCase())}" onclick="uxClose();go('${id}')"><span>${M[id][0]}</span>${E(lbl(id))}</button>`).join("")}<button data-k="help tour ayuda" onclick="uxClose();uxTour(1)"><span>❓</span>${L("Help & tour","Ayuda y recorrido")}</button></div>`}
+window.uxSheet=function(kind){uxClose();const w=document.createElement("div");w.id="uxSheet";w.className="ux-overlay"+(kind==="more"?" ux-more":"");w.onclick=e=>{if(e.target===w)uxClose()};let h="";
+ if(kind==="more"){h=(window.HHQMore&&HHQMore.sheetHtml)?HHQMore.sheetHtml():`<h3>${L("More","Más")}</h3>`}
  else if(kind==="search"){h=`<h3>${L("Search","Buscar")}</h3><input id="uxSq" autofocus placeholder="${L("Room number, task, screen…","Número de cuarto, tarea, pantalla…")}" oninput="uxFind(this.value)"><div id="uxSr" class="ux-res"><div class="ux-empty">${L("Type to search. Try a room number like 214.","Escribe para buscar. Prueba un cuarto como 214.")}</div></div>`}
  else if(kind==="wo"){h=`<h3>${L("Report an issue","Reportar una falla")}</h3><input id="uxWr" inputmode="numeric" placeholder="${L("Room or area","Cuarto o área")}"><textarea id="uxWt" rows="3" placeholder="${L("What's wrong?","¿Qué pasa?")}"></textarea><div class="row"><select id="uxWp"><option value="Med">${L("Normal","Normal")}</option><option value="High">${L("Urgent","Urgente")}</option><option value="Low">${L("Low","Baja")}</option></select><label class="btn2 ux-photo">📷 ${L("Photo","Foto")}<input id="uxWf" type="file" accept="image/*" capture="environment" hidden onchange="uxPhoto(this)"></label></div><img id="uxWi" hidden class="ux-thumb" alt=""><button class="btn ux-primary" onclick="uxWO()">${L("Send to maintenance","Enviar a mantenimiento")}</button>`}
  else if(kind==="help"){const helpOpts=[["houseperson_help","Houseperson help","Ayuda de houseperson"],["Laundry Attendant","Laundry Attendant","Lavandería"],["Maintenance","Maintenance","Mantenimiento"],["Housekeeping","Housekeeping","Ama de llaves"]];h=`<h3>${L("Request help","Pedir ayuda")}</h3><select id="uxHr">${helpOpts.map(r=>`<option value="${r[0]}">${E(L(r[1],r[2]))}</option>`).join("")}</select><input id="uxHt" placeholder="${L("e.g. Towels to 214","ej. Toallas al 214")}"><button class="btn ux-primary" onclick="uxHelp()">${L("Send request","Enviar")}</button><small>${L("Houseperson help alerts the house person and the shuttle driver at this hotel.","Ayuda de houseperson avisa al houseman y al chofer de shuttle de este hotel.")}</small>`}
  w.innerHTML=`<div class="ux-sheet" role="dialog" aria-modal="true"><button class="ux-x" aria-label="${L("Close","Cerrar")}" onclick="uxClose()">✕</button>${h}</div>`;document.body.appendChild(w);const f=w.querySelector("input");if(f&&kind!=="wo")setTimeout(()=>f.focus(),50)};
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){uxClose();uxTourEnd&&uxTourEnd()}});
-window.uxFilt=q=>{q=q.toLowerCase();document.querySelectorAll(".ux-grid button").forEach(b=>b.hidden=!!q&&!b.dataset.k.includes(q))};
+window.uxFilt=q=>{if(window.HHQMore&&HHQMore.filter){HHQMore.filter(q);return}q=q.toLowerCase();document.querySelectorAll(".ux-grid button").forEach(b=>b.hidden=!!q&&!b.dataset.k.includes(q))};
 window.uxFind=function(q){q=q.trim().toLowerCase();const box=document.getElementById("uxSr");if(!q){box.innerHTML="";return}const d=D(),out=[];
  allowed().forEach(id=>{const k=(M[id][1]+" "+lbl(id)).toLowerCase();if(k.includes(q))out.push(`<button onclick="uxClose();go('${id}')">${M[id][0]} ${E(lbl(id))}<small>${L("Screen","Pantalla")}</small></button>`)});
  (d.rooms||[]).forEach(r=>{const n=String(r.n||r.r||r.room||r.num||"");if(n&&n.toLowerCase().startsWith(q))out.push(`<button onclick="uxClose();go('${allowed().includes("rooms")?"rooms":allowed().includes("myrooms")?"myrooms":"home"}')">🛏️ ${L("Room","Cuarto")} ${E(n)} <small>${E(stLabel(r.s))}</small></button>`)});
@@ -104,41 +106,40 @@ function stLabel(s){return STL[s]?s+" · "+L(STL[s][0],STL[s][1]):(s||"")}
 function labelPills(root){root.querySelectorAll(".pill").forEach(p=>{const s=p.textContent.trim();if(STL[s]&&!p.dataset.ux){p.dataset.ux=1;p.title=L(STL[s][0],STL[s][1]);p.insertAdjacentHTML("beforeend",`<span class="ux-pl"> ${L(STL[s][0],STL[s][1])}</span>`)}})}
 /* ---------- guided tour ---------- */
 const TK=()=>"hhq_tour_"+(S.uid||"");
-function steps(){const s=[["#uxHero",L("Your top tasks are right here. Tap one to start.","Tus tareas principales están aquí. Toca una para empezar.")],[".ux-search",L("Search anything: rooms, work orders, screens.","Busca lo que sea: cuartos, órdenes, pantallas.")],["#nav",L("Your main screens. 'More' has everything else.","Tus pantallas principales. 'Más' tiene todo lo demás.")],["#uxHelpBtn",L("Tap ? anytime to replay this tour.","Toca ? cuando quieras para repetir este recorrido.")]];
+function steps(){const s=[["#uxHero",L("Your top tasks are right here. Tap one to start.","Tus tareas principales están aquí. Toca una para empezar.")],[".ux-search",L("Search anything: rooms, work orders, screens.","Busca lo que sea: cuartos, órdenes, pantallas.")],["#nav",L("Your main screens. 'More' has everything else.","Tus pantallas principales. 'Más' tiene todo lo demás.")],["#askHqBtn",L("Tap Ask HotelHQ anytime for help or to replay this tour.","Toca Pregunta a HotelHQ cuando quieras para pedir ayuda o repetir este recorrido.")]];
  if(S.role==="Housekeeper")s.splice(1,0,["#uxHero .ux-act",L("Open My rooms to mark rooms clean and see your out time. Leave on time with all rooms done to earn bonus points.","Abre Mis cuartos para marcar limpio y ver tu hora de salida. Sal a tiempo con todo listo y gana puntos.")]);
  if(leader())s.splice(3,0,["#uxMoreBtn",L("Labor plan, onboarding and reports are under More.","Plan laboral, integración y reportes están en Más.")]);return s}
 let TI=-1;window.uxTourEnd=function(){TI=-1;const o=document.getElementById("uxTour");if(o)o.remove();try{localStorage.setItem(TK(),"1")}catch(e){}};
 window.uxTour=function(force){if(force){if(S.tab!=="home"){S.tab="home";render()}TI=0}else if(TI<0)return;const st=steps();if(TI>=st.length){uxTourEnd();const me=myHire();if(me&&!me.done.tour){me.done.tour=1;save()}return}
- let o=document.getElementById("uxTour");if(!o){o=document.createElement("div");o.id="uxTour";document.body.appendChild(o)}const [sel,txt]=st[TI],el=document.querySelector(sel);if(el&&sel!=="#nav"&&sel!=="#uxHelpBtn")el.scrollIntoView({block:"center"});const r=el?el.getBoundingClientRect():{top:120,left:20,width:350,height:60,bottom:180};
+ let o=document.getElementById("uxTour");if(!o){o=document.createElement("div");o.id="uxTour";document.body.appendChild(o)}const [sel,txt]=st[TI],el=document.querySelector(sel);if(el&&sel!=="#nav"&&sel!=="#askHqBtn")el.scrollIntoView({block:"center"});const r=el?el.getBoundingClientRect():{top:120,left:20,width:350,height:60,bottom:180};
  const below=r.top<window.innerHeight/2;o.innerHTML=`<div class="ux-hole" style="top:${r.top-6}px;left:${r.left-6}px;width:${r.width+12}px;height:${r.height+12}px"></div><div class="ux-tip" style="${below?"top:"+Math.min(r.bottom+14,window.innerHeight-220)+"px":"bottom:"+(window.innerHeight-r.top+14)+"px"}"><small>${TI+1} / ${st.length}</small><p>${txt}</p><div class="row"><button class="btn2" onclick="uxTourEnd()">${L("Skip","Saltar")}</button>${TI?`<button class="btn2" onclick="TI_(-1)">${L("Back","Atrás")}</button>`:""}<button class="btn" onclick="TI_(1)">${TI===st.length-1?L("Done","Listo"):L("Next","Siguiente")}</button></div></div>`};
 window.TI_=d=>{TI+=d;uxTour()};
 /* ---------- render wrap ---------- */
 const base=render;
-render=function(){base.apply(this,arguments);if(!meUser())return;const app=document.getElementById("app"),nav=document.getElementById("nav");
+render=function(){base.apply(this,arguments);if(!meUser()||meUser().pin_reset_required)return;const app=document.getElementById("app"),nav=document.getElementById("nav");
  if(S.tab!=="onb")S.obSel=S.obSel||"";
  const ok=allowed(),main=(NAV5[S.role]||navFor(S.role)).filter(x=>ok.includes(x)).slice(0,4);
  const inMain=main.includes(S.tab);
- nav.innerHTML=main.map(id=>`<button class="${S.tab==id?"on":""}" onclick="go('${id}')" ${S.tab==id?'aria-current="page"':""}><span>${M[id][0]}</span>${E(lbl(id))}</button>`).join("")+`<button id="uxMoreBtn" class="${inMain?"":"on"}" onclick="uxSheet('more')"><span>☰</span>${L("More","Más")}</button>`;
+ const desk=typeof rMode==="function"?rMode()==="desk":innerWidth>=1024;
+ if(!desk)nav.innerHTML=main.map(id=>`<button class="${S.tab==id?"on":""}" onclick="go('${id}')" ${S.tab==id?'aria-current="page"':""}><span>${M[id][0]}</span>${E(lbl(id))}</button>`).join("")+`<button id="uxMoreBtn" class="${inMain?"":"on"}" onclick="uxSheet('more')"><span>☰</span>${L("More","Más")}</button>`;
  if(typeof paintReqBadges==="function")paintReqBadges();
  if(S.tab==="home"){app.insertAdjacentHTML("afterbegin",hero().replace('<section class="ux-hero"','<section class="ux-hero" id="uxHero"'))}
  else if(app.querySelector(".pgbar")){const pb=app.querySelector(".pgbar");pb.classList.add("ux-sticky");if(!pb.querySelector(".ux-srch"))pb.insertAdjacentHTML("beforeend",`<button class="ux-bk ux-srch" onclick="uxSheet('search')" aria-label="${L("Search","Buscar")}">🔎</button>`)}
  else app.insertAdjacentHTML("afterbegin",`<div class="ux-top"><button class="ux-bk" onclick="go('home')" aria-label="${L("Back to Home","Volver al inicio")}">‹ ${L("Home","Inicio")}</button><b>${M[S.tab]?M[S.tab][0]+" "+E(lbl(S.tab)):""}</b><button class="ux-bk" onclick="uxSheet('search')" aria-label="${L("Search","Buscar")}">🔎</button></div>`);
  labelPills(app);
  app.querySelectorAll(".card").forEach(c=>{if(!c.textContent.trim()&&!c.querySelector("img,canvas,input"))c.innerHTML=`<div class="ux-empty">✨ ${L("Nothing here yet.","Nada aquí todavía.")}</div>`});
- if(!document.getElementById("uxHelpBtn")){const b=document.createElement("button");b.id="uxHelpBtn";b.textContent="?";b.setAttribute("aria-label","Help");b.onclick=()=>uxTour(1);document.body.appendChild(b)}
- document.getElementById("uxHelpBtn").setAttribute("aria-label",L("Help & tour","Ayuda y recorrido"));
  let seen="1";try{seen=localStorage.getItem(TK())}catch(e){}
  if(!seen&&S.tab==="home"&&TI<0&&!document.querySelector(".wl-ov,#welcome,.welcome")){setTimeout(()=>{if(TI<0&&!localStorage.getItem(TK()))uxTour(1)},700)}
 };
 const css=document.createElement("style");css.textContent=`
 #app button,#app select,#app input:not([type=checkbox]):not([type=radio]),#app textarea,#app a.btn{min-height:44px}
 nav button{min-height:60px;font-size:12px}
-.ux-hero{background:linear-gradient(160deg,#14365d,#235a92);color:#fff;border-radius:16px;padding:14px;margin:4px 0 12px}
-.ux-hi{font-size:22px;font-weight:800;margin-bottom:10px}
-.ux-search{width:100%;text-align:left;background:#fff;color:#55606f;border:0;border-radius:12px;font-size:16px;padding:12px;margin-bottom:10px;min-height:48px}
+.ux-hero{background:transparent;color:inherit;border-radius:12px;padding:0;margin:4px 0 8px}
+.ux-hi{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px}
+.ux-search{width:100%;text-align:left;background:#fff;color:#5c6570;border:1px solid #e6e8ee;border-radius:12px;font-size:16px;padding:12px;margin-bottom:10px;min-height:48px}
 .ux-acts{display:grid;gap:8px}
-.ux-act{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#ffffff1f;color:#fff;border:1px solid #ffffff40;border-radius:12px;padding:10px 12px;min-height:56px;font-size:16px}
-.ux-act.pri{background:#f9c74f;color:#14365d;border-color:#f9c74f}
+.ux-act{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;color:#1c1f26;border:1px solid #e6e8ee;border-radius:12px;padding:10px 12px;min-height:56px;font-size:16px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.ux-act.pri{background:#3b5bdb;color:#fff;border-color:#3b5bdb}
 .ux-act .ic{font-size:24px}.ux-act span:nth-child(2){flex:1}.ux-act small{display:block;font-weight:400;opacity:.85;font-size:13px}.ux-act .chev{font-size:24px;opacity:.7}
 .ux-sec{margin:8px 2px;color:#55606f;font-size:14px;text-transform:uppercase;letter-spacing:.5px}
 .ux-top{position:sticky;top:64px;z-index:4;display:flex;align-items:center;gap:8px;background:#f3f5f9;padding:6px 0;margin-bottom:6px}
@@ -167,10 +168,15 @@ nav button{min-height:60px;font-size:12px}
 .ux-good{color:#2e7d4f;font-weight:700;margin-top:6px}
 .ux-hire{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-bottom:1px solid #eef0f3;background:none;padding:8px 0;min-height:64px}.ux-hire>span:first-child{flex:1}
 .ux-back2{margin-bottom:8px}
-#uxHelpBtn{position:fixed;right:12px;bottom:74px;width:48px;height:48px;border-radius:50%;border:0;background:#14365d;color:#fff;font-size:22px;font-weight:800;z-index:6;box-shadow:0 2px 8px #0004}
 #uxTour{position:fixed;inset:0;z-index:200}
 .ux-hole{position:fixed;border-radius:14px;box-shadow:0 0 0 9999px #000a;border:3px solid #f9c74f;pointer-events:none}
 .ux-tip{position:fixed;left:12px;right:12px;background:#fff;border-radius:14px;padding:14px;font-size:16px}.ux-tip p{margin:6px 0 10px}
+@media(min-width:1024px){
+.ux-overlay{align-items:center;justify-content:center;padding:24px}
+.ux-sheet{width:min(640px,100%);max-height:min(80vh,760px);border-radius:16px;box-shadow:0 24px 70px #0006}
+.ux-sheet .row{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.ux-tip{left:50%;right:auto;width:min(480px,calc(100vw - 48px));transform:translateX(-50%)}
+}
 `;document.head.appendChild(css);
 render();
 })();

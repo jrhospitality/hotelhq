@@ -440,7 +440,18 @@
   }
 
   function bar(pct) {
-    return '<span class="wn-bar" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + pct + '%"></i></span>';
+    var n = Math.max(0, Math.min(100, Number(pct) || 0));
+    return '<span class="wn-bar" role="progressbar" aria-valuenow="' + n + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + n + '%"></i></span>';
+  }
+  function progressLine(state, year, hotel) {
+    var row = season(state, year, hotel);
+    var c = counts(row);
+    return '<div class="wn-line"><span class="wn-hotel">' + esc(hotelName(hotel)) + "</span>" + bar(c.pct) + '<span class="wn-pct">' + c.pct + "%</span></div>";
+  }
+  function hotelsForHome(who) {
+    if (!who) return [];
+    if (who.role === "Above Property") return HOTELS.slice();
+    return who.hotel ? [who.hotel] : [];
   }
   function dueLine(row, today) {
     var bits = L("Due", "Vence") + " " + fmtDate(row.dueOn);
@@ -458,34 +469,32 @@
     var year = activeYear(state, today);
     if (!year) return "";
     kickPull();
-    if (who.role === "Above Property" && S.role === "GM") return corpCard(state, year, today);
-    if ((who.role === "GM" || who.role === "AGM") && S.role === "GM") return hotelCard(state, year, who.hotel, today);
-    if (who.role === "Maintenance" && S.role === "Maintenance") return hotelCard(state, year, who.hotel, today);
-    if (who.role === "Front Desk" && S.role === "Front Desk") return snowCard(state, year, who.hotel, today);
+    var hotels = hotelsForHome(who);
+    if (who.role === "Above Property" && S.role === "GM") return corpCard(state, year, hotels, today);
+    if ((who.role === "GM" || who.role === "AGM") && S.role === "GM") return hotelCard(state, year, hotels[0], today);
+    if (who.role === "Maintenance" && S.role === "Maintenance") return hotelCard(state, year, hotels[0], today);
+    if (who.role === "Front Desk" && S.role === "Front Desk") return snowCard(state, year, hotels[0], today);
     return "";
   }
   function hotelCard(state, year, hotel, today) {
     var row = season(state, year, hotel);
-    if (!row) return "";
-    var c = counts(row);
+    if (!row || !hotel) return "";
     var cold = loggedOn(row, "cold", today)
       ? '<span class="good">' + L("Cold-spot check logged today", "Revisión de puntos fríos registrada hoy") + "</span>"
       : '<span class="bad">' + L("No cold-spot check logged today", "Sin revisión de puntos fríos hoy") + "</span>";
     return '<button type="button" class="card wn-home" id="wn-card" onclick="go(\'winter\')"><b>❄️ ' + L("Winter preparedness", "Preparación de invierno") + "</b>"
-      + "<span>" + c.pct + "% · " + (c.done + c.na) + "/28</span>" + bar(c.pct)
+      + '<div class="wn-lines">' + progressLine(state, year, hotel) + "</div>"
       + "<small>" + dueLine(row, today) + "</small><small>" + cold + "</small></button>";
   }
-  function corpCard(state, year, today) {
+  function corpCard(state, year, hotels, today) {
     var bucket = yearBucket(state, year);
     var overdue = 0;
-    var rows = HOTELS.map(function (hotel) {
-      var row = bucket.hotels[hotel];
-      var c = counts(row);
-      if (isOverdue(row, today)) overdue++;
-      return "<span><b>" + c.pct + "%</b>" + esc(hotelName(hotel)) + "</span>";
-    }).join("");
+    (hotels || []).forEach(function (hotel) {
+      if (isOverdue(season(state, year, hotel), today)) overdue++;
+    });
+    var rows = (hotels || []).map(function (hotel) { return progressLine(state, year, hotel); }).join("");
     return '<button type="button" class="card wn-home" id="wn-card" onclick="go(\'winter\')"><b>❄️ ' + L("Winter preparedness", "Preparación de invierno") + " · " + year + "</b>"
-      + '<span class="wn-metrics">' + rows + "</span>"
+      + '<div class="wn-lines">' + rows + "</div>"
       + "<small>" + (overdue ? '<span class="bad">' + overdue + " " + L("overdue", "atrasadas") + "</span>" : '<span class="good">' + L("No required hotel is overdue", "Ningún hotel obligatorio está atrasado") + "</span>")
       + " · " + L("Assigned", "Asignada") + " " + fmtDate(bucket.assignOn) + "</small></button>";
   }
@@ -1042,11 +1051,15 @@
 
   var style = document.createElement("style");
   style.textContent = [
-    ".wn-home{display:block;width:100%;text-align:left;color:inherit;cursor:pointer}",
-    ".wn-home small,.wn-home>span{display:block;margin-top:4px;font-weight:500}",
-    ".wn-metrics{display:flex;gap:8px}.wn-metrics>span{flex:1;background:#eef3fa;border-radius:8px;padding:6px;text-align:center}.wn-metrics b{display:block;font-size:18px}",
+    ".wn-home{display:block;width:100%;text-align:left;color:inherit;cursor:pointer;background:#fff;color:#1d2433}",
+    ".wn-home small{display:block;margin-top:4px;font-weight:500}",
+    ".wn-lines{display:flex;flex-direction:column;gap:8px;margin-top:8px;width:100%}",
+    ".wn-line{display:flex;align-items:center;gap:8px;width:100%;min-width:0}",
+    ".wn-line .wn-hotel{flex:0 1 38%;min-width:0;font-weight:700;text-align:left;background:none;padding:0;border-radius:0;line-height:1.2}",
+    ".wn-line .wn-bar{flex:1 1 auto;display:block;height:10px;min-width:48px;margin:0;background:#e3e8f0;border-radius:6px;overflow:hidden}",
+    ".wn-line .wn-pct{flex:0 0 3.2em;text-align:right;font-weight:800;font-variant-numeric:tabular-nums}",
     ".wn-bar{display:block;height:10px;background:#e3e8f0;border-radius:6px;overflow:hidden;margin:6px 0}",
-    ".wn-bar i{display:block;height:100%;background:#15642f}",
+    ".wn-bar i{display:block;height:100%;background:#15642f;min-width:0}",
     ".wn-item{padding:10px 0;border-bottom:1px solid #e6ebf2}",
     ".wn-copy{font-size:15px;line-height:1.35}",
     ".wn-seg{display:flex;gap:6px;margin:8px 0}",
@@ -1062,5 +1075,5 @@
     ".wn-phone{font-size:22px;font-weight:800}",
     ".wn a{color:#14365d}"
   ].join("");
-  document.head.appendChild(style);
+  if (typeof document !== "undefined" && document.head) document.head.appendChild(style);
 })(typeof window !== "undefined" ? window : globalThis);
