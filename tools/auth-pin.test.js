@@ -52,6 +52,11 @@ assert.strictEqual(auth.canResetPin(gm, other), false);
 assert.strictEqual(auth.canResetPin(gm, lead), false);
 assert.strictEqual(auth.canResetPin(agm, gm), false);
 assert.strictEqual(auth.canResetPin(desk, other), false);
+assert.strictEqual(auth.canEditPreferred(gm, desk), true);
+assert.strictEqual(auth.canEditPreferred(gm, gm), true);
+assert.strictEqual(auth.canEditPreferred(gm, other), false);
+assert.strictEqual(auth.canEditPreferred(desk, gm), false);
+assert.strictEqual(auth.canEditPreferred(corp, gm), true);
 
 const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");

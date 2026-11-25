@@ -38,6 +38,19 @@ Deno.serve(async (req) => {
   const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
   const action = String(payload.action || "");
 
+  if (action === "search") {
+    const q = String(payload.q || "").trim();
+    const hotel = String(payload.hotel || "").trim().toUpperCase();
+    if (q.length < 2 || q.length > 40) return json(200, { staff: [] });
+    if (hotel !== "MSPWE" && hotel !== "MSPAM" && hotel !== "MSPMS" && hotel !== "CORP") {
+      return json(400, { error: "hotel" });
+    }
+    const { data, error } = await admin.rpc("staff_sign_in_search", { p_query: q, p_hotel: hotel });
+    if (error) return json(500, { error: "search" });
+    const staff = Array.isArray(data) ? data.slice(0, 8) : [];
+    return json(200, { staff });
+  }
+
   if (action === "directory") {
     const { data, error } = await admin.rpc("staff_sign_in_directory");
     if (error) return json(500, { error: "directory" });

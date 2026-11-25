@@ -6,7 +6,7 @@ GitHub Pages writes `config.js` on deploy from the `SUPABASE_PUBLISHABLE_KEY` re
 
 The same build stays available at [https://jrhospitality.github.io/hotelhq/demo/](https://jrhospitality.github.io/hotelhq/demo/) with `mode` `demo`, an empty key, and no network calls. That page uses example names and example PINs and cannot see real staff or hotel data.
 
-Live sign-in uses Supabase Auth. The name list for a hotel includes that hotel's staff plus JR Corporate. The PIN is the password. When `pin_reset_required` is true, the next sign-in has to set a new PIN before the app opens.
+Live sign-in uses Supabase Auth. Typing a name searches active staff at the chosen hotel (plus JR Corporate) and returns at most eight matches after two letters. A preferred name saved by a GM matches too. The full directory loads only after sign-in. The PIN is the password. When `pin_reset_required` is true, the next sign-in has to set a new PIN before the app opens.
 
 PINs that were shipped in the public website are in git history. Do not reuse them.
 
