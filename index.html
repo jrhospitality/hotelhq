@@ -405,6 +405,7 @@ body.sb-mini #side .sb-top{padding:8px}
 <script src="data/places.js"></script>
 <script src="config.js"></script>
 <script src="auth-pin.js"></script>
+<script src="name-match.js"></script>
 <script src="hotel-scope.js"></script>
 <script src="guest-loop.js"></script>
 <script>
@@ -423,6 +424,7 @@ const EXAMPLE_USERS=[
 {id:"mspwe-fd",name:"Jordan Lee",pin:"2110",role:"Front Desk",hotel:"MSPWE",shift:"AM",days:DAYS},
 {id:"mspwe-hk",name:"Grace Patel",pin:"2120",role:"Housekeeping",hotel:"MSPWE",shift:"AM",days:DAYS},
 {id:"mspwe-hkr",name:"Maria Alvarez",pin:"2130",role:"Housekeeper",hotel:"MSPWE",shift:"AM",days:DAYS},
+{id:"mspwe-vale",name:"Valeria Peña Solís",preferred_name:"Vale",aliases:["Vale Peña"],pin:"2180",role:"Housekeeper",hotel:"MSPWE",shift:"AM",days:DAYS},
 {id:"mspwe-mt",name:"Luis Ortega",pin:"2140",role:"Maintenance",hotel:"MSPWE",shift:"AM",days:DAYS},
 {id:"mspwe-hp",name:"Carlos Diaz",pin:"2150",role:"House Person",hotel:"MSPWE",shift:"AM",days:DAYS},
 {id:"mspwe-la",name:"Mei Chen",pin:"2160",role:"Laundry Attendant",hotel:"MSPWE",shift:"AM",days:DAYS},
@@ -467,16 +469,17 @@ function applyConfigMode(){
 const STAFF_EMAIL_DOMAIN="staff.jrhospitality.local";
 const SB_JS="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
 const DB_CACHE="jrportal_db_cache";
-// Live names come from the pin-auth directory action, which calls
-// staff_sign_in_directory with the service role. That list includes the chosen
-// hotel and JR Corporate (hotel_id null). Demo mode never calls it.
-const DIRECTORY_SOURCES=[{kind:"rpc",name:"staff_sign_in_directory"}];
+// Live sign-in calls pin-auth action "search", which runs staff_sign_in_search
+// and returns at most 8 active names after 2 letters. The full directory is
+// loaded only after a session exists. Demo mode never calls it.
+const DIRECTORY_SOURCES=[{kind:"rpc",name:"staff_sign_in_search"},{kind:"rpc",name:"staff_sign_in_directory"}];
 const ROLE_FROM_DB={above_property:"Above Property",gm:"GM",agm:"AGM",front_desk:"Front Desk",hk_lead:"Housekeeping",housekeeper:"Housekeeper",maintenance:"Maintenance",shuttle_driver:"Shuttle Driver",house_person:"House Person",laundry:"Laundry Attendant",breakfast:"Breakfast Attendant"};
 const ROLE_TO_DB={"Above Property":"above_property",GM:"gm",AGM:"agm","Front Desk":"front_desk",Housekeeping:"hk_lead",Housekeeper:"housekeeper",Maintenance:"maintenance","Shuttle Driver":"shuttle_driver","House Person":"house_person","Laundry Attendant":"laundry","Breakfast Attendant":"breakfast"};
 const DEPT_FOR_ROLE={"Front Desk":"front_desk",Housekeeping:"housekeeping",Housekeeper:"housekeeping",Maintenance:"maintenance","Shuttle Driver":"shuttle","House Person":"house_person","Laundry Attendant":"laundry","Breakfast Attendant":"breakfast",GM:"management",AGM:"management","Above Property":"management"};
 let sb=null,sbSession=null,sbPush=false,sbBase=null,pushChain=Promise.resolve(),directorySource="example",remoteLabor=false,Ssync="";
 let USERS=[];
-function exampleUsers(){const map=userLangs();const more=userMoreMap();const tiles=userTilesMap();return EXAMPLE_USERS.filter(u=>u.active!==false).map(u=>{const saved=map[u.id];const language=(u.language==="en"||u.language==="es")?u.language:((saved==="en"||saved==="es")?saved:"");const row={...u,active:u.active!==false,show_more_expanded:u.show_more_expanded===true||more[u.id]===true};if(language)row.language=language;if(Array.isArray(tiles[u.id]))row.home_tiles=tiles[u.id];else if(tiles[u.id]===null)row.home_tiles=null;return row})}
+function preferredBag(){try{const bag=JSON.parse(sget("jrportal_preferred")||"{}");return bag&&typeof bag==="object"?bag:{}}catch(e){return {}}}
+function exampleUsers(){const map=userLangs();const more=userMoreMap();const tiles=userTilesMap();const prefs=preferredBag();return EXAMPLE_USERS.filter(u=>u.active!==false).map(u=>{const saved=map[u.id];const language=(u.language==="en"||u.language==="es")?u.language:((saved==="en"||saved==="es")?saved:"");const row={...u,active:u.active!==false,show_more_expanded:u.show_more_expanded===true||more[u.id]===true};if(language)row.language=language;if(Array.isArray(tiles[u.id]))row.home_tiles=tiles[u.id];else if(tiles[u.id]===null)row.home_tiles=null;const pref=prefs[u.id];if(pref&&typeof pref==="object"){row.preferred_name=String(pref.preferred_name||"");row.aliases=Array.isArray(pref.aliases)?pref.aliases:[]}return row})}
 function staffEmail(u){if(u.email)return u.email;return String(u.login_id||u.id)+"@"+STAFF_EMAIL_DOMAIN}
 function isUuid(v){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||""))}
 function useRemote(){return !!(USE_SUPABASE&&sb&&sbSession)}
@@ -512,6 +515,8 @@ function mapDirectoryRow(r){
   if(r.show_more_expanded===true||r.show_more_expanded===false)row.show_more_expanded=r.show_more_expanded===true;
   if(Array.isArray(r.home_tiles)||r.home_tiles===null)row.home_tiles=r.home_tiles;
   if(r.avatar&&typeof r.avatar==="object")row.avatar=r.avatar;
+  if(typeof r.preferred_name==="string")row.preferred_name=r.preferred_name.trim();
+  if(Array.isArray(r.aliases))row.aliases=r.aliases.map(x=>String(x||"").trim()).filter(Boolean);
   return row;
 }
 let directoryError="";
@@ -528,6 +533,7 @@ function loadUsers(){
   const example=exampleUsers();
   if(loginModeChoice==="broken"){directorySource="example";directoryError="";return Promise.resolve([])}
   if(authMode!=="live"){directorySource="example";directoryError="";return Promise.resolve(example)}
+  if(!sbSession){directorySource="search";directoryError="";return Promise.resolve([])}
   return loadLiveDirectory().then(rows=>{directoryError="";return rows}).catch(()=>{directorySource="supabase";directoryError="Could not load the staff directory.";return []});
 }
 async function dbSelect(table,opts){
@@ -816,7 +822,7 @@ async function applySessionProfile(){
   row.user_id=uid;row.id=row.id||uid;
   let local=USERS.find(u=>u.user_id===uid||u.id===uid||u.id===row.id);
   if(!local){USERS.push(row);local=row}
-  else Object.assign(local,{name:row.name,role:row.role,hotel:row.hotel,user_id:uid,he_employee_id:row.he_employee_id,active:row.active,language:(data.language==="en"||data.language==="es")?data.language:(local.language||""),pin_reset_required:data.pin_reset_required===true||local.pin_reset_required===true,pin:""});
+  else Object.assign(local,{name:row.name,role:row.role,hotel:row.hotel,user_id:uid,he_employee_id:row.he_employee_id,active:row.active,language:(data.language==="en"||data.language==="es")?data.language:(local.language||""),pin_reset_required:data.pin_reset_required===true||local.pin_reset_required===true,pin:"",preferred_name:row.preferred_name||"",aliases:Array.isArray(row.aliases)?row.aliases:(local.aliases||[])});
   if(data.show_more_expanded===true||data.show_more_expanded===false)local.show_more_expanded=data.show_more_expanded===true;
   if(Array.isArray(data.home_tiles)||data.home_tiles===null)local.home_tiles=data.home_tiles;
   if(data.avatar&&typeof data.avatar==="object"){local.avatar=data.avatar;if(window.HHQAv&&HHQAv.remember)HHQAv.remember(local.id,data.avatar)}
@@ -845,7 +851,9 @@ async function hydrate(){
   profiles.forEach(p=>{
     const row=mapDirectoryRow(p);if(!row)return;
     row.user_id=p.user_id;row.id=p.user_id;
-    if(!USERS.some(u=>u.user_id===p.user_id||u.id===p.user_id))USERS.push(row);
+    const have=USERS.find(u=>u.user_id===p.user_id||u.id===p.user_id);
+    if(!have)USERS.push(row);
+    else{if(row.name)have.name=row.name;have.preferred_name=row.preferred_name||"";if(Array.isArray(row.aliases))have.aliases=row.aliases}
   });
   const names={};profiles.forEach(p=>{names[p.user_id]=p.name});
   const keepHotel=id=>authRole()==="Above Property"||id===S.hotel;
@@ -1030,7 +1038,26 @@ Object.assign(I18N.es,{
 "Open the example demo":"Abrir el demo de ejemplo",
 "Go to staff sign-in":"Ir a la entrada del personal",
 "Live sign-in is not configured. The publishable key is missing, so this page will not show example staff.":"La entrada real no está configurada. Falta la clave publicable, así que esta página no muestra personal de ejemplo.",
-"This list is this hotel plus JR Corporate.":"Esta lista es este hotel más JR Corporativo."
+"This list is this hotel plus JR Corporate.":"Esta lista es este hotel más JR Corporativo.",
+"Type your name":"Escribe tu nombre",
+"Your name":"Tu nombre",
+"Type the first letters of your name.":"Escribe las primeras letras de tu nombre.",
+"Type one more letter.":"Escribe una letra más.",
+"Looking up names…":"Buscando nombres…",
+"Could not look up names.":"No se pudieron buscar los nombres.",
+"No names match.":"Ningún nombre coincide.",
+"Continue as {name}":"Seguir como {name}",
+"Last signed in":"La última vez",
+"Preferred name":"Nombre que usa",
+"What they go by":"Como le dicen",
+"Other names":"Otros nombres",
+"Comma-separated nicknames":"Apodos separados por comas",
+"Save name":"Guardar nombre",
+"Name saved on this device.":"Nombre guardado en este dispositivo.",
+"Name saved.":"Nombre guardado.",
+"Could not save the name.":"No se pudo guardar el nombre.",
+"That name is too long.":"Ese nombre es muy largo.",
+"Goes by":"Le dicen"
 });
 const LANG_KEY="jrportal_lang";
 const USER_LANG_KEY="jrportal_user_lang";
@@ -1943,9 +1970,23 @@ function enforceAccess(){
 }
 const LOGIN_SITES=[["MSPWE","MSPWE (Holiday Inn Express Golden Valley)"],["MSPAM","MSPAM (Hampton Inn & Suites Airport/MOA)"],["MSPMS","MSPMS (SpringHill Suites Airport/MOA)"],["CORP","JR Corporate"]];
 const LAST_SITE="jrportal_last_hotel";
+const LAST_PERSON="jrportal_last_person";
 let loginSite="",loginQ="",loginUid="",loginPin="",loginErr="",loginBoot=false,loginPinShow=false;
+let loginHits=[],loginSearchNote="",loginSearchGen=0,loginFallback=null,nameTimer=0,prefMsg="";
 let setPinMode="",setPinA="",setPinB="",teamUid="",resetReveal=null;
-function savedSite(){const v=sget(LAST_SITE)||"";return LOGIN_SITES.some(s=>s[0]===v)?v:""}
+function urlSite(){
+  try{
+    const q=new URLSearchParams(location.search);
+    const v=String(q.get("hotel")||q.get("site")||"").trim().toUpperCase();
+    return LOGIN_SITES.some(s=>s[0]===v)?v:"";
+  }catch(e){return ""}
+}
+function savedSite(){const fromUrl=urlSite();if(fromUrl)return fromUrl;const v=sget(LAST_SITE)||"";return LOGIN_SITES.some(s=>s[0]===v)?v:""}
+function rememberedPerson(){try{const row=JSON.parse(sget(LAST_PERSON)||"null");if(!row||!row.id||!row.name)return null;return row}catch(e){return null}}
+function rememberPerson(u){
+  if(!u||!u.id||!u.name)return;
+  sset(LAST_PERSON,JSON.stringify({id:u.id,user_id:u.user_id||u.id,name:u.name,preferred_name:u.preferred_name||"",hotel:u.hotel||"",role:u.role||"",extra_hotels:Array.isArray(u.extra_hotels)?u.extra_hotels:[]}));
+}
 function posOf(u){return u.role==="Housekeeping"?"HK Lead":(u.role||"")}
 function peopleAt(site){
   const mode=authMode==="live"?"live":"demo";
@@ -1955,10 +1996,63 @@ function peopleAt(site){
     return a.name.localeCompare(b.name,localeTag());
   });
 }
-function staffOptions(){
-  const q=loginQ.trim().toLowerCase();
-  const rows=peopleAt(loginSite).filter(u=>{const pos=posOf(u);return !q||(u.name+" "+pos+" "+roleName(pos)).toLowerCase().includes(q)});
-  return `<option value="">${escH(t("Select name"))}</option>`+rows.map(u=>{const demo=authMode!=="live"&&u.pin?` — ${t("demo PIN")} ${u.pin}`:"";const corp=authMode==="live"&&!u.hotel&&loginSite!=="CORP"?" — JR Corporate":"";return `<option value="${escH(u.id)}"${u.id===loginUid?" selected":""}>${escH(u.name)} — ${escH(roleName(posOf(u)))}${escH(corp)}${escH(demo)}</option>`}).join("");
+function loginMode(){return authMode==="live"?"live":"demo"}
+function loginPerson(id){
+  if(!id)return null;
+  const mem=rememberedPerson();
+  return USERS.find(x=>x.id===id)||loginHits.find(x=>x.id===id)||(mem&&mem.id===id?mem:null);
+}
+function hotelLabel(hotel){
+  if(!hotel)return t("JR Corporate");
+  const pair=LOGIN_SITES.find(s=>s[0]===hotel);
+  return pair?pair[1]:hotel;
+}
+function currentNameHits(){
+  if(!window.HQNames)return [];
+  const mode=loginMode();
+  const q=loginQ;
+  if(HQNames.foldName(q).length<HQNames.minQueryLength(mode))return [];
+  if(mode==="live"){
+    if(loginFallback)return HQNames.matchNames(loginFallback,q,loginSite,"live");
+    return loginHits;
+  }
+  return HQNames.matchNames(peopleAt(loginSite),q,loginSite,"demo");
+}
+function nameRowHtml(u){
+  const shown=window.HQNames?HQNames.displayName(u):String(u.name||"");
+  const legal=String(u.name||"");
+  const bits=[];
+  if(shown!==legal)bits.push(legal);
+  bits.push(hotelLabel(u.hotel));
+  if(u.role)bits.push(roleName(posOf(u)));
+  if(authMode!=="live"&&u.pin)bits.push(t("demo PIN")+" "+u.pin);
+  const on=u.id===loginUid?" on":"";
+  return `<button type="button" class="name-hit${on}" role="option" data-id="${escH(u.id)}" onclick="pickUser(this.getAttribute('data-id'))"><b>${escH(shown)}</b><small>${escH(bits.filter(Boolean).join(" · "))}</small></button>`;
+}
+function againHtml(){
+  if(String(loginQ||"").trim()||!window.HQNames)return "";
+  const mem=rememberedPerson();
+  if(!mem)return "";
+  const person=USERS.find(x=>x.id===mem.id)||mem;
+  if(!HQNames.inSignInScope(person,loginSite,loginMode()))return "";
+  const shown=HQNames.displayName(person);
+  return `<button type="button" class="name-again" data-id="${escH(person.id)}" onclick="pickUser(this.getAttribute('data-id'))"><b>${escH(t("Continue as {name}",{name:shown}))}</b><small>${escH(t("Last signed in"))} · ${escH(hotelLabel(person.hotel))}</small></button>`;
+}
+function nameListHtml(){
+  const mode=loginMode();
+  const folded=window.HQNames?HQNames.foldName(loginQ):String(loginQ||"").trim().toLowerCase();
+  const min=window.HQNames?HQNames.minQueryLength(mode):1;
+  const again=againHtml();
+  if(!folded)return again+`<p class="name-hint">${escH(t("Type the first letters of your name."))}</p>`;
+  if(folded.length<min)return again+`<p class="name-hint">${escH(t("Type one more letter."))}</p>`;
+  if(loginSearchNote==="loading")return again+`<p class="name-hint">${escH(t("Looking up names…"))}</p>`;
+  const hits=currentNameHits();
+  if(!hits.length)return again+`<p class="name-hint">${escH(loginSearchNote==="error"?t("Could not look up names."):t("No names match."))}</p>`;
+  return again+`<div class="name-hits" role="listbox" aria-label="${escH(t("Your name"))}">${hits.map(nameRowHtml).join("")}</div>`;
+}
+function loginNameHtml(pinFace){
+  if(!loginSite)return `<p class="hotel-empty">Choose a hotel to see its staff.</p>`;
+  return `<label class="login-lab" for="loginFind">2. Your name</label><input id="loginFind" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Type your name" aria-label="Your name" value="${escH(loginQ)}" oninput="filterLogin(this.value)"><div id="nameHits">${nameListHtml()}</div><div class="pin-head"><label class="login-lab" id="pinLab" for="pinDots">3. PIN</label><button type="button" class="pin-eye" id="pinEye" aria-pressed="${loginPinShow?"true":"false"}" onclick="togglePinShow()">${loginPinShow?"Hide PIN":"Show PIN"}</button></div><div class="dots" id="pinDots" role="status" aria-labelledby="pinLab">${pinFace}</div><div class="kp" aria-label="PIN keypad">${["1","2","3","4","5","6","7","8","9"].map(n=>`<button type="button" onclick="pinKey('${n}')">${n}</button>`).join("")}<button type="button" class="wide" onclick="pinKey('b')" aria-label="Delete">⌫</button><button type="button" onclick="pinKey('0')">0</button><button type="button" class="wide" onclick="pinKey('c')" aria-label="Clear">Clear</button><button type="button" class="btn login-go" onclick="signIn()">Sign in</button></div><p id="loginErr" class="bad" role="alert">${escH(loginErr)}</p>`;
 }
 let loginModeChoice="";
 function bothLang(en,es){
@@ -2007,10 +2101,8 @@ function renderLogin(){
   const demo=loginModeChoice==="demo";
   const broken=loginModeChoice==="broken";
   const picked=LOGIN_SITES.find(s=>s[0]===loginSite);
-  const emptyLive=loginSite&&!demo&&!broken&&!peopleAt(loginSite).length;
-  const corpNote=loginSite&&loginSite!=="CORP"&&!demo&&!broken?'<p class="live-note">This list is this hotel plus JR Corporate.</p>':"";
   const pinFace=loginPin?(loginPinShow?escH(loginPin):"•".repeat(loginPin.length)):"••••••";
-  const who=broken?"":(loginSite?`<label class="login-lab" for="loginFind">2. Your name</label><input id="loginFind" autocomplete="off" placeholder="Type to filter" aria-label="Filter names" value="${escH(loginQ)}" oninput="filterLogin(this.value)"><label class="login-lab" for="loginWho">Employee</label><select id="loginWho" aria-label="Employee" onchange="pickUser(this.value)">${staffOptions()}</select>${corpNote}${emptyLive?`<p class="warn">No staff accounts yet.</p>`:""}<div class="pin-head"><label class="login-lab" id="pinLab" for="pinDots">3. PIN</label><button type="button" class="pin-eye" id="pinEye" aria-pressed="${loginPinShow?"true":"false"}" onclick="togglePinShow()">${loginPinShow?"Hide PIN":"Show PIN"}</button></div><div class="dots" id="pinDots" role="status" aria-labelledby="pinLab">${pinFace}</div><div class="kp" aria-label="PIN keypad">${["1","2","3","4","5","6","7","8","9"].map(n=>`<button type="button" onclick="pinKey('${n}')">${n}</button>`).join("")}<button type="button" class="wide" onclick="pinKey('b')" aria-label="Delete">⌫</button><button type="button" onclick="pinKey('0')">0</button><button type="button" class="wide" onclick="pinKey('c')" aria-label="Clear">Clear</button><button type="button" class="btn login-go" onclick="signIn()">Sign in</button></div><p id="loginErr" class="bad" role="alert">${escH(loginErr)}</p>`:`<p class="hotel-empty">Choose a hotel to see its staff.</p>`);
+  const who=broken?"":loginNameHtml(pinFace);
   const enDemo="DEMO — example names and PINs. This mode never contacts Supabase and cannot see real staff or hotel data.";
   const enLive="Staff sign in. Your PIN is checked by Supabase and is not stored in this page.";
   const enBroken="Live sign-in is not configured. The publishable key is missing, so this page will not show example staff.";
@@ -2023,15 +2115,83 @@ function renderLogin(){
 }
 function pickHotel(id){
   if(!LOGIN_SITES.some(s=>s[0]===id))return;
-  if(loginSite!==id){loginUid="";loginPin="";loginQ="";loginErr=""}
+  if(loginSite!==id){loginUid="";loginPin="";loginQ="";loginErr="";loginHits=[];loginSearchNote=""}
   loginSite=id;sset(LAST_SITE,id);renderLogin();
 }
+function paintNameHits(){const box=$("nameHits");if(!box)return;box.innerHTML=nameListHtml()}
 function filterLogin(v){
-  loginQ=v;const sel=$("loginWho");if(!sel)return;
-  const keep=loginUid;sel.innerHTML=staffOptions();
-  if([...sel.options].some(o=>o.value===keep))sel.value=keep;else{loginUid="";sel.value=""}
+  loginQ=v;
+  const picked=loginPerson(loginUid);
+  if(picked&&window.HQNames){
+    const shown=HQNames.foldName(HQNames.displayName(picked));
+    const legal=HQNames.foldName(picked.name);
+    const typed=HQNames.foldName(v);
+    if(typed&&typed!==shown&&typed!==legal){loginUid="";loginPin=""}
+  }
+  paintNameHits();
+  if(authMode==="live")scheduleNameSearch();
 }
-function pickUser(id){if(id!==loginUid){loginPin="";loginErr=""}loginUid=id;paintDots();const e=$("loginErr");if(e)e.textContent=""}
+function pickUser(id){
+  const u=loginPerson(id);
+  if(!u)return;
+  if(!loginHits.some(x=>x.id===u.id))loginHits.push(u);
+  if(id!==loginUid){loginPin="";loginErr=""}
+  loginUid=u.id;
+  const shown=window.HQNames?HQNames.displayName(u):u.name;
+  loginQ=shown;
+  const input=$("loginFind");
+  if(input&&input.value!==shown)input.value=shown;
+  paintNameHits();
+  paintDots();
+  const e=$("loginErr");if(e)e.textContent="";
+}
+function scheduleNameSearch(){
+  clearTimeout(nameTimer);
+  const q=loginQ;
+  const hotel=loginSite;
+  if(authMode!=="live"||!window.HQNames)return;
+  if(HQNames.foldName(q).length<HQNames.minQueryLength("live")){loginHits=[];loginSearchNote="";paintNameHits();return}
+  nameTimer=setTimeout(function(){runNameSearch(q,hotel)},180);
+}
+async function runNameSearch(q,hotel){
+  const gen=++loginSearchGen;
+  loginSearchNote="loading";
+  paintNameHits();
+  try{
+    if(!USE_SUPABASE||!window.HQAuth||!HQAuth.allowsNetwork("live"))throw new Error("demo");
+    await ensureSb();
+    const res=await fetch(SB_URL+"/functions/v1/pin-auth",{method:"POST",headers:{"content-type":"application/json",apikey:SB_KEY,authorization:"Bearer "+SB_KEY},body:JSON.stringify({action:"search",q:q,hotel:hotel})});
+    const body=await res.json().catch(()=>({}));
+    if(gen!==loginSearchGen||q!==loginQ||hotel!==loginSite)return;
+    if(res.status===400&&body.error==="action"){
+      if(!loginFallback)loginFallback=await loadLiveDirectory();
+      if(gen!==loginSearchGen)return;
+      loginHits=[];
+      loginSearchNote="";
+      paintNameHits();
+      return;
+    }
+    if(!res.ok||!Array.isArray(body.staff))throw new Error(body.error||"search");
+    loginHits=body.staff.map(mapDirectoryRow).filter(Boolean).slice(0,8);
+    loginSearchNote="";
+    paintNameHits();
+  }catch(e){
+    if(gen!==loginSearchGen)return;
+    loginHits=[];
+    loginSearchNote="error";
+    paintNameHits();
+  }
+}
+function absorbRoster(rows,signedIn){
+  const next=Array.isArray(rows)?rows.filter(Boolean):[];
+  if(signedIn&&!next.some(x=>x.id===signedIn.id))next.push(signedIn);
+  if(next.length)USERS=next;
+  else if(signedIn&&!USERS.some(x=>x.id===signedIn.id))USERS.push(signedIn);
+}
+async function ensureRoster(signedIn){
+  if(authMode!=="live"||!USE_SUPABASE)return;
+  try{absorbRoster(await loadLiveDirectory(),signedIn)}catch(e){absorbRoster([],signedIn)}
+}
 function pinKey(k){
   const buf=pinTarget();
   if(k==="c")buf.set("");
@@ -2052,13 +2212,15 @@ function paintDots(){
   const e=$("loginErr");if(e)e.textContent="";
 }
 function enterApp(u){
+  rememberPerson(u);
   sset(LAST_SITE,loginSite);
   S.uid=u.id;S.hotel=HotelScope.assignedHotel(u.role, u.hotel, S.hotel);S.role=(u.role=="Above Property"||u.role=="GM"||u.role=="AGM")?"GM":u.role;S.tab="home";
   loginPin="";loginErr="";loginUid="";applyUserLanguage(u);applyUserMore(u);
 }
 async function signIn(){
-  const u=USERS.find(x=>x.id===loginUid&&x.active!==false);
-  const siteOk=!!u&&window.HQAuth&&HQAuth.listedForSite(u,loginSite,authMode==="live"?"live":"demo");
+  const u=loginPerson(loginUid);
+  const mode=loginMode();
+  const siteOk=!!u&&u.active!==false&&((window.HQNames&&HQNames.inSignInScope(u,loginSite,mode))||(window.HQAuth&&HQAuth.listedForSite(u,loginSite,mode)));
   if(!u||!siteOk){loginErr="Select your name, then enter the PIN.";loginPin="";renderLogin();return}
   if(!window.HQAuth||!HQAuth.isPin(loginPin)){loginErr="Enter the 4 to 6 digit PIN.";loginPin="";renderLogin();return}
   if(authMode==="live"){
@@ -2073,7 +2235,9 @@ async function signIn(){
       const set=await sb.auth.setSession({access_token:body.access_token,refresh_token:body.refresh_token});
       if(set.error||!set.data.session){loginErr="Could not reach sign-in.";loginPin="";renderLogin();return}
       sbSession=set.data.session;sbPush=false;
+      absorbRoster([],u);
       enterApp(u);
+      await ensureRoster(u);
       await applySessionProfile();await hydrate();
       sset(KEY,JSON.stringify(S));
       try{render()}catch(e){throw e}
@@ -2153,7 +2317,39 @@ function teamPeople(){
   const me=meUser();const corp=authRole()==="Above Property";
   return USERS.filter(u=>{if(!u)return false;if(corp)return true;return !!(me&&u.hotel&&u.hotel===me.hotel)}).slice().sort((a,b)=>a.name.localeCompare(b.name,localeTag()));
 }
-function openTeam(id){teamUid=id;resetReveal=null;S.tab="team";save();render()}
+function openTeam(id){teamUid=id;resetReveal=null;prefMsg="";S.tab="team";save();render()}
+function preferredForm(u){
+  if(!window.HQAuth||!HQAuth.canEditPreferred(meUser(),u))return "";
+  const aliases=Array.isArray(u.aliases)?u.aliases.join(", "):"";
+  return `<label class="login-lab" for="prefName">Preferred name</label><input id="prefName" autocomplete="off" maxlength="40" value="${escH(u.preferred_name||"")}" placeholder="What they go by"><label class="login-lab" for="prefAliases">Other names</label><input id="prefAliases" autocomplete="off" value="${escH(aliases)}" placeholder="Comma-separated nicknames"><button type="button" class="btn" style="width:100%;margin-top:8px" onclick="savePreferred()">Save name</button>${prefMsg?`<p class="wlnote">${escH(t(prefMsg))}</p>`:""}`;
+}
+async function savePreferred(){
+  const u=USERS.find(x=>x.id===teamUid);
+  const actor=meUser();
+  if(!u||!window.HQAuth||!HQAuth.canEditPreferred(actor,u))return;
+  const preferred=String(($("prefName")||{}).value||"").trim().replace(/\s+/g," ");
+  const aliases=window.HQNames?HQNames.cleanList(String(($("prefAliases")||{}).value||"").split(",")):[];
+  if(preferred.length>40){prefMsg="That name is too long.";render();return}
+  if(authMode!=="live"){
+    u.preferred_name=preferred;
+    u.aliases=aliases;
+    const bag=preferredBag();
+    bag[u.id]={preferred_name:preferred,aliases};
+    sset("jrportal_preferred",JSON.stringify(bag));
+    prefMsg="Name saved on this device.";
+    render();
+    return;
+  }
+  try{
+    await ensureSb();
+    const {error}=await sb.rpc("set_staff_preferred_name",{p_user:u.user_id||u.id,p_preferred:preferred||null,p_aliases:aliases.length?aliases:null});
+    if(error){prefMsg="Could not save the name.";render();return}
+    u.preferred_name=preferred;
+    u.aliases=aliases;
+    prefMsg="Name saved.";
+    render();
+  }catch(e){prefMsg="Could not save the name.";render()}
+}
 function hideTempPin(){resetReveal=null;render()}
 async function resetStaffPin(id){
   const actor=meUser();const target=USERS.find(u=>u.id===id);
@@ -2182,13 +2378,15 @@ async function resetStaffPin(id){
 function teamProfile(u){
   const can=window.HQAuth&&HQAuth.canResetPin(meUser(),u);
   const reveal=resetReveal&&resetReveal.id===u.id?resetReveal:null;
-  return `<button type="button" class="btn2" onclick="teamUid='';resetReveal=null;render()">Back to team</button><div class="card"><h3>${escH(u.name)}</h3><p><b>Position</b> ${escH(roleName(u.role))}</p><p><b>Hotel</b> ${u.hotel?escH(u.hotel):"JR Corporate"}</p>${u.active===false?"<p>Inactive</p>":""}${u.pin_reset_required&&!reveal?"<p>PIN reset is waiting for this person.</p>":""}${can?`<button type="button" class="btn" onclick='resetStaffPin(${JSON.stringify(u.id)})'>Reset PIN</button>`:"<p>You can't reset this PIN.</p>"}${reveal?`<p class="warn">${reveal.demo?"Demo only. Supabase was not contacted.":"Temporary PIN. Shown once on this screen only. It is not saved in HotelHQ."}</p><div class="once-pin">${escH(reveal.pin)}</div>${reveal.emailed?"<p>A reset email was also sent to the address on file.</p>":""}<button type="button" class="btn2" onclick="hideTempPin()">Hide code</button>`:""}</div>`;
+  const shown=window.HQNames?HQNames.displayName(u):u.name;
+  const aka=shown!==u.name?`<p><b>Goes by</b> ${escH(shown)}</p>`:"";
+  return `<button type="button" class="btn2" onclick="teamUid='';resetReveal=null;prefMsg='';render()">Back to team</button><div class="card"><h3>${escH(u.name)}</h3>${aka}<p><b>Position</b> ${escH(roleName(u.role))}</p><p><b>Hotel</b> ${u.hotel?escH(u.hotel):"JR Corporate"}</p>${u.active===false?"<p>Inactive</p>":""}${preferredForm(u)}${u.pin_reset_required&&!reveal?"<p>PIN reset is waiting for this person.</p>":""}${can?`<button type="button" class="btn" onclick='resetStaffPin(${JSON.stringify(u.id)})'>Reset PIN</button>`:"<p>You can't reset this PIN.</p>"}${reveal?`<p class="warn">${reveal.demo?"Demo only. Supabase was not contacted.":"Temporary PIN. Shown once on this screen only. It is not saved in HotelHQ."}</p><div class="once-pin">${escH(reveal.pin)}</div>${reveal.emailed?"<p>A reset email was also sent to the address on file.</p>":""}<button type="button" class="btn2" onclick="hideTempPin()">Hide code</button>`:""}</div>`;
 }
 function teamPage(){
   if(!leader())return `<h2>Team</h2><div class="card">You can't reset this PIN.</div>`;
   const rows=teamPeople();
   if(teamUid){const u=rows.find(x=>x.id===teamUid);if(u)return `<h2>Team</h2>`+teamProfile(u);teamUid=""}
-  return `<h2>Team</h2><div class="card">${rows.map(u=>`<button type="button" class="btn2" style="width:100%;text-align:left;margin:4px 0" onclick='openTeam(${JSON.stringify(u.id)})'><b>${escH(u.name)}</b><br><small>${escH(roleName(u.role))}${u.hotel?" · "+escH(u.hotel):" · JR Corporate"}${u.active===false?" · Inactive":""}</small></button>`).join("")||"<p>No staff in this view.</p>"}</div>`;
+  return `<h2>Team</h2><div class="card">${rows.map(u=>{const shown=window.HQNames?HQNames.displayName(u):u.name;const legal=shown!==u.name?` · ${escH(u.name)}`:"";return `<button type="button" class="btn2" style="width:100%;text-align:left;margin:4px 0" onclick='openTeam(${JSON.stringify(u.id)})'><b>${escH(shown)}</b><br><small>${escH(roleName(u.role))}${u.hotel?" · "+escH(u.hotel):" · JR Corporate"}${legal}${u.active===false?" · Inactive":""}</small></button>`}).join("")||"<p>No staff in this view.</p>"}</div>`;
 }
 function render(){
   const u=meUser();

@@ -51,7 +51,7 @@ async function boot(page, lang) {
 async function showHotel(page) {
   await page.fill("#loginHotel", "Golden");
   await page.locator("#loginHotelHits button").first().click();
-  await page.waitForSelector("#loginWho");
+  await page.waitForSelector("#loginFind");
 }
 
 async function enterTempPin(page, userId) {
