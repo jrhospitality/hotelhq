@@ -12,13 +12,13 @@
     { id: "maintenance", en: "Maintenance", es: "Mantenimiento", accent: "#92400e", ids: ["wo", "pm", "equip", "pmsch", "walk", "inv", "order", "logs", "qimp", "winter"] },
     { id: "sales", en: "Sales & Events", es: "Ventas y eventos", accent: "#6d28d9", ids: ["slead", "sleads", "meetings"] },
     { id: "team", en: "Team", es: "Equipo", accent: "#166534", ids: ["team", "my", "sched", "line", "pts", "goals", "qotd", "fun", "celebr", "about", "avatar", "avcredits", "photos", "onb"] },
-    { id: "admin", en: "Admin & Reports", es: "Administración y reportes", accent: "#334155", ids: ["labor", "lstd", "lplan", "lcmd", "onclock", "trreq", "fc", "health", "score", "gscores", "rev", "naudit", "gcomm", "train", "inspx", "ifix", "permits", "gmc", "rules", "crep", "audit", "alog", "settings"] }
+    { id: "admin", en: "Admin & Reports", es: "Administración y reportes", accent: "#334155", ids: ["labor", "dlabor", "lstd", "lplan", "lcmd", "onclock", "trreq", "fc", "health", "score", "gscores", "rev", "naudit", "gcomm", "train", "inspx", "ifix", "permits", "gmc", "rules", "crep", "audit", "alog", "settings"] }
   ];
 
   var ICONS = {
     home: "home", team: "users", rooms: "bed", insp: "clipboardCheck", ihg: "clipboardCheck", wo: "wrench", pm: "calendarCheck",
     equip: "hammer", pmsch: "calendar", notes: "notebook", check: "clipboardCheck", walk: "walk", inv: "package",
-    order: "cart", labor: "clock", fc: "bars", gmc: "clipboardCheck", my: "check", myrooms: "bed",
+    order: "cart", labor: "clock", dlabor: "clipboardCheck", fc: "bars", gmc: "clipboardCheck", my: "check", myrooms: "bed",
     lf: "bag", esc: "flag", rules: "gear", line: "list", lreq: "inbox", shut: "bus",
     sched: "calendar", health: "activity", score: "broom", pts: "star", photos: "camera",
     qotd: "bulb", goals: "target", about: "user", fun: "spark", celebr: "spark", avatar: "user",

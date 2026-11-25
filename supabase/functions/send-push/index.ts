@@ -12,8 +12,10 @@ type L = "en" | "es";
 
 const STR = {
   en: { newWO: "New work order", rush: "Rush room", prio: "Priority room", priority: "Priority", ack: "Acknowledge",
+        dlNew: "Daily labor", dlOver: "Daily labor overdue", dlItems: "action items", dlStill: "still open at the end of the day",
         realert: "Reminder", escalate: "Escalated - not acknowledged", room: "Room", pmOver: "PM overdue", pmAsg: "PM assigned", due: "Due", rCleaned: "Ready to inspect", rReady: "Room ready", rFailed: "Inspection failed", by: "by", gc: "Guest complaint", gcHigh: "HIGH guest complaint", gcOver: "Complaint open 24h+", pm: "Missing punch", pmStaff: "Please clock in or tell your manager", pmOut: "Please clock out or tell your manager", cm: "Cleans missing", no_clock_in: "No clock-in", no_clock_out: "No clock-out", open_punch: "Open punch over 12h", missing_meal_break: "Missing meal break", no_cleans: "No rooms marked cleaned", open_turn: "Room left in progress", bar_count_missing: "Bar closing count missing", bar_variance: "Bar variance", bar_comp_void: "Comp/void needs approval", bar_cash_over_short: "Bar cash over/short", bar_below_par: "Bar item below par", fd_no_login: "Front desk not logged in", fd_idle: "Front desk inactive in app", shift: "Shift", lastSeen: "Last seen", never: "never", clocked: "Clocked in (HE), not in app" },
   es: { newWO: "Nueva orden de trabajo", rush: "Habitación urgente", prio: "Habitación prioritaria", priority: "Prioridad", ack: "Confirmar",
+        dlNew: "Labor del día", dlOver: "Labor del día atrasada", dlItems: "tareas", dlStill: "siguen abiertas al final del día",
         realert: "Recordatorio", escalate: "Escalada - sin confirmar", room: "Habitación", pmOver: "Mantenimiento preventivo vencido", pmAsg: "MP asignado", due: "Vence", rCleaned: "Lista para inspeccionar", rReady: "Habitación lista", rFailed: "Inspección no aprobada", by: "por", gc: "Queja de huésped", gcHigh: "Queja URGENTE de huésped", gcOver: "Queja abierta más de 24h", pm: "Marcación faltante", pmStaff: "Por favor marque su entrada o avise a su gerente", pmOut: "Por favor marque su salida o avise a su gerente", cm: "Limpiezas faltantes", no_clock_in: "Sin entrada", no_clock_out: "Sin salida", open_punch: "Marcación abierta más de 12h", missing_meal_break: "Falta descanso de comida", no_cleans: "Sin habitaciones marcadas limpias", open_turn: "Habitación quedó en progreso", bar_count_missing: "Falta conteo de cierre del bar", bar_variance: "Variación en el bar", bar_comp_void: "Cortesía/anulación requiere aprobación", bar_cash_over_short: "Sobrante/faltante de caja del bar", bar_below_par: "Artículo del bar bajo el nivel par", fd_no_login: "Recepción sin iniciar sesión", fd_idle: "Recepción inactiva en la app", shift: "Turno", lastSeen: "Última vez", never: "nunca", clocked: "Marcó entrada (HE), no en la app" },
 };
 const PRI_ES: Record<string, string> = { Low: "Baja", Medium: "Media", High: "Alta", Urgent: "Urgente" };
@@ -95,6 +97,8 @@ const EVENTS: Record<string, { roles: string[]; build: (id: number) => Promise<{
   "bar_below_par": { roles: ["gm", "agm"], build: (id) => barEvent(id) },
   "fd_not_logged_in": { roles: ["gm", "agm"], build: (id) => fdEvent(id) },
   "qotd_team_summary": { roles: ["gm", "agm"], build: (id) => qotdSummaryEvent(id) },
+  "labor_daily_created": { roles: ["gm", "agm"], build: (id) => laborDailyEvent(id, "created") },
+  "labor_daily_overdue": { roles: ["gm", "agm"], build: (id) => laborDailyEvent(id, "overdue") },
   "hk.rush_room": {
     roles: ["hk_lead"],
     build: async (id) => {
@@ -213,6 +217,25 @@ async function laborEvent(id: number, mode: "mgr" | "staff" | "cleans") {
       ? { title: `${(STR[l] as any)[k] ?? STR[l].pm} - ${i?.work_date ?? ""}`, body: k === "no_clock_in" ? STR[l].pmStaff : STR[l].pmOut }
       : { title: `${mode === "cleans" ? STR[l].cm : STR[l].pm} - ${i?.hotel_id ?? ""}`,
           body: [name, (STR[l] as any)[k], i?.work_date, i?.detail].filter(Boolean).join(" · ") },
+  };
+}
+
+async function laborDailyEvent(id: number, mode: "created" | "overdue") {
+  const { data: day } = await db.from("labor_daily_days").select("hotel_id,work_date").eq("id", id).maybeSingle();
+  const statuses = mode === "overdue" ? ["overdue"] : ["open", "overdue"];
+  const { count } = await db.from("labor_daily_actions").select("id", { count: "exact", head: true })
+    .eq("hotel_id", day?.hotel_id ?? "")
+    .eq("work_date", day?.work_date ?? "1970-01-01")
+    .in("status", statuses);
+  const n = count ?? 0;
+  return {
+    url: `${PORTAL}#dlabor`,
+    text: (l: L) => ({
+      title: `${mode === "overdue" ? STR[l].dlOver : STR[l].dlNew} - ${day?.hotel_id ?? ""}`,
+      body: mode === "overdue"
+        ? `${n} ${STR[l].dlStill}`
+        : `${n} ${STR[l].dlItems} · ${day?.work_date ?? ""}`,
+    }),
   };
 }
 
