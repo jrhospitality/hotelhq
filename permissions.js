@@ -60,7 +60,15 @@
     "fairshare.see": ["GM", "Above Property"],
     "capture.see": ["GM", "AGM", "Above Property"],
     "guestchat.respond": ["Front Desk", "AGM"],
-    "guestchat.count": ["GM"]
+    "guestchat.count": ["GM"],
+    "ar.invoice": ["GM", "AGM", "Above Property"],
+    "ar.overview": ["Above Property"],
+    "ar.collect": ["Front Desk"],
+    "ar.resolve": ["GM", "AGM", "Above Property"],
+    "ar.threshold": ["Above Property"],
+    "ar.aging": ["Above Property"],
+    "chargebacks.log": ["GM", "AGM"],
+    "chargebacks.see": ["GM", "AGM", "Above Property"]
   };
 
   var SHUTTLE_HOTELS = ["MSPAM", "MSPMS"];

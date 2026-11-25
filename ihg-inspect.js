@@ -449,6 +449,7 @@
     render();
   };
 
+  api.savedRows = function (hotel) { return rowsFor(hotel); };
   if (typeof M !== "undefined") M.ihg = ["📋", "Room inspections"];
   if (typeof V !== "undefined") V.ihg = page;
   if (typeof I18N !== "undefined" && I18N.es) {

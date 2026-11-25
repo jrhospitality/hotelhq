@@ -352,6 +352,7 @@
     if (alert) alert.remove();
     if (count) count.remove();
     if (typeof S === "undefined" || S.tab !== "home") return;
+    try { if (typeof meUser === "function" && meUser() && meUser().pin_reset_required) return; } catch (e0) {}
     var actor = actorNow();
     if (!featureOn(actor.hotel)) return;
     var now = new Date().toISOString();

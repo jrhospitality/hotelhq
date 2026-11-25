@@ -1,7 +1,9 @@
 /* Expected finish for room attendants and laundry.
-   Housekeepers: shift start + remaining rooms x minutes-per-room + break.
-   Laundry: shift start + today's planned laundry hours.
-   Houseperson is not part of this. Missing standards stay blank. */
+   Start is today's punch-in, then the scheduled start, then the first room activity.
+   Housekeepers: that start + remaining rooms x minutes-per-room + break.
+   Laundry: that start + today's planned laundry hours.
+   Houseperson is not part of this. Missing standards stay blank.
+   The punch is timePunches[hotel][name][weekday][0], loaded from time_punches.punch_in. */
 (function (root) {
   "use strict";
 
@@ -83,6 +85,25 @@
     if (finish > end) return "amber";
     return "ok";
   }
+  function chooseStart(spec) {
+    spec = spec || {};
+    var punch = finite(spec.punchMin);
+    var schedule = finite(spec.scheduleStart);
+    var end = finite(spec.scheduleEnd);
+    var activity = finite(spec.activityMin);
+    if (punch != null) return { start: punch, end: end, basis: "punch" };
+    if (schedule != null) return { start: schedule, end: end, basis: "schedule" };
+    if (activity != null) return { start: activity, end: null, basis: "activity" };
+    return { start: null, end: null, basis: "" };
+  }
+  function basisLabel(basis, startMin, lang) {
+    var clock = formatClock(startMin);
+    if (!clock) return "";
+    var en = { punch: "from punch ", schedule: "from schedule ", activity: "from first activity " };
+    var es = { punch: "desde marcaje ", schedule: "desde horario ", activity: "desde la primera actividad " };
+    var prefix = (lang === "es" ? es : en)[basis];
+    return prefix ? prefix + clock : "";
+  }
   function blank(reason) {
     return { ok: false, reason: reason || "standards", finish: null, end: null, flag: "none", work: null };
   }
@@ -136,6 +157,8 @@
     remainingRooms: remainingRooms,
     pickShift: pickShift,
     behind: behind,
+    chooseStart: chooseStart,
+    basisLabel: basisLabel,
     project: project,
     phrase: phrase,
     hint: hint,
@@ -187,13 +210,16 @@
     } catch (e2) {}
     return rows;
   }
-  function firstActivity(name, hotel, date) {
-    var best = null;
+  function punchToday(name, hotel, date) {
     try {
       var idx = dayIndex(date);
       var punch = ((timePunches[hotel] || {})[name] || [])[idx];
-      if (punch && punch[0]) best = parseClock(punch[0]);
+      if (punch && punch[0]) return parseClock(punch[0]);
     } catch (e) {}
+    return null;
+  }
+  function firstActivity(name) {
+    var best = null;
     try {
       (D().rooms || []).forEach(function (room) {
         if (!room || room.hk !== name || !room.t0) return;
@@ -201,7 +227,7 @@
         if (min == null) return;
         if (best == null || min < best) best = min;
       });
-    } catch (e2) {}
+    } catch (e) {}
     return best;
   }
   function plannedHours(hotel, name, date) {
@@ -231,18 +257,24 @@
     var hotel = hotelNow();
     var date = today();
     var shift = pickShift(shiftsFor(user.name, hotel, date), nowMin());
-    var start = shift ? shift.start : firstActivity(user.name, hotel, date);
-    var end = shift ? shift.end : null;
+    var chosen = chooseStart({
+      punchMin: punchToday(user.name, hotel, date),
+      scheduleStart: shift ? shift.start : null,
+      scheduleEnd: shift ? shift.end : null,
+      activityMin: firstActivity(user.name)
+    });
     var spec = {
       role: user.role,
-      startMin: start,
-      endMin: end,
+      startMin: chosen.start,
+      endMin: chosen.end,
       standards: standardsFor(hotel),
       rooms: remainingRooms((function () { try { return D().rooms || []; } catch (e) { return []; } })(), user.name),
       plannedHours: user.role === "Laundry Attendant" ? plannedHours(hotel, user.name, date) : null
     };
     if (spec.standards) spec.breakMin = spec.standards.breakMin;
-    var result = project(spec);
+    var result = project(spec) || blank("start");
+    result.basis = chosen.basis;
+    result.start = chosen.start;
     return { user: user, result: result, example: !!(spec.standards && spec.standards.example) };
   }
   function clockText(result) {
@@ -259,6 +291,11 @@
     if (!label) return "";
     return '<span class="ed-flag ed-' + flag + '">' + esc(label) + "</span>";
   }
+  function basisHtml(result) {
+    var text = basisLabel(result && result.basis, result && result.start, lang());
+    if (!text) return "";
+    return '<small class="ed-basis">' + esc(text) + "</small>";
+  }
   function homeHtml() {
     var mine = "";
     var team = "";
@@ -268,7 +305,7 @@
         var row = rowFor(me);
         var hintText = row.result && row.result.ok ? "" : '<small class="ed-hint">' + esc(L(hint("en"), hint("es"))) + "</small>";
         var ex = row.example && row.result && row.result.ok ? '<span class="ex">EXAMPLE</span>' : "";
-        mine = '<section class="hhq-done ed-me" id="hhqDoneMe"><b>' + esc(clockText(row.result)) + "</b>" + flagHtml(row.result) + ex + hintText + "</section>";
+        mine = '<section class="hhq-done ed-me" id="hhqDoneMe"><b>' + esc(clockText(row.result)) + "</b>" + flagHtml(row.result) + ex + basisHtml(row.result) + hintText + "</section>";
       }
     } catch (e) {}
     if (TEAM[roleNow()]) {
@@ -277,7 +314,7 @@
         var body = rows.map(function (row) {
           var missing = row.result && row.result.ok ? "" : '<small class="ed-hint">' + esc(L(hint("en"), hint("es"))) + "</small>";
           var face = (root.HHQAv && HHQAv.html) ? HHQAv.html(row.user.name, 36) : "";
-          return '<div class="ed-row ed-' + esc((row.result && row.result.flag) || "none") + '"><div class="ed-who">' + face + "<div><b>" + esc(row.user.name) + '</b><small>' + esc(L(row.user.role, row.user.role === "Housekeeper" ? "Camarista" : "Lavandería")) + "</small></div></div><div><span>" + esc(clockText(row.result)) + "</span>" + missing + "</div><div><small>" + esc(L("Scheduled end", "Fin programado")) + "</small><b>" + esc(endText(row.result)) + "</b></div><div>" + (flagHtml(row.result) || '<span class="ed-flag ed-ok">' + esc(L("On time", "A tiempo")) + "</span>") + "</div></div>";
+          return '<div class="ed-row ed-' + esc((row.result && row.result.flag) || "none") + '"><div class="ed-who">' + face + "<div><b>" + esc(row.user.name) + '</b><small>' + esc(L(row.user.role, row.user.role === "Housekeeper" ? "Camarista" : "Lavandería")) + "</small></div></div><div><span>" + esc(clockText(row.result)) + "</span>" + basisHtml(row.result) + missing + "</div><div><small>" + esc(L("Scheduled end", "Fin programado")) + "</small><b>" + esc(endText(row.result)) + "</b></div><div>" + (flagHtml(row.result) || '<span class="ed-flag ed-ok">' + esc(L("On time", "A tiempo")) + "</span>") + "</div></div>";
         }).join("");
         team = '<section class="hhq-done" id="hhqDoneTeam"><h3>' + esc(L("Expected done by", "Hora prevista")) + "</h3>" + body + "</section>";
       }
@@ -290,9 +327,12 @@
   var css = document.createElement("style");
   css.textContent = [
     ".hhq-done{background:#fff;border:1px solid #e6e8ee;border-radius:12px;padding:12px 14px;margin:0}",
+    "#uxHero.glance-on #hhqDoneMe,#uxHero.glance-on #hhqDoneTeam{display:block!important}",
     ".hhq-done h3{margin:0 0 8px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#5c6570}",
     ".ed-me{display:flex;flex-wrap:wrap;align-items:center;gap:8px}",
     ".ed-me b{font-size:18px}",
+    ".ed-basis{color:#5c6570;font-weight:650}",
+    ".ed-me .ed-basis{flex-basis:100%}",
     ".ed-hint{color:#9a3412;font-weight:650}",
     ".ed-row{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(160px,1.4fr) minmax(120px,.8fr) auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid #e6e8ee}",
     ".ed-who{display:flex;align-items:center;gap:8px}",

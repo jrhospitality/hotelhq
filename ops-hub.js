@@ -184,9 +184,10 @@
       return '<button type="button" class="chip ' + (f.cat === c[0] ? "on" : "") + '" onclick="HQ.pick(\'cat\',\'' + c[0] + '\')">' + H(B(c[1], c[2])) + "</button>";
     }).join("") + "</div>" : "";
     var help = f.kind === "houseperson_help" ? "<small>" + H(B("Alerts the house person and the shuttle driver.", "Avisa al houseperson y al conductor del shuttle.")) + "</small>" : "";
+    var photo = f.kind === "work_order" && typeof photoField === "function" ? photoField() + (typeof photoPrev === "function" ? photoPrev() : "") : "";
     return '<div class="ops-sheet" id="opsSheet" role="dialog" aria-modal="true" aria-labelledby="opsTitle"><div class="ops-card"><h3 id="opsTitle">' + H(B("New request", "Nueva solicitud")) + '</h3><div class="chips">' + KINDS.map(function (k) {
       return '<button type="button" class="chip ' + (f.kind === k ? "on" : "") + '" onclick="HQ.pick(\'kind\',\'' + k + '\')">' + H(kindLabel(k)) + "</button>";
-    }).join("") + "</div>" + catRow + '<label>' + H(B("Room", "Habitación")) + '<input id="opsRoom" inputmode="numeric" value="' + H(f.room) + '"></label><label>' + H(B("What is needed?", "¿Qué se necesita?")) + '<textarea id="opsNote">' + H(f.note) + "</textarea></label>" + help + '<p><small>' + H(B("Goes to", "Va a")) + " <b>" + H(deptLabel(dept)) + "</b></small></p><div class=\"bad\" id=\"opsErr\" role=\"alert\"></div><div class=\"row\"><button type=\"button\" class=\"btn\" onclick=\"HQ.send()\">" + H(B("Send", "Enviar")) + '</button><button type="button" class="btn2" onclick="HQ.close()">' + H(B("Close", "Cerrar")) + "</button></div></div></div>";
+    }).join("") + "</div>" + catRow + '<label>' + H(B("Room", "Habitación")) + '<input id="opsRoom" inputmode="numeric" value="' + H(f.room) + '"></label><label>' + H(B("What is needed?", "¿Qué se necesita?")) + '<textarea id="opsNote">' + H(f.note) + "</textarea></label>" + help + photo + '<p><small>' + H(B("Goes to", "Va a")) + " <b>" + H(deptLabel(dept)) + "</b></small></p><div class=\"bad\" id=\"opsErr\" role=\"alert\"></div><div class=\"row\"><button type=\"button\" class=\"btn\" onclick=\"HQ.send()\">" + H(B("Send", "Enviar")) + '</button><button type="button" class="btn2" onclick="HQ.close()">' + H(B("Close", "Cerrar")) + "</button></div></div></div>";
   }
 
   function listHtml() {
@@ -278,7 +279,9 @@
         pushOps({ kind: "houseperson_help", dept: "housekeeping", room: f.room, title: f.note, status: "open", source_table: "reqs", source_id: "" });
       } else if (f.kind === "work_order") {
         var d = D();
-        var wo = { id: (d.wo || []).length + 1, room: f.room || "-", t: f.note, p: "Med", s: "Open", photo: "", photo_paths: [], comments: [] };
+        var shot = typeof ph === "string" ? ph : "";
+        var wo = { id: (d.wo || []).length + 1, room: f.room || "-", t: f.note, p: "Med", s: "Open", photo: shot, photo_paths: [], comments: [] };
+        if (typeof ph !== "undefined") ph = "";
         d.wo.unshift(wo);
         save();
         pushOps({ kind: "work_order", dept: "maintenance", room: wo.room, title: f.note, status: "open", source_table: "work_orders", source_id: wo.sb_id || "" });
@@ -382,10 +385,17 @@
     };
   }
 
+  function detachAsk(stack) {
+    var ask = document.getElementById("askHqBtn");
+    if (ask && stack && ask.parentNode === stack) document.body.appendChild(ask);
+    return ask;
+  }
   function mount() {
     if (!document.body || typeof meUser !== "function" || !meUser()) {
       var old = document.getElementById("opsBtn"); if (old) old.remove();
       var oldS = document.getElementById("opsMount"); if (oldS) oldS.remove();
+      var oldF = document.getElementById("hhqFabs");
+      if (oldF) { detachAsk(oldF); oldF.remove(); }
       return;
     }
     var btn = document.getElementById("opsBtn");
@@ -400,12 +410,22 @@
     btn.textContent = B("New request", "Nueva solicitud");
     var desk = typeof rMode === "function" && rMode() === "desk" && !(typeof S !== "undefined" && S.sbMini);
     var foot = document.getElementById("sbFoot");
+    var ask = document.getElementById("askHqBtn");
+    var stack = document.getElementById("hhqFabs");
     if (desk && foot) {
       btn.classList.add("ops-in-side");
       foot.insertBefore(btn, foot.firstChild);
+      if (ask && ask.parentNode !== document.body) document.body.appendChild(ask);
+      if (stack) stack.remove();
     } else {
       btn.classList.remove("ops-in-side");
-      if (btn.parentNode !== document.body) document.body.appendChild(btn);
+      if (!stack) {
+        stack = document.createElement("div");
+        stack.id = "hhqFabs";
+        document.body.appendChild(stack);
+      }
+      if (ask) stack.appendChild(ask);
+      stack.appendChild(btn);
     }
     var mountPoint = document.getElementById("opsMount");
     if (S.opsOpen) {
@@ -417,6 +437,7 @@
     var _render = render;
     render = function () { var out = _render.apply(this, arguments); try { mount(); } catch (e) {} return out; };
   }
+  if (root.HQ) root.HQ.placeFabs = mount;
   if (typeof hydrate === "function") {
     var _hy = hydrate;
     hydrate = async function () {
@@ -426,6 +447,6 @@
     };
   }
   var css = document.createElement("style");
-  css.textContent = ".ops-btn{position:fixed;right:12px;bottom:76px;z-index:45;min-height:48px;padding:0 16px;border:0;border-radius:999px;background:#143d66;color:#fff;font:700 15px/1.2 inherit;box-shadow:0 6px 18px #0003}.ops-sheet{position:fixed;inset:0;z-index:60;background:#0b1b2e88;display:flex;align-items:flex-end;justify-content:center}.ops-card{background:#fff;width:min(560px,100%);max-height:88vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px}.ops-card textarea,.ops-card input{width:100%;margin:6px 0}@media(min-width:1024px){.ops-btn{bottom:24px;right:24px}.ops-btn.ops-in-side{position:static;width:100%;margin:0 0 8px;border-radius:10px;box-shadow:none}.ops-sheet{align-items:center;justify-content:center;padding:24px}.ops-card{border-radius:16px;width:min(640px,100%);max-height:min(80vh,760px);box-shadow:0 24px 70px #0006}}";
+  css.textContent = "#hhqFabs{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:45;display:flex;flex-direction:column;align-items:flex-end;gap:10px}.ops-btn{min-height:48px;padding:0 16px;border:0;border-radius:999px;background:#143d66;color:#fff;font:700 15px/1.2 inherit;box-shadow:0 6px 18px #0003}#hhqFabs #askHqBtn,#hhqFabs .ops-btn{position:static}#askHqBtn{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:46}.ops-sheet{position:fixed;inset:0;z-index:60;background:#0b1b2e88;display:flex;align-items:flex-end;justify-content:center}.ops-card{background:#fff;width:min(560px,100%);max-height:88vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px}.ops-card textarea,.ops-card input{width:100%;margin:6px 0}@media(min-width:768px){#hhqFabs{right:16px;bottom:24px}#askHqBtn{right:16px;bottom:24px}}@media(min-width:1024px){#hhqFabs{right:24px;bottom:24px}#askHqBtn{right:24px;bottom:24px}.ops-btn.ops-in-side{position:static;width:100%;margin:0 0 8px;border-radius:10px;box-shadow:none}.ops-sheet{align-items:center;justify-content:center;padding:24px}.ops-card{border-radius:16px;width:min(640px,100%);max-height:min(80vh,760px);box-shadow:0 24px 70px #0006}}";
   document.head.appendChild(css);
 })(typeof window !== "undefined" ? window : globalThis);

@@ -108,7 +108,7 @@
   function helpTile(lang) {
     var es = langNow(lang) === "es";
     var text = es ? "Ayuda y recorrido" : "Help & tour";
-    return '<button type="button" class="more-tile" data-id="help" data-k="help tour ayuda recorrido" onclick="if(window.uxClose)uxClose();if(window.uxTour)uxTour(1)"><span class="more-ic" aria-hidden="true">' + iconSvg("help") + '</span><span class="more-lb">' + esc(text) + "</span></button>";
+    return '<button type="button" class="more-tile" data-id="help" data-k="help tour ayuda recorrido guides guias" onclick="if(window.uxClose)uxClose();if(window.go)go(\'guides\');else if(window.uxTour)uxTour(1)"><span class="more-ic" aria-hidden="true">' + iconSvg("help") + '</span><span class="more-lb">' + esc(text) + "</span></button>";
   }
   function groupOpen(group, es) {
     var accent = /^#[0-9a-f]{6}$/i.test(group.accent || "") ? group.accent : "#334155";
