@@ -54,6 +54,7 @@ var SHELL = [
   "./chargebacks.js",
   "./help-guides.js",
   "./ask-hotelhq.js",
+  "./name-match.js",
   "./readability.css",
   "./vendor/chart.umd.min.js",
   "./revenue-capture.js",

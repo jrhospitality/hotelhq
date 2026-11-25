@@ -39,6 +39,14 @@
     return true;
   }
 
+  function canEditPreferred(actor, target) {
+    if (!actor || !target) return false;
+    if (actor.role === "Above Property") return true;
+    if (actor.role !== "GM" && actor.role !== "AGM") return false;
+    if (!actor.hotel || !target.hotel || actor.hotel !== target.hotel) return false;
+    return true;
+  }
+
   function allowsNetwork(mode) {
     return mode === "live";
   }
@@ -53,7 +61,7 @@
     return !!here;
   }
 
-  const api = { isLiveKey, isPin, pinRejected, canResetPin, allowsNetwork, listedForSite, RETIRED };
+  const api = { isLiveKey, isPin, pinRejected, canResetPin, canEditPreferred, allowsNetwork, listedForSite, RETIRED };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.HQAuth = api;
 })(typeof window !== "undefined" ? window : globalThis);
