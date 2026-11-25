@@ -33,9 +33,9 @@ set search_path = ''
 as $weekly$
 declare
   v_today date := coalesce(p_as_of, (pg_catalog.now() at time zone 'America/Chicago')::date);
-  v_monday date := v_today - (pg_catalog.extract(isodow from v_today)::int - 1);
-  v_q0 date := pg_catalog.date_trunc('quarter', v_today)::date;
-  v_q1 date := (v_q0 + interval '3 months' - interval '1 day')::date;
+  v_monday date;
+  v_q0 date;
+  v_q1 date;
   v_weeks int;
   v_created int := 0;
   v_total int;
@@ -50,6 +50,10 @@ declare
   s record;
   n record;
 begin
+  -- 2000-01-03 is a Monday. Avoid EXTRACT(... FROM ...) in this function body.
+  v_monday := v_today - ((v_today - date '2000-01-03') % 7);
+  v_q0 := pg_catalog.date_trunc('quarter', v_today)::date;
+  v_q1 := (v_q0 + interval '3 months' - interval '1 day')::date;
   if v_monday > v_q1 then
     return 0;
   end if;
@@ -218,6 +222,7 @@ declare
   v_from text;
   q_start date;
   q_end date;
+  q_base date;
 begin
   if (select auth.uid()) is null then
     raise exception 'not allowed';
@@ -232,7 +237,8 @@ begin
   if t.asset = v_room then
     raise exception 'same room';
   end if;
-  q_start := pg_catalog.date_trunc('quarter', coalesce(t.pace_week, (pg_catalog.now() at time zone 'America/Chicago')::date))::date;
+  q_base := coalesce(t.pace_week, (pg_catalog.now() at time zone 'America/Chicago')::date);
+  q_start := pg_catalog.date_trunc('quarter', q_base)::date;
   q_end := (q_start + interval '3 months' - interval '1 day')::date;
   if exists (
     select 1 from public.pm_tasks p

@@ -1,6 +1,6 @@
 // Push sender. pm_assigned is the weekly room-PM batch.
-// This file matches the deployed registry plus that event. It was not deployed
-// from this change. Secrets stay in the function environment.
+// Secrets stay in the function environment. JWT verification stays off
+// because the database cron calls this without a user token.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
