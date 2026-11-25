@@ -1,0 +1,24 @@
+{
+  "hotel": "MSPWE",
+  "work_date": "2026-11-29",
+  "he_property_id": "118172",
+  "source": "he",
+  "housekeeping_loaded": true,
+  "punches_loaded": true,
+  "positions_loaded": true,
+  "associates_loaded": true,
+  "positions": [
+    {"position": "Front Desk", "actual_hours": 24.5, "plan_hours": 24, "scheduled_hours": 24},
+    {"position": "Room Attendant", "actual_hours": 36, "plan_hours": 32, "scheduled_hours": 34},
+    {"position": "Breakfast Attendant", "actual_hours": 8, "plan_hours": 8, "scheduled_hours": 8}
+  ],
+  "housekeeping": [
+    {"name": "Alex Example", "position": "Room Attendant", "hours": 8.2, "cleans": 12, "checkouts": 8, "stayovers": 4}
+  ],
+  "associates": [
+    {"name": "Alex Example", "position": "Room Attendant", "actual_hours": 8.2, "plan_hours": 7.5, "scheduled_hours": 8, "plan_scope": "associate", "scheduled_scope": "associate"}
+  ],
+  "punches": [
+    {"name": "Riley Example", "position": "Front Desk", "missing": "out"}
+  ]
+}

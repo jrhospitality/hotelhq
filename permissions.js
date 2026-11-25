@@ -41,6 +41,7 @@
     "onboard.manage": ["GM", "AGM", "Above Property"],
     "labor.plan": ["Above Property"],
     "labor.checkin": ["GM", "AGM", "Above Property"],
+    "labor.daily": ["GM", "AGM", "Above Property"],
     "places.edit": ["GM", "AGM"],
     "features.edit": ["Above Property"],
     "audit.see": ["GM", "AGM", "Above Property"],

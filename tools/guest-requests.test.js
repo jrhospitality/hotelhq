@@ -196,7 +196,7 @@ test("migration is additive, hotel-scoped, and keeps the device-token ingest", (
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   const home = fs.readFileSync(path.join(root, "home-focus.js"), "utf8");
   assert.match(html, /src="guest-requests\.js"/);
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v41"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v42"/);
   assert.match(sw, /\.\/guest-requests\.js/);
   assert.match(home, /GuestRequests\.homeHtml/);
   assert.match(home, /#hhqToday/);
