@@ -147,6 +147,7 @@ test("demo pages label example numbers and hide Golden Valley parking", () => {
   assert.match(gmHtml, /data-hotel="MSPAM"/);
   assert.match(gmHtml, /data-metric="parking"/);
   assert.match(gmHtml, /data-metric="market"/);
+  assert.match(gmHtml, /\$\d/);
   assert.equal(gmHtml.includes("MSPWE"), false);
   assert.equal(gmHtml.includes("MSPMS"), false);
   assert.equal(gmHtml.includes("Save"), false);

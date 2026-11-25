@@ -209,6 +209,10 @@
   function leader(role) {
     return role === "GM" || role === "AGM" || role === "Above Property";
   }
+  function seesRevenue(role) {
+    if (root.HHQ && root.HHQ.can) return !!root.HHQ.can(role, "revenue.see");
+    return leader(role);
+  }
   function bag(hotel, key) {
     try { return ((S.h || {})[hotel] || {})[key] || []; } catch (e) { return []; }
   }
@@ -516,7 +520,7 @@
     if (tab === "home" && leader(role) && !portfolio) parts.push(paceBlock(hotel, lang, demo));
     if (tab === "naudit" && leader(role)) {
       parts.push(paceBlock(hotel, lang, demo));
-      parts.push(marketBlock(lang));
+      if (seesRevenue(role)) parts.push(marketBlock(lang));
     }
     if (tab === "gscores") parts.push(scoreBlock(hotel, lang, role));
     if (tab === "rev" && (role === "GM" || role === "Above Property")) parts.push(fairBlock(role, hotel, lang));

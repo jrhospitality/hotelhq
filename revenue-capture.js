@@ -40,8 +40,12 @@
   }
   function canSee(role) {
     role = norm(role);
-    if (root.HHQ && root.HHQ.can) return root.HHQ.can(role, "capture.see");
-    return role === "GM" || role === "AGM" || role === "Above Property";
+    var allowed = role === "GM" || role === "AGM" || role === "Above Property";
+    if (root.HHQ && root.HHQ.can) allowed = !!root.HHQ.can(role, "capture.see");
+    if (root.HHQ && root.HHQ.CAPS && root.HHQ.CAPS["revenue.see"]) {
+      allowed = allowed && !!root.HHQ.can(role, "revenue.see");
+    }
+    return allowed;
   }
   function canEdit(role) { return norm(role) === "Above Property"; }
   function hotelsFor(role, hotel) {

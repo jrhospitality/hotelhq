@@ -192,7 +192,7 @@ test("the migration is additive and points post only when a GM or AGM approves",
   const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
   assert.match(html, /mention-points\.js/);
   assert.match(html, /MentionPoints\.submitTagged/);
-  assert.match(sw, /hotelhq-shell-v36/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v36"/);
   assert.match(sw, /mention-points\.js/);
   assert.match(html, /Points are not posted yet/);
 });
