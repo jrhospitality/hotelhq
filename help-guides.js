@@ -363,6 +363,16 @@
   function asksForPropertyRevenue(question) {
     return /room revenue|total revenue|mtd revenue|ytd revenue|revenue mtd|revenue ytd|budget vs|versus budget|adr\s*[x×]\s*rooms|ingreso de cuartos|ingreso total|ingresos del mes|ingresos del a[nñ]o/i.test(String(question || ""));
   }
+  function floorMapsOff() {
+    return !!(root.FloorMaps && root.FloorMaps.ENABLED === false);
+  }
+  function mentionsFloorMap(section) {
+    var bits = [];
+    if (section && section.title) bits.push(section.title.en, section.title.es);
+    if (section && section.body) bits.push(section.body.en, section.body.es);
+    if (section && section.keywords && section.keywords.join) bits.push(section.keywords.join(" "));
+    return /floor maps?|mapa del piso|mapas del piso/i.test(bits.join("\n"));
+  }
   function answer(question, opts) {
     opts = opts || {};
     var lang = opts.lang === "es" || opts.lang === "en" ? opts.lang : guessLang(question, opts.uiLang || "en");
@@ -377,6 +387,7 @@
     GUIDES.forEach(function (guide) {
       guide.sections.forEach(function (section) {
         if (section.revenue && !maySeeRevenue(opts.role)) return;
+        if (floorMapsOff() && mentionsFloorMap(section)) return;
         var have = bag([
           section.title.en, section.title.es, section.body.en, section.body.es,
           (section.keywords || []).join(" ")
@@ -446,6 +457,7 @@
         "<p class=\"help-watch\">" + esc(watch) + "</p>" + videoHtml(guide, lang);
       guide.sections.forEach(function (section) {
         if (section.revenue && !maySeeRevenue(opts.role)) return;
+        if (floorMapsOff() && mentionsFloorMap(section)) return;
         html += "<section class=\"help-sec\" id=\"help-" + guide.id + "-" + section.id + "\"><h3>" + esc(section.title[lang]) + "</h3><p>" + esc(section.body[lang]) + "</p></section>";
       });
       html += "</details>";

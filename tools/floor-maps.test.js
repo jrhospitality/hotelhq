@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
+const vm = require("node:vm");
 const fm = require("../floor-maps.js");
 
 const map = JSON.parse(fs.readFileSync(path.join(__dirname, "../data/mspwe-floors.json"), "utf8"));
@@ -96,6 +97,64 @@ test("only corporate can move rooms, and an edit cannot drop a room number", () 
   assert.equal(fm.sameNumbers(floor, next), true);
   assert.equal(next.rooms.find((r) => r.n === "212").x, 10);
   assert.equal(floor.rooms.find((r) => r.n === "212").x === 10, false);
+});
+
+function bootMaps(source) {
+  const context = {
+    console,
+    M: {},
+    I18N: { es: {} },
+    V: { home() { return "<h2>Home</h2>"; } },
+    tilesFor(role) { return role === "Front Desk" ? ["notes", "rooms"] : ["rooms"]; },
+    NOCOLS: [],
+    RSEC: [["Today", "Hoy", ["home"]], ["Rooms", "Cuartos", ["rooms"]]],
+    RQL: {},
+    document: {
+      createElement() { return {}; },
+      head: { appendChild() {} }
+    },
+    hotelNow() { return "MSPWE"; },
+    L(en) { return en; },
+    MSPWE_FLOOR_MAP: {
+      hotel: "MSPWE",
+      name_en: "Golden Valley",
+      name_es: "Golden Valley",
+      floors: [{ id: "1", rooms: [{ n: "101" }] }]
+    }
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(source, context, { filename: "floor-maps.js" });
+  return context;
+}
+
+test("floor maps stay hidden until the flag is turned back on", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../floor-maps.js"), "utf8");
+  assert.equal(fm.ENABLED, false);
+  assert.match(source, /var FLOOR_MAPS_ON = false/);
+  assert.match(source, /function pageHtml/);
+  assert.equal(fs.existsSync(path.join(__dirname, "../data/mspwe-floors.js")), true);
+  assert.equal(fs.existsSync(path.join(__dirname, "../data/mspwe-floors.json")), true);
+
+  const off = bootMaps(source);
+  assert.equal(off.FloorMaps.ENABLED, false);
+  assert.equal(off.M.floors, undefined);
+  assert.equal(off.V.floors, undefined);
+  assert.equal(off.RQL.floors, undefined);
+  assert.equal(off.tilesFor("Front Desk").includes("floors"), false);
+  assert.equal(off.V.home().includes("Floor map"), false);
+  assert.equal(off.RSEC[1][2].includes("floors"), false);
+  assert.equal(off.NOCOLS.includes("floors"), false);
+
+  const on = bootMaps(source.replace("var FLOOR_MAPS_ON = false;", "var FLOOR_MAPS_ON = true;"));
+  assert.equal(on.FloorMaps.ENABLED, true);
+  assert.ok(on.M.floors);
+  assert.equal(typeof on.V.floors, "function");
+  assert.deepEqual(Array.from(on.RQL.floors), ["Floor map", "Mapa del piso"]);
+  assert.equal(on.tilesFor("Front Desk").includes("floors"), true);
+  assert.match(on.V.home(), /Floor map/);
+  assert.equal(on.RSEC[1][2].includes("floors"), true);
+  assert.equal(on.NOCOLS.includes("floors"), true);
 });
 
 test("migration is additive and hotels read their own map", () => {

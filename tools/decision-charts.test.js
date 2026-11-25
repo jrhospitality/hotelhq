@@ -80,7 +80,7 @@ test("empty states are bilingual and do not invent a market number", () => {
   const sw = fs.readFileSync(path.join(__dirname, "../sw.js"), "utf8");
   assert.ok(html.indexOf('src="guest-scores.js"') < html.indexOf('src="decision-charts.js"'));
   assert.match(html, /href="readability\.css"/);
-  assert.match(sw, /hotelhq-shell-v38/);
+  assert.match(sw, /hotelhq-shell-v40/);
   assert.match(sw, /\.\/decision-charts\.js/);
   assert.match(sw, /\.\/vendor\/chart\.umd\.min\.js/);
 });
