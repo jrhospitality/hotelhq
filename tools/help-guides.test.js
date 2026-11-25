@@ -93,6 +93,40 @@ test("answers quote one guide section in the question language and refuse the re
   assert.match(missEs.text, /No encuentro eso/);
 });
 
+test("Ask HotelHQ skips a floor-map step while that feature is off", () => {
+  const blob = JSON.stringify(guides.GUIDES);
+  assert.equal(/floor map/i.test(blob), false);
+  assert.equal(/mapa del piso/i.test(blob), false);
+  const guide = guides.guideById("front_desk");
+  const section = {
+    id: "floor_map",
+    title: { en: "Floor map", es: "Mapa del piso" },
+    keywords: ["floor", "map", "mapa", "piso"],
+    body: {
+      en: "Open More and tap Floor map to see the rooms on each floor.",
+      es: "Abre Más y toca Mapa del piso para ver los cuartos de cada piso."
+    }
+  };
+  guide.sections.push(section);
+  const prev = global.FloorMaps;
+  try {
+    global.FloorMaps = { ENABLED: false };
+    const hidden = guides.answer("Where is the floor map?", { lang: "en", role: "Front Desk" });
+    assert.notEqual(hidden.sectionId, "floor_map");
+    assert.equal(guides.pageHtml("en", { role: "Front Desk" }).includes("Open More and tap Floor map"), false);
+    const hiddenEs = guides.answer("¿Dónde está el mapa del piso?", { lang: "es", role: "Front Desk" });
+    assert.notEqual(hiddenEs.sectionId, "floor_map");
+    global.FloorMaps = { ENABLED: true };
+    const shown = guides.answer("Where is the floor map?", { lang: "en", role: "Front Desk" });
+    assert.equal(shown.sectionId, "floor_map");
+    assert.match(shown.text, /Open More and tap Floor map/);
+    assert.match(guides.pageHtml("es", { role: "Front Desk" }), /Mapa del piso para ver los cuartos/);
+  } finally {
+    guide.sections.pop();
+    global.FloorMaps = prev;
+  }
+});
+
 test("the help page and Ask button are wired without a new secret", () => {
   const page = guides.pageHtml("es", { role: "Front Desk", openId: "front_desk" });
   assert.match(page, /id="helpHub"/);
@@ -110,7 +144,7 @@ test("the help page and Ask button are wired without a new secret", () => {
   assert.match(html, /src="ask-hotelhq\.js"/);
   assert.match(sw, /help-guides\.js/);
   assert.match(sw, /ask-hotelhq\.js/);
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v37"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v38"/);
   assert.match(sw, /mp4\|vtt/);
   assert.match(ask, /askHqBtn/);
   assert.match(ask, /Replay tour/);

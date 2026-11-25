@@ -28,6 +28,30 @@ test("tiles stay inside the ids this role can already open", () => {
   assert.equal(deskIds.includes("home"), false);
 });
 
+test("the floor map tile stays out of every menu while the flag is off", () => {
+  const prev = global.FloorMaps;
+  global.FloorMaps = { ENABLED: false };
+  try {
+    const desk = more.groupsFor(["greq", "gi", "notes", "rooms", "floors", "parking"]);
+    const ids = desk.flatMap((group) => group.items);
+    assert.equal(ids.includes("floors"), false);
+    assert.equal(ids.includes("parking"), true);
+    assert.equal(desk.find((group) => group.id === "front_desk").items.includes("floors"), false);
+    const html = more.htmlFor(["greq", "notes", "rooms", "floors"], "en");
+    assert.equal(html.includes("data-id=\"floors\""), false);
+    assert.equal(html.includes("go('floors')"), false);
+  } finally {
+    global.FloorMaps = prev;
+  }
+  global.FloorMaps = { ENABLED: true };
+  try {
+    const shown = more.groupsFor(["rooms", "floors"]);
+    assert.equal(shown.find((group) => group.id === "housekeeping").items.includes("floors"), true);
+  } finally {
+    global.FloorMaps = prev;
+  }
+});
+
 test("groups use the area names and an allowed unknown screen is not dropped", () => {
   assert.deepEqual(more.GROUPS.map((group) => group.en), [
     "Front Desk", "Housekeeping", "Maintenance", "Sales & Events", "Team", "Admin & Reports"
@@ -132,7 +156,8 @@ test("the profile column is additive and only the signed-in person can change it
   assert.doesNotMatch(sql, /drop column/i);
   assert.doesNotMatch(sql, /delete from/i);
   const sw = read("sw.js");
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v37"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v38"/);
+  assert.doesNotMatch(sw, /hotelhq-shell-v37"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v20"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v19"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v18"/);

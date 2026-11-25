@@ -76,15 +76,18 @@
     }
     return "";
   }
+  function mapsOff(id) {
+    return id === "floors" && root.FloorMaps && root.FloorMaps.ENABLED === false;
+  }
   function groupsFor(ids) {
     var allow = {};
     (ids || []).forEach(function (id) {
-      if (safeId(id) && id !== "home") allow[id] = true;
+      if (safeId(id) && id !== "home" && !mapsOff(id)) allow[id] = true;
     });
     var used = {};
     var out = GROUPS.map(function (group) {
       var items = group.ids.filter(function (id) {
-        if (!allow[id] || used[id]) return false;
+        if (mapsOff(id) || !allow[id] || used[id]) return false;
         used[id] = true;
         return true;
       });
