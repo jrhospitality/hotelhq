@@ -1,10 +1,14 @@
 /* Floor maps. MSPWE (Holiday Inn Express Golden Valley) is the Nov 15 pilot.
    The traced rectangles live in data/mspwe-floors.js. This file does not load
    construction drawings. Hampton and SpringHill stay empty until a map is saved
-   for that hotel. Other agents own sign-in, consolidation, and sales leads. */
+   for that hotel. Other agents own sign-in, consolidation, and sales leads.
+   FLOOR_MAPS_ON is the switch for every entry point (menus, home card, search,
+   and help steps). The drawing code and the room data stay either way.
+   Set it to true when the maps are accurate enough to show again. */
 (function (root) {
   "use strict";
 
+  var FLOOR_MAPS_ON = false;
   var HOTELS = ["MSPWE", "MSPAM", "MSPMS"];
   var STORE = "jrportal_floor_maps_v1";
   var FILL = { dirty: "#f4c45a", clean: "#d6e8ff", inspected: "#1f8a4c", ooo: "#6b7280", none: "#f7f4ee" };
@@ -107,7 +111,8 @@
     sameNumbers: sameNumbers,
     countRooms: countRooms,
     overlaps: overlaps,
-    HOTELS: HOTELS
+    HOTELS: HOTELS,
+    ENABLED: FLOOR_MAPS_ON
   };
   root.FloorMaps = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
@@ -767,6 +772,8 @@
       if (detail) detail.innerHTML = detailHtml(hotelNow());
     });
   }
+
+  if (!FLOOR_MAPS_ON) return;
 
   if (typeof M !== "undefined") M.floors = ["🗺️", "Floor map"];
   if (typeof I18N !== "undefined" && I18N.es) I18N.es["Floor map"] = "Mapa del piso";
