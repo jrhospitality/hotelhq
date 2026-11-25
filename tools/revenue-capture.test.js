@@ -147,6 +147,7 @@ test("demo pages label example numbers and hide Golden Valley parking", () => {
   assert.match(gmHtml, /data-hotel="MSPAM"/);
   assert.match(gmHtml, /data-metric="parking"/);
   assert.match(gmHtml, /data-metric="market"/);
+  assert.match(gmHtml, /\$\d/);
   assert.equal(gmHtml.includes("MSPWE"), false);
   assert.equal(gmHtml.includes("MSPMS"), false);
   assert.equal(gmHtml.includes("Save"), false);
@@ -221,7 +222,7 @@ test("the migration is insert-only and does not rewrite the feature check", () =
   assert.match(html, /revenue-capture\.js/);
   assert.ok(html.indexOf('src="guest-messages.js"') < html.indexOf('src="revenue-capture.js"'));
   assert.match(sw, /\.\/revenue-capture\.js/);
-  assert.match(sw, /hotelhq-shell-v35/);
+  assert.match(sw, /hotelhq-shell-v36/);
   assert.match(home, /RevenueCapture\.homeHtml/);
   assert.match(src, /revenue_daily_facts/);
   assert.match(src, /parking_car_rates/);
