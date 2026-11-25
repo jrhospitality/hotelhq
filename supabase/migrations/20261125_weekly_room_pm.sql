@@ -30,7 +30,7 @@ returns integer
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $weekly$
 declare
   v_today date := coalesce(p_as_of, (pg_catalog.now() at time zone 'America/Chicago')::date);
   v_monday date := v_today - (pg_catalog.extract(isodow from v_today)::int - 1);
@@ -202,7 +202,7 @@ begin
 
   return v_created;
 end;
-$$;
+$weekly$;
 
 revoke all on function private.run_weekly_room_pms(date) from public, anon, authenticated;
 
@@ -211,7 +211,7 @@ returns jsonb
 language plpgsql
 security invoker
 set search_path = ''
-as $$
+as $swap$
 declare
   t public.pm_tasks;
   v_room text := btrim(coalesce(p_room, ''));
@@ -273,12 +273,12 @@ begin
   );
   return pg_catalog.jsonb_build_object('ok', true, 'from', v_from, 'to', v_room, 'reason', 'occupied');
 end;
-$$;
+$swap$;
 
 revoke all on function public.swap_room_pm(bigint, text) from public, anon;
 grant execute on function public.swap_room_pm(bigint, text) to authenticated;
 
-do $$
+do $cron$
 begin
   if exists (select 1 from pg_namespace where nspname = 'cron') then
     if exists (select 1 from cron.job where jobname = 'pm-weekly-rooms') then
@@ -286,4 +286,4 @@ begin
     end if;
     perform cron.schedule('pm-weekly-rooms', '15 11 * * 1', 'select private.run_weekly_room_pms()');
   end if;
-end $$;
+end $cron$;
