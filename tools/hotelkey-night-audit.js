@@ -43,13 +43,21 @@
    from public.hotelkey_live_room_status where hotel_id = 'MSPWE';
 
    Closed folio columns (any one name from each group):
-   folio_ref | confirmation | folio, room | room_number,
-   stay_status | status, ending_balance | balance.
-   Guest name columns are ignored.
-   Final Audit columns: section, line_name | line, line_code | code,
-   actual_today | today, net_today | net, plus optional mtd and ytd.
-   Tax columns: folio_ref | confirmation, category, and, only when the
-   file actually has one, certificate | tax_certificate | cert_on_file.
+   folio_ref | confirmation | confirmation number | folio,
+   room | room number, stay_status | status,
+   ending_balance | balance | Today's Ending Balance.
+   A closed-folio file may also be split into Reservations and Groups,
+   with Net Totals and Balances sections. Those rollup sections are not
+   folios. Guest name columns are ignored.
+   Final Audit is either one table (section, line_name, line_code,
+   actual_today, net_today, mtd, ytd) or the HotelKey export: a section
+   title on its own row, then that section's header. Raw headers include
+   Charge Type Name, Charge Type Code, Type, Actual Today, Net Today,
+   M-T-D, and Y-T-D.
+   Tax columns: folio_ref | confirmation | transaction number,
+   room number, category | Tax Exemption Category, exempted revenue,
+   and, only when the file actually has one, certificate | tax_certificate
+   | cert_on_file.
 */
 "use strict";
 
@@ -60,27 +68,29 @@ var TZ = "America/Chicago";
 var NOSHOW_CODES = { NSRR: 1, NSFC: 1, ENSRR: 1, "1307": 1 };
 
 var CLOSED_ALIASES = {
-  folio_ref: ["folio_ref", "confirmation", "confirmation_no", "confirmation_number", "conf_number", "folio", "folio_number", "folio_no"],
+  folio_ref: ["folio_ref", "confirmation", "confirmation_no", "confirmation_number", "conf_number", "folio", "folio_number", "folio_no", "group_number", "transaction_number"],
   room: ["room", "room_number", "room_no"],
   stay_status: ["stay_status", "status", "reservation_status", "folio_status"],
-  ending_balance: ["ending_balance", "balance", "folio_balance", "ending_bal"]
+  ending_balance: ["ending_balance", "balance", "folio_balance", "ending_bal", "today_s_ending_balance", "todays_ending_balance"]
 };
 var AUDIT_ALIASES = {
   section: ["section"],
-  line_name: ["line_name", "line", "description"],
-  line_code: ["line_code", "code"],
+  line_name: ["line_name", "line", "description", "charge_type_name", "type", "tax_type", "ledger_name", "payment_method", "name"],
+  line_code: ["line_code", "code", "charge_type_code"],
   actual_today: ["actual_today", "actual", "today"],
   net_today: ["net_today", "net"],
-  mtd: ["mtd"],
-  ytd: ["ytd"]
+  mtd: ["mtd", "m_t_d"],
+  ytd: ["ytd", "y_t_d"]
 };
 var TAX_ALIASES = {
-  folio_ref: ["folio_ref", "confirmation", "confirmation_no", "confirmation_number", "folio", "folio_number"],
+  folio_ref: ["folio_ref", "confirmation", "confirmation_no", "confirmation_number", "folio", "folio_number", "transaction_number"],
   room: ["room", "room_number", "room_no"],
-  category: ["category", "exemption_category", "tax_exemption", "exempt_category"],
+  category: ["category", "exemption_category", "tax_exemption", "tax_exemption_category", "exempt_category"],
   exempted_revenue: ["exempted_revenue", "revenue", "exempt_amount"],
   certificate: ["certificate", "tax_certificate", "exemption_certificate", "cert_on_file", "certificate_on_file"]
 };
+var SKIP_CLOSED_SECTIONS = { net_totals: 1, balances: 1, balance: 1, totals: 1, total: 1 };
+var SKIP_FOLIO_REFS = { total: 1, totals: 1, net_totals: 1, reservations: 1, groups: 1, module_type: 1, balances: 1, balance: 1 };
 var ROOM_ALIASES = {
   room_number: ["room_number", "room", "room_no"],
   ooo: ["ooo", "out_of_order"]
@@ -236,6 +246,185 @@ function loadCsv(text, aliases, required) {
     out.push(obj);
   }
   return { ok: true, headers: headers, rows: out, missing: [] };
+}
+function pickColumn(headers, aliases) {
+  for (var a = 0; a < aliases.length; a++) {
+    for (var i = 0; i < headers.length; i++) {
+      if (headers[i] === aliases[a]) return i;
+    }
+  }
+  return null;
+}
+function loneCell(row) {
+  var value = "";
+  var count = 0;
+  for (var i = 0; i < row.length; i++) {
+    var cell = String(row[i] || "").trim();
+    if (!cell) continue;
+    count++;
+    value = cell;
+    if (count > 1) return "";
+  }
+  return count === 1 ? value : "";
+}
+function knownAuditHeader(norm) {
+  var groups = [AUDIT_ALIASES.section, AUDIT_ALIASES.line_name, AUDIT_ALIASES.line_code, AUDIT_ALIASES.actual_today, AUDIT_ALIASES.net_today, AUDIT_ALIASES.mtd, AUDIT_ALIASES.ytd];
+  for (var g = 0; g < groups.length; g++) {
+    if (groups[g].indexOf(norm) >= 0) return true;
+  }
+  return norm === "adjusted" || norm === "adjusted_transferred" || norm === "opening_balance" || norm === "net_change" || norm === "closing_balance" || norm === "variance" || norm === "ly_m_t_d" || norm === "ly_t_d";
+}
+function isSectionTitle(row) {
+  var value = loneCell(row);
+  if (!value) return false;
+  var norm = normHeader(value);
+  if (!norm || knownAuditHeader(norm) || norm === "total" || norm === "totals") return false;
+  if (num(value) != null) return false;
+  return true;
+}
+function mapAuditSection(title) {
+  var n = normHeader(title);
+  if (n === "revenue_charges" || n === "revenue_and_charges") return "revenue_category";
+  return n;
+}
+function canonicalLineName(value) {
+  var raw = String(value || "").trim();
+  var n = normHeader(raw);
+  if (n === "no_shows" || n === "noshows") return "No Show";
+  return raw;
+}
+function finalHeader(row) {
+  var headers = row.map(normHeader);
+  var index = {
+    section: pickColumn(headers, AUDIT_ALIASES.section),
+    line_name: pickColumn(headers, AUDIT_ALIASES.line_name),
+    line_code: pickColumn(headers, AUDIT_ALIASES.line_code),
+    actual_today: pickColumn(headers, AUDIT_ALIASES.actual_today),
+    net_today: pickColumn(headers, AUDIT_ALIASES.net_today),
+    mtd: pickColumn(headers, AUDIT_ALIASES.mtd),
+    ytd: pickColumn(headers, AUDIT_ALIASES.ytd)
+  };
+  if (index.line_name == null) return null;
+  if (index.actual_today == null && index.net_today == null && index.mtd == null) return null;
+  return { index: index, headers: headers };
+}
+function cellAt(row, index) {
+  if (index == null || row[index] == null) return "";
+  return String(row[index]).trim();
+}
+function loadFinalAudit(text) {
+  var grid = parseCsv(text);
+  if (!grid.length) return { ok: false, headers: [], rows: [], missing: ["line_name", "actual_today"] };
+  var titles = 0;
+  var heads = 0;
+  for (var i = 0; i < grid.length; i++) {
+    if (finalHeader(grid[i])) heads++;
+    else if (isSectionTitle(grid[i])) titles++;
+  }
+  if (heads <= 1 && titles === 0) return loadCsv(text, AUDIT_ALIASES, ["line_name", "actual_today"]);
+  var section = "";
+  var current = null;
+  var lastHeaders = [];
+  var found = false;
+  var rows = [];
+  for (var r = 0; r < grid.length; r++) {
+    if (isSectionTitle(grid[r])) {
+      section = loneCell(grid[r]);
+      current = null;
+      continue;
+    }
+    var head = finalHeader(grid[r]);
+    if (head) {
+      found = true;
+      current = head;
+      lastHeaders = head.headers;
+      continue;
+    }
+    if (!current) continue;
+    var name = canonicalLineName(cellAt(grid[r], current.index.line_name));
+    if (!name || normHeader(name) === "total" || normHeader(name) === "totals") continue;
+    var ownSection = cellAt(grid[r], current.index.section);
+    rows.push({
+      section: mapAuditSection(ownSection || section),
+      line_name: name,
+      line_code: cellAt(grid[r], current.index.line_code),
+      actual_today: cellAt(grid[r], current.index.actual_today),
+      net_today: cellAt(grid[r], current.index.net_today),
+      mtd: cellAt(grid[r], current.index.mtd),
+      ytd: cellAt(grid[r], current.index.ytd)
+    });
+  }
+  if (!found) return { ok: false, headers: lastHeaders.filter(Boolean), rows: [], missing: ["line_name", "actual_today"] };
+  return { ok: true, headers: lastHeaders.filter(Boolean), rows: rows, missing: [] };
+}
+function closedHeader(row) {
+  var headers = row.map(normHeader);
+  var index = {
+    folio_ref: pickColumn(headers, CLOSED_ALIASES.folio_ref),
+    room: pickColumn(headers, CLOSED_ALIASES.room),
+    stay_status: pickColumn(headers, CLOSED_ALIASES.stay_status),
+    ending_balance: pickColumn(headers, CLOSED_ALIASES.ending_balance)
+  };
+  if (index.folio_ref == null || index.ending_balance == null) return null;
+  return { index: index, headers: headers };
+}
+function keepClosedRow(row) {
+  var ref = normHeader(row.folio_ref);
+  return !!ref && !SKIP_FOLIO_REFS[ref];
+}
+function loadClosedFolios(text) {
+  var grid = parseCsv(text);
+  if (!grid.length) return { ok: false, headers: [], rows: [], missing: ["folio_ref", "ending_balance"] };
+  var titles = 0;
+  var heads = 0;
+  for (var i = 0; i < grid.length; i++) {
+    if (closedHeader(grid[i])) heads++;
+    else if (isSectionTitle(grid[i])) titles++;
+  }
+  if (heads <= 1 && titles === 0) {
+    var flat = loadCsv(text, CLOSED_ALIASES, ["folio_ref", "ending_balance"]);
+    if (!flat.ok) return flat;
+    flat.rows = flat.rows.filter(keepClosedRow);
+    return flat;
+  }
+  var skip = false;
+  var current = null;
+  var lastHeaders = [];
+  var found = false;
+  var rows = [];
+  for (var r = 0; r < grid.length; r++) {
+    if (isSectionTitle(grid[r])) {
+      skip = !!SKIP_CLOSED_SECTIONS[normHeader(loneCell(grid[r]))];
+      current = null;
+      continue;
+    }
+    var head = closedHeader(grid[r]);
+    if (head) {
+      found = true;
+      current = head;
+      lastHeaders = head.headers;
+      continue;
+    }
+    if (skip || !current) continue;
+    var row = {
+      folio_ref: cellAt(grid[r], current.index.folio_ref),
+      room: cellAt(grid[r], current.index.room),
+      stay_status: cellAt(grid[r], current.index.stay_status),
+      ending_balance: cellAt(grid[r], current.index.ending_balance)
+    };
+    if (keepClosedRow(row)) rows.push(row);
+  }
+  if (!found) return { ok: false, headers: lastHeaders.filter(Boolean), rows: [], missing: ["folio_ref", "ending_balance"] };
+  return { ok: true, headers: lastHeaders.filter(Boolean), rows: rows, missing: [] };
+}
+function loadTaxForecast(text) {
+  var table = loadCsv(text, TAX_ALIASES, ["folio_ref"]);
+  if (!table.ok) return table;
+  table.rows = table.rows.filter(function (row) {
+    var ref = normHeader(row.folio_ref);
+    return ref && ref !== "total" && ref !== "totals";
+  });
+  return table;
 }
 function coverage(id, support, en, es) {
   return { check_id: id, support: support, reason_en: clip(en, 240), reason_es: clip(es, 240) };
@@ -624,19 +813,19 @@ function runCli(argv, now) {
   var rooms = null;
   if (paths.closed) {
     if (!fs.existsSync(paths.closed)) return fail("File not found.");
-    var closedTable = loadCsv(readText(paths.closed), CLOSED_ALIASES, ["folio_ref", "ending_balance"]);
+    var closedTable = loadClosedFolios(readText(paths.closed));
     if (!closedTable.ok) return fail("Unrecognized Closed Folio Balances headers: " + closedTable.headers.join(","));
     closed = closedTable.rows;
   }
   if (paths.final) {
     if (!fs.existsSync(paths.final)) return fail("File not found.");
-    var auditTable = loadCsv(readText(paths.final), AUDIT_ALIASES, ["line_name", "actual_today"]);
+    var auditTable = loadFinalAudit(readText(paths.final));
     if (!auditTable.ok) return fail("Unrecognized Final Audit headers: " + auditTable.headers.join(","));
     auditLines = auditTable.rows;
   }
   if (paths.tax) {
     if (!fs.existsSync(paths.tax)) return fail("File not found.");
-    var taxTable = loadCsv(readText(paths.tax), TAX_ALIASES, ["folio_ref"]);
+    var taxTable = loadTaxForecast(readText(paths.tax));
     if (!taxTable.ok) return fail("Unrecognized Tax Exemptions Forecast headers: " + taxTable.headers.join(","));
     taxRows = taxTable.rows;
     taxHasCertificate = taxTable.headers.indexOf("certificate") >= 0 || taxTable.headers.indexOf("tax_certificate") >= 0 || taxTable.headers.indexOf("exemption_certificate") >= 0 || taxTable.headers.indexOf("cert_on_file") >= 0 || taxTable.headers.indexOf("certificate_on_file") >= 0;
@@ -680,6 +869,9 @@ var api = {
   HOTELS: HOTELS,
   parseCsv: parseCsv,
   loadCsv: loadCsv,
+  loadFinalAudit: loadFinalAudit,
+  loadClosedFolios: loadClosedFolios,
+  loadTaxForecast: loadTaxForecast,
   reviewFromParts: reviewFromParts,
   payloadForRpc: payloadForRpc,
   resolveAuditDate: resolveAuditDate,
