@@ -854,6 +854,7 @@ async function hydrate(){
     const d=S.h[h];
     const rooms=await dbSelect("rooms",{eq:{hotel_id:h}});
     if(rooms.length){
+      d.roomNumbers=rooms.map(r=>String(r.room_number));
       const asg=await dbSelect("hk_assignments",{eq:{hotel_id:h}});
       const today=ld();
       d.rooms=rooms.map(r=>{
@@ -869,7 +870,7 @@ async function hydrate(){
     }
     const ins=await dbSelect("inspections",{eq:{hotel_id:h}});
     if(ins.length)d.insp=ins.map(x=>Object.assign({room:x.room_number,by:names[x.inspected_by]||"Staff",score:x.score,notes:x.notes||"",date:String(x.inspected_at||"").slice(0,10),failed:x.failed_items||[],sb_id:x.id},ftPick(x)));
-    const pms=await dbSelect("pm_tasks",{eq:{hotel_id:h}});
+    const pms=await dbSelect("pm_tasks",{eq:{hotel_id:h},limit:5000});
     d._pmRows=pms;
     const notes=await dbSelect("shift_notes",{eq:{hotel_id:h}});
     if(notes.length)d.notes=notes.map(n=>Object.assign({sh:n.shift||"",by:names[n.created_by]||"Staff",t:n.body||"",at:hhmm(n.created_at),sb_id:n.id},ftPick(n)));
@@ -899,8 +900,9 @@ async function hydrate(){
     const pmRows=d._pmRows||[];
     delete d._pmRows;
     if(pmRows.length){
-      const legacy=pmRows.filter(p=>!p.schedule_id);
-      const jobs=pmRows.filter(p=>p.schedule_id);
+      d.pmTaskSlim=pmRows.map(p=>({id:p.id,asset:p.asset||"",schedule_id:p.schedule_id||null,pace_schedule_id:p.pace_schedule_id||null,pace_week:p.pace_week?String(p.pace_week).slice(0,10):"",done:!!p.done,completed_at:p.completed_at||"",assigned_to:p.assigned_to||"",due_date:p.due_date?String(p.due_date).slice(0,10):"",title_es:p.title_es||""}));
+      const legacy=pmRows.filter(p=>!p.schedule_id&&!p.pace_schedule_id);
+      const jobs=pmRows.filter(p=>p.schedule_id&&!p.pace_schedule_id);
       if(legacy.length)d.pm=legacy.map(p=>({a:p.asset,f:p.frequency||"",due:p.due_date||"",done:!!p.done,sb_id:p.id}));
       if(jobs.length)d.pmJobs=jobs.map(r=>pmJobFromDb(d,r));
     }
@@ -1586,15 +1588,13 @@ ${TPL[tp].map(x=>`<label class="li"><input type="checkbox" class="ic" data-i="${
 <div class="card"><h3>Recent</h3>${d.insp.map((x,i)=>`<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:0"><b>${x.room}</b> ${x.score}% · ${x.by} · ${x.date}<br>${noteHtml("insp"+i,x,x.notes)}</div></div>`).join("")}</div>`},
 wo(){const d=D();return `<h2>Work Orders</h2><div class="card"><h3>New work order</h3><div class="row"><input id="wr" placeholder="Room/Area"><select id="wp"><option>Low</option><option>Med</option><option>High</option></select></div><input id="wt" style="width:100%" placeholder="Describe issue"><div class="row">${photoField()}</div>${photoPrev()}<button class="btn" style="width:100%" onclick="addW()">Submit</button></div>
 ${d.wo.map((w,i)=>`<div class="card"><b>#${w.id} · ${w.room}</b> <span class="pill ${w.p=='High'?'VD':w.p=='Med'?'OD':'VC'}">${w.p}</span><div>${noteHtml("wo"+w.id,w,w.t)}</div>${(w.comments||[]).map((c,j)=>`<div class="li" style="flex-wrap:wrap"><span style="flex:1;min-width:0"><small>${escH(c.by||"")} · ${escH(c.at||"")}</small><br>${noteHtml("woc"+w.id+"_"+j,c,c.text||"")}</span></div>`).join("")}<div class="row"><input id="woc${i}" placeholder="Comment"><button type="button" class="btn" onclick="addWoComment(${i})">Add comment</button></div>${w.photo?`<img class="prev" src="${w.photo}">`:""}<select onchange="woSet(${i},this.value)">${["Open","In Progress","Done","Rejected"].concat(w.s==="Duplicate"?["Duplicate"]:[]).map(s=>`<option ${s==w.s?'selected':''}>${s}</option>`).join("")}</select></div>`).join("")}`},
-pm(){const d=D(),q=d.pmq,dl=daysLeft(),left=q.total-q.done,pace=(left/dl).toFixed(1),T=pmToday(),EQ=eqList();return `<h2>Preventive Maintenance</h2><div class="card"><h3>Guestroom PM · quarter pacing</h3><div class="kpi"><div><b>${q.done}/${q.total}</b>Rooms done</div><div><b>${dl}</b>Days left in Q</div><div><b class="${pace>1.5?'bad':'good'}">${pace}</b>Rooms/day needed</div></div><small>Template: PTAC filter/coils, plumbing, caulk, furniture, lights, smoke detector, TV/remote.</small></div>
-<div class="card"><h3>Today's auto-assigned room PMs (${T.length})</h3><small>${t("Need {n}/day to finish the quarter",{n:Math.ceil(left/dl)})} · ${t("vacant/clean rooms picked first")} · ${t("split across on-shift maintenance")}: ${onS("Maintenance").map(s=>s.n).join(", ")}</small>${T.map((x,i)=>`<div class="li"><input type="checkbox" ${x.done?'checked':''} onchange="pmD(${i},this.checked)"><span style="flex:1"><b>Room ${x.room}</b> <button class="btn2" style="min-height:36px;padding:2px 8px;font-size:13px" onclick="S.pmRoom=${x.room};save();render();setTimeout(()=>$('rpc').scrollIntoView(),0)">☑ PM 582</button> ${x.st?`<span class="pill ${x.st}">${x.st}</span>`:''}${x.od?' <span class="bad">OVERDUE (carried over)</span>':''}<br><small>Assigned to ${psel(x.who,`pmW(${i},this.value)`)}</small></span></div>`).join("")}</div>
-${S.pmRoom?rpmCard(S.pmRoom):`<div class="card" id="rpc"><small>Tap ☑ PM 582 on a room to open the Guestroom PM checklist.</small></div>`}<div class="card"><h3>Equipment & area PMs (by due date) ${S.hotel=="MSPWE"?'<span class="pill VC">Imported from Quore</span>':'<span class="pill OD">EXAMPLE</span>'}</h3>${EQ.map(e=>`<div class="li"><input type="checkbox" ${pdn(e.p)?'checked':''} onchange="pmT(${e.i},this.checked)"><span style="flex:1"><b>${e.p.a}</b><br><small>${e.p.f} · due ${e.p.due}${e.od?' <span class=bad>OVERDUE</span>':''}<br>Assigned to ${asel(ld()+"|PM|"+e.p.a,e.who)}</small></span></div>`).join("")}</div>`},
-my(){const me=cw(),T=pmToday(),EQ=eqList(),its=ITEMS().filter(it=>own(it)==me),rp=T.map((x,i)=>({x,i})).filter(o=>o.x.who==me),ep=EQ.filter(e=>e.who==me),jobs=S.role==="Maintenance"?pmOpenJobs():[],n=its.filter(x=>!isD(x.key,x.per)).length+rp.filter(o=>!o.x.done).length+ep.filter(e=>!pdn(e.p)).length+jobs.length,ov=its.filter(od).length+rp.filter(o=>o.x.od&&!o.x.done).length+ep.filter(e=>e.od).length+jobs.filter(j=>daysUntil(j.due)<0).length;
-const rq=myReqs(),rqOpen=rq.filter(x=>x.st!="Done").length;if(pmDoId&&S.role==="Maintenance")return pmDoPage();return `<h2>My Tasks · ${me}</h2>${rq.length?`<div class="card" id="myReqList"><h3>Requests for me <span class="badge${rqOpen?"":" zero"}">${rqOpen}</span></h3>${rq.map(reqRow).join("")}</div>`:""}${S.role==="Maintenance"?pmEngHtml(jobs):""}<div class="card"><div class="kpi"><div><b>${n}</b>Open</div><div><b class="${ov?'bad':''}">${ov}</b>Overdue</div><div><b>${its.length+rp.length+ep.length+jobs.length}</b>Total</div></div></div>
-${rp.length?`<div class="card"><h3>Room PMs today</h3>${rp.map(o=>`<label class="li"><input type="checkbox" ${o.x.done?'checked':''} onchange="pmD(${o.i},this.checked)"><span>Room ${o.x.room} PM${o.x.od?' <span class=bad>OVERDUE</span>':''}</span></label>`).join("")}</div>`:""}
+pm(){const EQ=eqList();return `<h2>Preventive Maintenance</h2>${window.HHQRoomPm?HHQRoomPm.section():""}\n${S.pmRoom?rpmCard(S.pmRoom):`<div class="card" id="rpc"><small>Tap ☑ PM 582 on a room to open the Guestroom PM checklist.</small></div>`}<div class="card"><h3>Equipment & area PMs (by due date) ${S.hotel=="MSPWE"?'<span class="pill VC">Imported from Quore</span>':'<span class="pill OD">EXAMPLE</span>'}</h3>${EQ.map(e=>`<div class="li"><input type="checkbox" ${pdn(e.p)?'checked':''} onchange="pmT(${e.i},this.checked)"><span style="flex:1"><b>${e.p.a}</b><br><small>${e.p.f} · due ${e.p.due}${e.od?' <span class=bad>OVERDUE</span>':''}<br>Assigned to ${asel(ld()+"|PM|"+e.p.a,e.who)}</small></span></div>`).join("")}</div>`},
+my(){const me=cw(),EQ=eqList(),its=ITEMS().filter(it=>own(it)==me),roomPm=window.HHQRoomPm?HHQRoomPm.forUser(me):{open:0,overdue:0,total:0,html:""},ep=EQ.filter(e=>e.who==me),jobs=S.role==="Maintenance"?pmOpenJobs():[],n=its.filter(x=>!isD(x.key,x.per)).length+roomPm.open+ep.filter(e=>!pdn(e.p)).length+jobs.length,ov=its.filter(od).length+roomPm.overdue+ep.filter(e=>e.od).length+jobs.filter(j=>daysUntil(j.due)<0).length;
+const rq=myReqs(),rqOpen=rq.filter(x=>x.st!="Done").length;if(pmDoId&&S.role==="Maintenance")return pmDoPage();return `<h2>My Tasks · ${me}</h2>${rq.length?`<div class="card" id="myReqList"><h3>Requests for me <span class="badge${rqOpen?"":" zero"}">${rqOpen}</span></h3>${rq.map(reqRow).join("")}</div>`:""}${S.role==="Maintenance"?pmEngHtml(jobs):""}<div class="card"><div class="kpi"><div><b>${n}</b>Open</div><div><b class="${ov?'bad':''}">${ov}</b>Overdue</div><div><b>${its.length+roomPm.total+ep.length+jobs.length}</b>Total</div></div></div>
+${roomPm.html||""}
 ${ep.length?`<div class="card"><h3>Equipment PMs</h3>${ep.map(e=>`<label class="li"><input type="checkbox" ${pdn(e.p)?'checked':''} onchange="pmT(${e.i},this.checked)"><span>${e.p.a}<br><small>due ${e.p.due}${e.od?' <span class=bad>OVERDUE</span>':''}</small></span></label>`).join("")}</div>`:""}
 ${["Daily","Weekly","Monthly"].map(per=>{const a=its.filter(x=>x.per==per);return a.length?`<div class="card"><h3>${t(per)} ${t("checklist")} · ${pk(per)}</h3>${a.map(itRow).join("")}</div>`:""}).join("")}
-${!its.length&&!rp.length&&!ep.length&&!jobs.length?'<div class="card">Nothing assigned to you this period.</div>':''}`},
+${!its.length&&!roomPm.total&&!ep.length&&!jobs.length?'<div class="card">Nothing assigned to you this period.</div>':''}`},
 rules(){const d=D(),its=ITEMS(),grps=[...new Set(its.map(x=>x.grp))];return `<h2>Assignment Rules</h2><div class="card"><label class="li"><input type="checkbox" ${d.pmAuto!==false?'checked':''} onchange="D().pmAuto=this.checked;delete (D().pmDay||{})[ld()];save();render()">Auto-assign PMs to on-shift maintenance</label><small>Checklist items rotate each day/week/month across on-shift staff in the owner role (optionally limited to a shift). Manual reassignments override for the current period only.</small></div>
 ${grps.map(g=>`<div class="card"><h3>${g}</h3>${its.filter(x=>x.grp==g).map(it=>{const r=rule(it);return `<div class="li" style="flex-wrap:wrap"><span style="flex:1 1 100%">${escH(bi(it.label))} <small>→ ${own(it)}</small></span><select style="flex:1;font-size:14px" onchange="setR('${E(it.key)}','role',this.value)">${DEP.map(x=>`<option ${x==r.role?'selected':''}>${x}</option>`).join("")}</select><select style="flex:1;font-size:14px" onchange="setR('${E(it.key)}','shift',this.value)">${["","AM","PM","Night Audit"].map(x=>`<option value="${x}" ${x==r.shift?'selected':''}>${x||'Any shift'}</option>`).join("")}</select><label style="display:flex;align-items:center;gap:4px"><input type="checkbox" ${r.auto?'checked':''} onchange="setR('${E(it.key)}','auto',this.checked)">Auto</label></div>`}).join("")}</div>`).join("")}
 <div class="card"><h3>Roster (EXAMPLE)</h3><table><tr><th>Name</th><th>Role</th><th>Shift</th><th>Days</th><th>Today</th></tr>${ST().map(s=>`<tr><td>${s.n}</td><td>${s.role}</td><td>${s.shift}</td><td>${s.days.map(dowName).join(" ")}</td><td>${s.days.includes(DOW)?'<span class=good>On</span>':'Off'}</td></tr>`).join("")}</table></div>`},
@@ -1669,7 +1669,7 @@ function gpct(t){const a=ITEMS().filter(x=>x.grp=="GM "+t);return a.length?Math.
 function pdue(s){if(s=="Today")return new Date(new Date().toDateString());const [m,dd]=s.split("/");return new Date(new Date().getFullYear(),m-1,dd)}
 function daysLeft(){const n=new Date(),e=new Date(n.getFullYear(),Math.floor(n.getMonth()/3)*3+3,1);return Math.max(1,Math.ceil((e-new Date(n.toDateString()))/864e5))}
 function pmToday(){const d=D(),k=ld();d.pmDay=d.pmDay||{};d.pmRooms=d.pmRooms||[];if(!d.pmDay[k]){const prev=Object.keys(d.pmDay).filter(x=>x<k).sort().pop(),carry=prev?d.pmDay[prev].filter(x=>!x.done).map(x=>({room:x.room,od:1})):[],need=Math.ceil((d.pmq.total-d.pmq.done)/daysLeft()),pr={VC:0,OOO:1,VD:2,RFI:3,OC:4,OD:5},cand=d.rooms.filter(r=>!d.pmRooms.includes(r.n)&&!carry.some(c=>c.room==r.n)).sort((a,b)=>pr[a.s]-pr[b.s]).slice(0,need).map(r=>({room:r.n,st:r.s})),pool=onS("Maintenance");d.pmDay[k]=[...carry,...cand].map((x,i)=>({...x,who:d.pmAuto===false?"Unassigned":pool[i%pool.length].n,done:false}));save()}return d.pmDay[k]}
-function pmD(i,c){const d=D(),e=pmToday()[i];e.done=c;if(c){d.pmRooms.push(e.room);d.pmq.done++}else{d.pmRooms=d.pmRooms.filter(r=>r!=e.room);d.pmq.done--}save();render()}
+function pmD(i,c){const d=D(),e=pmToday()[i];if(!e)return;e.done=c;if(c){d.pmRooms.push(e.room);d.pmq.done++}else{d.pmRooms=d.pmRooms.filter(r=>r!=e.room);d.pmq.done--}save();render()}
 function pmW(i,v){pmToday()[i].who=v;save();render()}
 function eqList(){const d=D(),t=new Date(new Date().toDateString()),pool=onS("Maintenance");return d.pm.map((p,i)=>({p:{...p,due:dueOf(p)},i})).sort((a,b)=>pdue(a.p.due)-pdue(b.p.due)).map((e,j)=>({...e,od:pdue(e.p.due)<t&&!pdn(e.p),who:(d.ovr||{})[ld()+"|PM|"+e.p.a]||(d.pmAuto===false?"Unassigned":pool[j%pool.length].n)}))}
 const LINE=["Housekeeper","Shuttle Driver","House Person","Laundry Attendant","Breakfast Attendant"],SHH=["MSPAM","MSPMS"],ROLES=["GM","Front Desk","Housekeeping","Maintenance","Housekeeper","Shuttle Driver","House Person","Laundry Attendant","Breakfast Attendant"],SHORT={Housekeeping:"HK Lead",Housekeeper:"Housekeeper",Maintenance:"Maint","Shuttle Driver":"Shuttle","House Person":"House","Laundry Attendant":"Laundry","Breakfast Attendant":"Bkfst","Above Property":"Above",AGM:"AGM"},LM={"Shuttle Driver":["🧰","Vehicle"],"House Person":["🧹","Tasks"],"Laundry Attendant":["🧺","Laundry"],"Breakfast Attendant":["🍳","Breakfast"]};
@@ -1914,7 +1914,7 @@ function wkI(it,v){if(!v)return;const d=D(),k=pk("Weekly"),i=decodeURIComponent(
 function rpT(room,it,c){const d=D();d.rpm=d.rpm||{};d.rpm[room]=d.rpm[room]||{};d.rpm[room][decodeURIComponent(it)]=c;save();render()}
 function dayRoll(d){if(d.hkDay==ld())return;d.hkDay=ld();d.rooms.forEach(r=>{r.t0=r.t1=r.x="";r.ts=0;r.mins=0});autoHK(1)}
 function rosterLabor(d){if(d.laborR)return;d.laborR=1;const C={"Front Desk":"FD",Housekeeping:"HK Lead",Housekeeper:"HK",Maintenance:"MT","Shuttle Driver":"SH","House Person":"HP","Laundry Attendant":"LA","Breakfast Attendant":"BK"};d.labor=ST().filter(s=>s.role!="GM"&&s.role!="AGM").map((s,i)=>{const p=Math.min(40,s.days.length*8),dv=((i*7)%9-3)*.5;return{n:s.n,d:C[s.role]||s.role,p,s:p+(i%3==0?1:0),a:Math.max(0,p+dv)}})}
-function rpmCard(room){const d=D(),c=(d.rpm||{})[room]||{},all=Object.values(QUORE.gpm).flat(),n=all.filter(x=>c[enOf(x)]).length,i=pmToday().findIndex(x=>x.room==room);return `<div class="card" id="rpc"><h3>Guestroom PM · Room ${room} <span class="pill VC">Imported from Quore · template 582</span></h3><small>${n}/${all.length} items</small><div style="background:#eee;border-radius:5px"><div class="bar" style="width:${100*n/all.length}%"></div></div>${Object.entries(QUORE.gpm).map(([h,its])=>`<h3 style="margin-top:10px">${h}</h3>${its.map(x=>`<label class="li"><input type="checkbox" ${c[enOf(x)]?'checked':''} onchange="rpT(${room},'${E(enOf(x))}',this.checked)"><span>${gpmLabel(x)}</span></label>`).join("")}`).join("")}${i>=0&&!pmToday()[i].done?`<button class="btn" style="width:100%;margin-top:8px" onclick="pmD(${i},true)">Mark room ${room} PM complete</button>`:""}<button class="btn2" style="width:100%;margin-top:6px" onclick="S.pmRoom=0;save();render()">Close</button></div>`}
+function rpmCard(room){const d=D(),c=(d.rpm||{})[room]||{},all=Object.values(QUORE.gpm).flat(),n=all.filter(x=>c[enOf(x)]).length,i=pmToday().findIndex(x=>x.room==room);return `<div class="card" id="rpc"><h3>Guestroom PM · Room ${room} <span class="pill VC">Imported from Quore · template 582</span></h3><small>${n}/${all.length} items</small><div style="background:#eee;border-radius:5px"><div class="bar" style="width:${100*n/all.length}%"></div></div>${Object.entries(QUORE.gpm).map(([h,its])=>`<h3 style="margin-top:10px">${h}</h3>${its.map(x=>`<label class="li"><input type="checkbox" ${c[enOf(x)]?'checked':''} onchange="rpT(${room},'${E(enOf(x))}',this.checked)"><span>${gpmLabel(x)}</span></label>`).join("")}`).join("")}${window.HHQRoomPm?HHQRoomPm.completeButton(room):(i>=0&&!pmToday()[i].done?`<button class="btn" style="width:100%;margin-top:8px" onclick="pmD(${i},true)">Mark room ${room} PM complete</button>`:"")}<button class="btn2" style="width:100%;margin-top:6px" onclick="S.pmRoom=0;save();render()">Close</button></div>`}
 function lv(){return D().labor.reduce((a,x)=>a+x.a-x.p,0)}
 function cyc(i){const o=["dirty","progress","cleaned","ready","reclean","ooo"],r=D().rooms[i];if(!r)return;const f=roomFlow(r);setRoomFlow(r.n,o[(Math.max(0,o.indexOf(f))+1)%o.length])}
 function asg(n,a){D().rooms.find(r=>r.n==n).hk=a;save()}
@@ -3571,7 +3571,7 @@ function pmSchedBody(hotel,s){
   const equipSb=unit&&unit.sb_id?unit.sb_id:null;
   if((s.kind==="filter"||s.kind==="belt")&&!equipSb) return null;
   if(!equipSb&&!s.area) return null;
-  const row={hotel_id:hotel,area:s.area||null,kind:s.kind||"general",title_en:s.title_en||s.title_es||"PM",title_es:s.title_es||null,frequency:s.frequency||"monthly",interval_days:s.frequency==="interval"?Number(s.intervalDays):null,lead_days:Number(s.leadDays)||0,assigned_role:s.role||"maintenance",checklist:(s.checklist||[]).map(x=>({en:x.en||"",es:x.es||""})),start_date:s.startDate||ld(),last_completed:s.lastCompleted||null,next_due:s.nextDue||null,active:s.active!==false};
+  const row={hotel_id:hotel,area:s.area||null,kind:s.kind||"general",title_en:s.title_en||s.title_es||"PM",title_es:s.title_es||null,frequency:s.frequency||"monthly",interval_days:s.frequency==="interval"?Number(s.intervalDays):null,lead_days:Number(s.leadDays)||0,assigned_role:s.role||"maintenance",checklist:(s.checklist||[]).map(x=>({en:x.en||"",es:x.es||""})),start_date:s.startDate||ld(),last_completed:s.lastCompleted||null,active:s.active!==false};
   if(equipSb) row.equipment_id=equipSb;
   return row;
 }
@@ -3580,7 +3580,7 @@ function pmJobBody(hotel,job){
   const s=(d.pmSched||[]).find(x=>x.id===job.schedId);
   if(!s||!s.sb_id) return null;
   const unit=(d.equip||[]).find(e=>e.id===s.equipId);
-  const row={hotel_id:hotel,department:"maintenance",asset:s.title_en||s.title_es||"PM",title_es:s.title_es||null,frequency:s.frequency==="interval"?String(s.intervalDays)+" days":s.frequency,due_date:job.due||s.nextDue||null,checklist:job.items||[],done:!!job.done,kind:s.kind||"general",schedule_id:s.sb_id,status:job.done?"done":"open"};
+  const row={hotel_id:hotel,department:"maintenance",asset:s.title_en||s.title_es||"PM",title_es:s.title_es||null,frequency:s.frequency==="interval"?String(s.intervalDays)+" days":s.frequency,due_date:job.due||s.nextDue||null,checklist:job.items||[],done:!!job.done,kind:s.kind||"general",schedule_id:s.sb_id};
   if(unit&&unit.sb_id) row.equipment_id=unit.sb_id;
   if(job.done&&job.completedOn) row.completed_at=job.completedOn+"T12:00:00.000Z";
   return row;
@@ -3605,9 +3605,32 @@ async function syncPmSched(hotel,before,after){
     const body=pmJobBody(hotel,live);
     if(!body){failed=true;continue}
     if(live.sb_id){const res=await dbUpdate("pm_tasks",live.sb_id,body);if(res.source!=="supabase") failed=true}
-    else {const res=await dbInsert("pm_tasks",body);if(res.source==="supabase"&&res.data&&res.data.id) live.sb_id=res.data.id;else failed=true}
+    else {
+      const existing=await openTaskForSchedule(hotel, body.schedule_id);
+      if(existing&&existing.id){
+        live.sb_id=existing.id;
+        const res=await dbUpdate("pm_tasks",live.sb_id,body);
+        if(res.source!=="supabase") failed=true;
+      } else {
+        const res=await dbInsert("pm_tasks",body);
+        if(res.source==="supabase"&&res.data&&res.data.id) live.sb_id=res.data.id;
+        else {
+          const again=await openTaskForSchedule(hotel, body.schedule_id);
+          if(again&&again.id) live.sb_id=again.id;
+          else failed=true;
+        }
+      }
+    }
   }
   return failed;
+}
+async function openTaskForSchedule(hotel, scheduleId){
+  if(!scheduleId||typeof useRemote!=="function"||!useRemote()||typeof sb==="undefined"||!sb) return null;
+  try{
+    const res=await sb.from("pm_tasks").select("id").eq("hotel_id",hotel).eq("schedule_id",scheduleId).eq("done",false).limit(1);
+    if(res.error||!res.data||!res.data.length) return null;
+    return res.data[0];
+  }catch(e){return null}
 }
 // Room reports read Supabase views room_health, room_turns, and guest_reviews.
 // room_health: hotel_id, room_number, window_days, tickets, repeat, open, fails, reviews, clean_score, problem_score.
@@ -5585,4 +5608,5 @@ const css=document.createElement("style");css.textContent=`
 <script src="chargebacks.js"></script>
 <script src="help-guides.js"></script>
 <script src="ask-hotelhq.js"></script>
-<script src="mention-points.js"></script></body></html>
+<script src="mention-points.js"></script>
+<script src="room-pm.js"></script></body></html>
