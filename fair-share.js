@@ -9,7 +9,10 @@
    IHG DaySTAR/STAR access for HotelHQ was still pending as of November 5, 2026.
    Operations has Expedia Partner Central access for these three hotels.
    This file does not call Partner Central.
-   Later imports write public.fair_share_snapshots and public.expedia_fair_share_snapshots. */
+   Later imports write public.fair_share_snapshots and public.expedia_fair_share_snapshots.
+   Expedia revenue totals are property revenue. The Revenue row is omitted unless
+   the role may see revenue (GM, AGM, and above-property). STR occupancy, ADR,
+   and RevPAR stay. AGM still does not open this tab. */
 (function (root) {
   "use strict";
 
@@ -84,6 +87,18 @@
     role = norm(role);
     if (root.HHQ && root.HHQ.can) return root.HHQ.can(role, "fairshare.see");
     return role === "GM" || role === "Above Property";
+  }
+  function canSeeRevenue(role) {
+    var key = norm(role);
+    if (key === "gm" || key === "GM") key = "GM";
+    if (key === "agm" || key === "AGM") key = "AGM";
+    if (root.HHQ && root.HHQ.can) return !!root.HHQ.can(key, "revenue.see");
+    return key === "GM" || key === "AGM" || key === "Above Property";
+  }
+  function metricsFor(role, rows) {
+    if (role == null || role === "") return rows || [];
+    if (canSeeRevenue(role)) return rows || [];
+    return (rows || []).filter(function (row) { return row.id !== "revenue"; });
   }
   function hotelsFor(role, hotel) {
     if (!canSee(role)) return [];
@@ -371,10 +386,10 @@
       "<p class=\"fs-note\">" + esc(tx(lang, "Operations has Expedia Partner Central access for these three hotels. This screen does not call it.", "Operaciones ya tiene acceso a Expedia Partner Central para estos tres hoteles. Esta pantalla no lo consulta.")) + "</p>" +
       "<p class=\"fs-note\">" + esc(tx(lang, "Search share is visibility. Room nights and revenue are property totals versus the sample Expedia competitive set, not bookings.", "La participación en búsquedas es visibilidad. Las noches y los ingresos son totales del hotel contra el grupo competitivo de Expedia de ejemplo, no reservas.")) + "</p>";
   }
-  function periodHtml(model, hotel, period, lang, feed) {
+  function periodHtml(model, hotel, period, lang, feed, role) {
     var rootBag = model.hotels[hotel];
     var bag = feed === "expedia" ? rootBag.expedia : rootBag;
-    var rows = feed === "expedia" ? compareExpedia(model, hotel, period.id) : compare(model, hotel, period.id);
+    var rows = metricsFor(role, feed === "expedia" ? compareExpedia(model, hotel, period.id) : compare(model, hotel, period.id));
     var compLabel = feed === "expedia"
       ? tx(lang, "Sample Expedia competitive set", "Grupo competitivo de Expedia de ejemplo")
       : (bag.compSet || COMP);
@@ -386,17 +401,17 @@
     return "<section class=\"fs-period\" data-feed=\"" + feed + "\" data-period=\"" + period.id + "\" data-hotel=\"" + esc(hotel) + "\"><h3>" + esc(period.id.toUpperCase()) + " · " + esc(tx(lang, period.en, period.es)) + "</h3><p class=\"fs-note\">" +
       esc(tx(lang, "Period ending", "Periodo que termina") + " " + model.asOf + " · " + compLabel) + "</p><div class=\"fs-scroll\"><table class=\"fs-table\"><thead>" + head + "</thead><tbody>" + body + "</tbody></table></div></section>";
   }
-  function hotelHtml(model, hotel, lang, feed) {
+  function hotelHtml(model, hotel, lang, feed, role) {
     return "<section class=\"fs-hotel\" data-feed=\"" + feed + "\" data-hotel=\"" + esc(hotel) + "\"><h3><b>" + esc(hotel) + "</b> " + esc(NAMES[hotel] || hotel) + "</h3>" +
-      PERIODS.map(function (period) { return periodHtml(model, hotel, period, lang, feed); }).join("") + "</section>";
+      PERIODS.map(function (period) { return periodHtml(model, hotel, period, lang, feed, role); }).join("") + "</section>";
   }
-  function sourceBlock(model, hotels, lang, feed) {
+  function sourceBlock(model, hotels, lang, feed, role) {
     var title = feed === "expedia"
       ? ["Expedia fair share", "Participación justa de Expedia"]
       : ["STR fair share", "Participación justa STR"];
     var note = feed === "expedia" ? expediaNote(lang) : sampleNote(lang) + legend(lang);
     return "<section class=\"fs-source\" data-feed=\"" + feed + "\"><h3 class=\"fs-source-title\">" + esc(tx(lang, title[0], title[1])) + "</h3>" + note +
-      hotels.map(function (hotel) { return hotelHtml(model, hotel, lang, feed); }).join("") + "</section>";
+      hotels.map(function (hotel) { return hotelHtml(model, hotel, lang, feed, role); }).join("") + "</section>";
   }
   function sectionHtml(model, actor, view) {
     view = view || {};
@@ -409,8 +424,8 @@
     var many = hotels.length > 1;
     return "<section class=\"fs" + (many ? " fs-portfolio" : "") + "\" id=\"revRoot\" data-revenue=\"1\">" +
       "<h2>" + esc(tx(lang, "Revenue", "Ingresos")) + "</h2>" +
-      sourceBlock(model, hotels, lang, "str") +
-      sourceBlock(model, hotels, lang, "expedia") + "</section>";
+      sourceBlock(model, hotels, lang, "str", actor.role) +
+      sourceBlock(model, hotels, lang, "expedia", actor.role) + "</section>";
   }
   function pageHtml(model, actor, view) {
     var html = sectionHtml(model, actor, view);
@@ -421,7 +436,7 @@
   var api = {
     HOTELS: HOTELS, NAMES: NAMES, PERIODS: PERIODS, METRICS: METRICS, EXPEDIA_METRICS: EXPEDIA_METRICS,
     SOURCES: SOURCES, IMPORT_SOURCES: IMPORT_SOURCES, EXPEDIA_SOURCES: EXPEDIA_SOURCES, EXPEDIA_IMPORTS: EXPEDIA_IMPORTS,
-    norm: norm, canSee: canSee, hotelsFor: hotelsFor, demoUi: demoUi, todayOf: todayOf,
+    norm: norm, canSee: canSee, canSeeRevenue: canSeeRevenue, metricsFor: metricsFor, hotelsFor: hotelsFor, demoUi: demoUi, todayOf: todayOf,
     shareIndex: shareIndex, yoyPoints: yoyPoints, yoyPercent: yoyPercent, toneIndex: toneIndex, toneYoy: toneYoy,
     buildDemo: buildDemo, compare: compare, compareExpedia: compareExpedia, snapshotRows: snapshotRows, expediaRows: expediaRows,
     importSlot: importSlot, expediaImportSlot: expediaImportSlot, applySaved: applySaved,
