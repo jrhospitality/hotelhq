@@ -25,6 +25,7 @@ async function tr(row: any, field: string) {
   return (l: L) => ((t?.[l] ?? orig) as string).slice(0, 80);
 }
 
+// Event registry: recipient roles, optional direct recipient, and bilingual content
 const EVENTS: Record<string, { roles: string[]; build: (id: number) => Promise<{ extra?: string[]; text: (l: L) => { title: string; body: string }; url: string }> }> = {
   "work_order.created": {
     roles: ["maintenance", "gm", "agm"],
@@ -111,6 +112,7 @@ const EVENTS: Record<string, { roles: string[]; build: (id: number) => Promise<{
   },
 };
 
+// Weekly "What my team is missing" summary for GM/AGM (from qotd_team_summaries)
 async function qotdSummaryEvent(id: number) {
   const { data: s } = await db.from("qotd_team_summaries").select("hotel_id,week,data").eq("id", id).single();
   const d: any = s?.data ?? {};
@@ -226,6 +228,7 @@ Deno.serve(async (req) => {
     const { notification_id } = await req.json();
     const { data: cur } = await db.from("notifications").select("*").eq("id", notification_id).single();
     if (!cur?.pending_action) return new Response(JSON.stringify({ skipped: true }));
+    // claim: only one worker processes a pending action
     const { data: n } = await db.from("notifications").update({ pending_action: null })
       .eq("id", cur.id).eq("pending_action", cur.pending_action).select().single();
     if (!n) return new Response(JSON.stringify({ skipped: true }));
