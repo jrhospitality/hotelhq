@@ -166,7 +166,7 @@ test("the migration is additive, events are not writable by clients, and the buc
   assert.doesNotMatch(sql, /drop table|delete from public\.|truncate/i);
   assert.match(page, /chargebacks\.js/);
   assert.match(sw, /chargebacks\.js/);
-  assert.match(sw, /hotelhq-shell-v33/);
+  assert.match(sw, /hotelhq-shell-v34/);
   const types = fs.readFileSync(path.join(__dirname, "../supabase/migrations/20261120_chargeback_types.sql"), "utf8");
   assert.match(types, /add column if not exists category/);
   assert.match(types, /details jsonb/);
