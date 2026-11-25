@@ -768,6 +768,7 @@
           else todayBox.insertAdjacentHTML("afterbegin", reqHtml);
         }
       }
+      if (window.DailyAssign && DailyAssign.homeHtml) top.insertAdjacentHTML("beforeend", DailyAssign.homeHtml());
       if (window.HHQDone && HHQDone.homeHtml) top.insertAdjacentHTML("beforeend", HHQDone.homeHtml());
       if (window.AccountsReceivable && AccountsReceivable.homeHtml) top.insertAdjacentHTML("beforeend", AccountsReceivable.homeHtml());
       if (window.Chargebacks && Chargebacks.homeHtml) top.insertAdjacentHTML("beforeend", Chargebacks.homeHtml());
