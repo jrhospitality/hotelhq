@@ -247,6 +247,7 @@ declare
   score integer;
   saw_prefix boolean := false;
   word_prefix boolean;
+  alias_count integer;
 begin
   if q is null or q = '' or pg_catalog.length(q) > 40 then
     return 0;
@@ -255,9 +256,15 @@ begin
   sources := sources || private.fold_name(p_name);
   sources := sources || private.fold_name(p_preferred);
   if p_aliases is not null then
-    for i in 1..pg_catalog.least(pg_catalog.cardinality(p_aliases), 6) loop
-      sources := sources || private.fold_name(p_aliases[i]);
-    end loop;
+    alias_count := pg_catalog.cardinality(p_aliases);
+    if alias_count > 6 then
+      alias_count := 6;
+    end if;
+    if alias_count is not null and alias_count > 0 then
+      for i in 1..alias_count loop
+        sources := sources || private.fold_name(p_aliases[i]);
+      end loop;
+    end if;
   end if;
   for i in 1..pg_catalog.cardinality(sources) loop
     source := sources[i];
