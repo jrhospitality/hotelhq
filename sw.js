@@ -53,6 +53,7 @@ var SHELL = [
   "./hk-report.js",
   "./chargebacks.js",
   "./help-guides.js",
+  "./data/help-guides.js",
   "./ask-hotelhq.js",
   "./readability.css",
   "./vendor/chart.umd.min.js",

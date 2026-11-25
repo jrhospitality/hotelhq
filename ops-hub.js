@@ -237,6 +237,18 @@
     open: function () { S.opsOpen = 1; render(); },
     close: function () { S.opsOpen = 0; render(); },
     pick: function (k, v) { readForm(); S.nrf[k] = v; render(); },
+    photo: function (input) {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        S.nrf = S.nrf || {};
+        S.nrf.photo = String(reader.result || "");
+        var img = document.getElementById("opsPrev");
+        if (img) { img.src = S.nrf.photo; img.hidden = false; }
+      };
+      reader.readAsDataURL(file);
+    },
     act: function (k, v) {
       S.actf = S.actf || { category: "all", room: "" };
       S.actf[k] = v;

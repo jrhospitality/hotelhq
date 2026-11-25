@@ -117,3 +117,38 @@ test("the help page and Ask button are wired without a new secret", () => {
   assert.match(menu, /Help & tour/);
   assert.match(menu, /Ayuda y recorrido/);
 });
+
+const rollout = require("../data/help-guides.js");
+
+function rolloutGuide(id) {
+  return rollout.GUIDES.find((item) => item.id === id);
+}
+
+test("the rollout guides stay in both languages and in the shell", () => {
+  assert.deepEqual(rollout.GUIDES.map((item) => item.id), ["front-desk", "housekeeping", "maintenance", "gm"]);
+  rollout.GUIDES.forEach((item) => {
+    assert.ok(item.title.en && item.title.es);
+    assert.match(item.video.en, /^help\/videos\/.+\.mp4$/);
+    assert.match(item.video.es, /^help\/videos\/.+\.mp4$/);
+    item.sections.forEach((section) => {
+      assert.ok(section.steps.length >= 3);
+      section.steps.forEach((step) => {
+        assert.ok(step.en && step.es);
+        assert.notEqual(step.en, step.es);
+      });
+    });
+  });
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const sw = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+  assert.match(html, /src="data\/help-guides\.js"/);
+  assert.match(html, /src="help-guides\.js"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v34"/);
+  assert.match(sw, /"\.\/data\/help-guides\.js"/);
+  assert.match(sw, /"\.\/room-pm\.js"/);
+  const clean = rollout.answer("How do I mark a room clean?", "en", "Housekeeper");
+  assert.equal(clean.known, true);
+  assert.equal(clean.guideId, "housekeeping");
+  const missed = rollout.answer("What is the wifi password?", "en", "Front Desk");
+  assert.equal(missed.known, false);
+  assert.equal(missed.text, rollout.UNKNOWN.en);
+});
