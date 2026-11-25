@@ -8,7 +8,11 @@
    Counts are shown as reported. OOO and stay extensions do not grow a room list.
    Opera, OnQ, and Marriott parsers stay empty until real report samples arrive.
    The mailbox body is not stored. Parsed rows belong in night_audit_report_rows.
-   Balance checks from the AR feed render above this check-in when AccountsReceivable is loaded. */
+   Balance checks from the AR feed render above this check-in when AccountsReceivable is loaded.
+   Room revenue, total revenue, ADR times rooms, and MTD/YTD budget versus actual
+   are property revenue. Only GM, AGM, and above-property may see those rows.
+   Occupancy, ADR, and RevPAR stay. A role that cannot see revenue loses the
+   whole revenue row, not a blank cell. */
 (function (root) {
   "use strict";
 
@@ -759,13 +763,53 @@
     { key: "rooms", section: "gm_statistics", metric: "total_rooms", en: "Rooms", es: "Cuartos", kind: "count" },
     { key: "occupied", section: "gm_statistics", metric: "rooms_occupied", en: "Occupied", es: "Ocupados", kind: "count" },
     { key: "available", section: "gm_statistics", metric: "available_rooms", en: "Available", es: "Disponibles", kind: "count" },
-    { key: "room_revenue", section: "gm_revenue", metric: "room_revenue", en: "Room revenue", es: "Ingreso de cuartos", kind: "money" },
-    { key: "total_revenue", section: "gm_revenue", metric: "total_revenue", en: "Total revenue", es: "Ingreso total", kind: "money" },
+    { key: "room_revenue", section: "gm_revenue", metric: "room_revenue", en: "Room revenue", es: "Ingreso de cuartos", kind: "money", revenue: true },
+    { key: "total_revenue", section: "gm_revenue", metric: "total_revenue", en: "Total revenue", es: "Ingreso total", kind: "money", revenue: true },
     { key: "ooo", section: "gm_statistics", metric: "ooo_rooms", en: "OOO", es: "Fuera de servicio", kind: "count", countOnly: true },
     { key: "dirty", section: "gm_statistics", metric: "dirty_rooms", en: "Dirty", es: "Sucios", kind: "count" },
     { key: "clean", section: "gm_statistics", metric: "clean_rooms", en: "Clean", es: "Limpios", kind: "count" },
     { key: "ready", section: "gm_statistics", metric: "ready_rooms", en: "Ready", es: "Listos", kind: "count" }
   ];
+  var REVENUE_METRICS = [
+    "room_revenue", "total_revenue", "adr_x_rooms",
+    "room_revenue_budget", "total_revenue_budget",
+    "room_revenue_actual", "total_revenue_actual"
+  ];
+  function revenueRoleKey(role) {
+    var key = role == null ? "" : String(role);
+    if (key === "gm" || key === "GM") return "GM";
+    if (key === "agm" || key === "AGM") return "AGM";
+    if (key === "above_property" || key === "corporate" || key === "JR Corporate" || key === "Above Property") return "Above Property";
+    return key;
+  }
+  function canSeeRevenue(role) {
+    var key = revenueRoleKey(role);
+    if (root.HHQ && root.HHQ.can) return !!root.HHQ.can(key, "revenue.see");
+    return key === "GM" || key === "AGM" || key === "Above Property";
+  }
+  function isPropertyRevenueMetric(metric) {
+    var key = String(metric || "").toLowerCase();
+    if (!key || key === "adr" || key === "revpar" || key === "occupancy" || key === "occupancy_pct") return false;
+    if (REVENUE_METRICS.indexOf(key) >= 0) return true;
+    return key.indexOf("revenue") >= 0 || key.indexOf("budget") >= 0;
+  }
+  function hideRevenueRows(rows) {
+    return (rows || []).filter(function (row) {
+      if (!row || row.section !== "gm_revenue") return true;
+      var cells = row.cells || {};
+      return !isPropertyRevenueMetric(cells.metric);
+    });
+  }
+  function linesForRole(lines, role) {
+    if (role == null || role === "") return lines || [];
+    if (canSeeRevenue(role)) return lines || [];
+    return (lines || []).filter(function (line) { return !isPropertyRevenueMetric(line.key); });
+  }
+  api.canSeeRevenue = canSeeRevenue;
+  api.isPropertyRevenueMetric = isPropertyRevenueMetric;
+  api.linesForRole = linesForRole;
+  api.hideRevenueRows = hideRevenueRows;
+  api.REVENUE_METRICS = REVENUE_METRICS;
   var FEED_SECTIONS = [
     { id: "reservations", en: "Reservations", es: "Reservas", mode: "count" },
     { id: "cancellations", en: "Cancellations", es: "Cancelaciones", mode: "count" },
@@ -846,7 +890,7 @@
     var hotel = input.hotel;
     if (HOTELS.indexOf(hotel) < 0) return { connected: false, hotel: hotel || "" };
     var rows = [];
-    (input.rows || []).forEach(function (row) {
+    (input.hideRevenue ? hideRevenueRows(input.rows) : (input.rows || [])).forEach(function (row) {
       var next = normalizeFeedRow(row, hotel);
       if (next) rows.push(next);
     });
@@ -1024,7 +1068,7 @@
       ? "<p class=\"na-note\"><span class=\"ex\">EXAMPLE</span> " + esc(tx(lang, "Sample HotelKey figures for this demo. No real guests.", "Cifras HotelKey de ejemplo para esta demostración. No hay huéspedes reales.")) + "</p>"
       : "";
     var head = "<p class=\"na-note\">" + esc(model.hotel + " · " + (model.auditDate || "") + " · HotelKey") + "</p>";
-    var gmRows = (model.lines || []).map(function (line) {
+    var gmRows = linesForRole(model.lines, opts.role).map(function (line) {
       var label = lang === "es" ? line.es : line.en;
       return [esc(label), esc(fmtStat(line.kind, line.today)), esc(fmtStat(line.kind, line.mtd)), esc(fmtStat(line.kind, line.ytd))];
     });
@@ -1144,6 +1188,7 @@
             subject: report.subject,
             origin: "hotelkey",
             rows: allRows.filter(function (row) { return row.report_id === report.id && row.hotel === hotel; }),
+            hideRevenue: !canSeeRevenue(revenueViewerRole()),
             items: allItems.filter(function (row) { return row.report_id === report.id && row.hotel === hotel; }).map(mapLiveItem),
             resolutions: allResolutions.filter(function (row) { return row.hotel === hotel; })
           });
@@ -1176,7 +1221,7 @@
       return "<button type=\"button\" class=\"" + (code === hotel ? "on" : "") + "\" onclick=\"naHotel('" + code + "')\">" + esc(code) + "</button>";
     }).join("") + "</div>";
     var model = livePack[hotel] || { connected: false, hotel: hotel };
-    return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" + switcher + balance + feedHtml(model, lang, { actions: true, openId: view.openId, error: view.error }) + "</div>";
+    return "<div class=\"na\" id=\"naRoot\"><h2>" + esc(tx(lang, "Night Audit", "Auditoría nocturna")) + "</h2>" + switcher + balance + feedHtml(model, lang, { actions: true, openId: view.openId, error: view.error, role: revenueViewerRole() }) + "</div>";
   }
   function liveHomeHtml(actor, lang) {
     ensureLive();
@@ -1201,6 +1246,14 @@
       return root.AccountsReceivable.nightSection(actor, { hotel: hotel, lang: lang });
     } catch (e) { return ""; }
   }
+  function revenueViewerRole() {
+    var real = currentActor().role;
+    var viewed = real;
+    try { if (typeof S !== "undefined" && S.role) viewed = S.role; } catch (e) {}
+    if (!canSeeRevenue(real)) return real || "Front Desk";
+    if (!canSeeRevenue(viewed)) return viewed;
+    return real;
+  }
   function bootPage() {
     var actor = currentActor();
     if (!isLeader(actor.role)) return "<div class=\"na\" id=\"naRoot\"></div>";
@@ -1208,7 +1261,7 @@
     var view = pageState();
     var lang = langNow();
     var sample = feedForHotel(exampleFeed(), view.hotel);
-    return arNight(actor, view.hotel, lang) + checkinHtml(bundle(), actor, view) + feedHtml(sample, lang);
+    return arNight(actor, view.hotel, lang) + checkinHtml(bundle(), actor, view) + feedHtml(sample, lang, { role: revenueViewerRole() });
   }
   function homeHtml() {
     var actor = currentActor();
@@ -1218,11 +1271,17 @@
   }
   api.homeHtml = homeHtml;
   api.currentFeed = function (hotel) {
+    var feed = null;
     if (demoUi()) {
       var sample = feedForHotel(exampleFeed(), hotel);
-      return sample && sample.connected ? sample : null;
+      feed = sample && sample.connected ? sample : null;
+    } else {
+      feed = livePack[hotel] && livePack[hotel].connected ? livePack[hotel] : null;
     }
-    return livePack[hotel] && livePack[hotel].connected ? livePack[hotel] : null;
+    if (!feed) return null;
+    var role = revenueViewerRole();
+    if (canSeeRevenue(role)) return feed;
+    return Object.assign({}, feed, { lines: linesForRole(feed.lines, role) });
   };
   api.feedState = function () {
     if (demoUi()) return "example";

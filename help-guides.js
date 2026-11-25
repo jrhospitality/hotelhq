@@ -339,9 +339,21 @@
       captions: { en: "", es: "" }
     };
   }
+  function maySeeRevenue(role) {
+    var key = role == null ? "" : String(role);
+    if (key === "gm" || key === "GM") key = "GM";
+    else if (key === "agm" || key === "AGM") key = "AGM";
+    else if (key === "above_property" || key === "corporate" || key === "JR Corporate" || key === "Above Property") key = "Above Property";
+    if (root.HHQ && root.HHQ.can) return !!root.HHQ.can(key, "revenue.see");
+    return key === "GM" || key === "AGM" || key === "Above Property";
+  }
+  function asksForPropertyRevenue(question) {
+    return /room revenue|total revenue|mtd revenue|ytd revenue|revenue mtd|revenue ytd|budget vs|versus budget|adr\s*[x×]\s*rooms|ingreso de cuartos|ingreso total|ingresos del mes|ingresos del a[nñ]o/i.test(String(question || ""));
+  }
   function answer(question, opts) {
     opts = opts || {};
     var lang = opts.lang === "es" || opts.lang === "en" ? opts.lang : guessLang(question, opts.uiLang || "en");
+    if (asksForPropertyRevenue(question) && !maySeeRevenue(opts.role)) return unknown(lang);
     var queryWords = words(question).map(canon);
     var unique = {};
     queryWords.forEach(function (word) { unique[word] = 1; });
@@ -351,6 +363,7 @@
     var best = null;
     GUIDES.forEach(function (guide) {
       guide.sections.forEach(function (section) {
+        if (section.revenue && !maySeeRevenue(opts.role)) return;
         var have = bag([
           section.title.en, section.title.es, section.body.en, section.body.es,
           (section.keywords || []).join(" ")
@@ -419,6 +432,7 @@
       html += "<details class=\"help-guide\" id=\"help-" + guide.id + "\"" + open + "><summary>" + esc(guide.title[lang]) + "</summary>" +
         "<p class=\"help-watch\">" + esc(watch) + "</p>" + videoHtml(guide, lang);
       guide.sections.forEach(function (section) {
+        if (section.revenue && !maySeeRevenue(opts.role)) return;
         html += "<section class=\"help-sec\" id=\"help-" + guide.id + "-" + section.id + "\"><h3>" + esc(section.title[lang]) + "</h3><p>" + esc(section.body[lang]) + "</p></section>";
       });
       html += "</details>";
