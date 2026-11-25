@@ -35,7 +35,14 @@ test("four day-one guides stay inside real screens and carry both languages", ()
   });
   assert.deepEqual(guides.guideForRole("Housekeeper").id, "housekeeping");
   assert.deepEqual(guides.guideForRole("Laundry Attendant").id, "housekeeping");
+  assert.deepEqual(guides.guideForRole("Housekeeping").id, "housekeeping");
   assert.deepEqual(guides.guideForRole("AGM").id, "gm");
+  const lead = guides.guideById("housekeeping").sections.find((section) => section.id === "lead");
+  assert.ok(lead);
+  assert.match(lead.body.en, /Auto-assign dirty rooms/);
+  assert.match(lead.body.en, /Ready to Inspect/);
+  assert.match(lead.body.es, /Pass/);
+  assert.match(guides.guideById("housekeeping").sections.find((section) => section.id === "laundry").body.en, /Load done/);
 });
 
 test("answers quote one guide section in the question language and refuse the rest", () => {
@@ -64,6 +71,15 @@ test("answers quote one guide section in the question language and refuse the re
   const pin = guides.answer("How do I set my PIN?", { lang: "en", role: "GM" });
   assert.equal(pin.guideId, "gm");
   assert.equal(pin.sectionId, "pin");
+
+  const inspect = guides.answer("How do I inspect a room?", { lang: "en", role: "Housekeeping" });
+  assert.equal(inspect.known, true);
+  assert.equal(inspect.guideId, "housekeeping");
+  assert.equal(inspect.sectionId, "lead");
+  assert.match(inspect.text, /Do not pass a room you cleaned/);
+  const assign = guides.answer("¿Cómo asigno cuartos?", { lang: "es", role: "Housekeeping" });
+  assert.equal(assign.sectionId, "lead");
+  assert.match(assign.text, /Auto-assign dirty rooms/);
 
   ["What is the guest wifi password?", "How do I change the Opera rate code?", ""].forEach((question) => {
     const miss = guides.answer(question, { lang: "en", role: "Front Desk" });

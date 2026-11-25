@@ -34,6 +34,9 @@
     preventivo: "pm", preventiva: "pm", pm: "pm", pms: "pm",
     resumen: "briefing", briefing: "briefing", junta: "briefing", huddle: "briefing",
     auditoria: "audit", audit: "audit", nocturna: "audit", night: "audit",
+    inspect: "inspect", inspection: "inspect", inspeccion: "inspect", inspeccionar: "inspect", inspecciono: "inspect",
+    assign: "assign", asignar: "assign", asigna: "assign", asigno: "assign",
+    lead: "lead", lider: "lead",
     equipo: "team", team: "team", personal: "team",
     comentario: "review", comentarios: "review", resena: "review", resenas: "review",
     review: "review", reviews: "review", medallia: "review",
@@ -42,7 +45,8 @@
   };
   var DISTINCT = {
     pin: 1, notes: 1, chat: 1, request: 1, clean: 1, points: 1, laundry: 1,
-    workorder: 1, pm: 1, briefing: 1, audit: 1, team: 1, review: 1, home: 1, doneby: 1, room: 1
+    workorder: 1, pm: 1, briefing: 1, audit: 1, team: 1, review: 1, home: 1, doneby: 1, room: 1,
+    inspect: 1, assign: 1, lead: 1
   };
   var ES_HINT = { como: 1, que: 1, donde: 1, puedo: 1, para: 1, una: 1, los: 1, las: 1, mis: 1, como: 1, marca: 1, marcar: 1, donde: 1 };
   var EN_HINT = { how: 1, what: 1, where: 1, the: 1, my: 1, can: 1, does: 1, do: 1, mark: 1, open: 1 };
@@ -154,12 +158,21 @@
           }
         },
         {
+          id: "lead",
+          title: { en: "Inspect and assign rooms", es: "Inspeccionar y asignar cuartos" },
+          keywords: ["lead", "lider", "inspect", "inspeccionar", "assign", "asignar", "board", "tablero", "pass", "fail"],
+          body: {
+            en: "Sign in as the housekeeping lead. Home shows HK Lead · today: dirty rooms, rooms ready to inspect, escalations, and rooms assigned to someone off shift. Open Rooms for the room board. Assign an attendant on a dirty room, or tap Auto-assign dirty rooms to on-shift housekeepers. Open Inspect. Ready to Inspect lists rooms that are waiting, and rush rooms are first. Tap Open inspection, check each item that passes, and tap Pass. To send a room back, type a note and tap Fail. Do not pass a room you cleaned. HotelHQ asks the GM, the AGM, or another lead to inspect that room.",
+            es: "Entra como líder de ama de llaves. Inicio muestra HK Lead · today: cuartos sucios, cuartos listos para inspeccionar, escalaciones y cuartos asignados a alguien fuera de turno. Abre Cuartos para el tablero. Asigna una camarista en un cuarto sucio, o toca Auto-assign dirty rooms to on-shift housekeepers. Abre Inspect. Ready to Inspect lista los cuartos en espera, y los urgentes van primero. Toca Open inspection, marca cada punto que pasa y toca Pass. Para regresarlo, escribe una nota y toca Fail. No apruebes un cuarto que tú limpiaste. HotelHQ pide que lo inspeccione el gerente, el subgerente u otro líder."
+          }
+        },
+        {
           id: "laundry",
           title: { en: "Laundry station", es: "Estación de lavandería" },
           keywords: ["laundry", "lavanderia", "wash", "dry", "par", "linen", "chemical", "station"],
           body: {
-            en: "Laundry attendants open Station. The screen title is Laundry. Loads log: pick the item, such as Sheets or Towels, and tap Start wash. When it is washed, tap Start dry. When it is dry, tap Finish. Clean linen par / counts: update the count. LOW means the count is under 70 percent of par. OK means it is at or above that. Chemicals & supplies: update the percent and tap Request when a chemical needs a refill. The daily checklist and requests from the desk are on the same screen.",
-            es: "Lavandería abre Estación. El título es Lavandería. Registro de cargas: elige el artículo, como Sábanas o Toallas, y toca Empezar lavado. Cuando termine el lavado, toca Empezar secado. Cuando seque, toca Terminar. Par y conteo de blancos limpios: actualiza el conteo. BAJO significa que está bajo el 70 por ciento del par. OK significa que está en ese nivel o arriba. Químicos e insumos: actualiza el porcentaje y toca Pedir cuando un químico necesita relleno. La lista del día y las solicitudes de recepción están en la misma pantalla."
+            en: "Laundry attendants open Station. The screen title is Laundry. Loads log: pick the item, such as Sheets or Towels, and tap Start wash. When it is washed, tap Start dry. When it is dry, tap Finish. Clean linen par / counts: update the count. LOW means the count is under 70 percent of par. OK means it is at or above that. Chemicals & supplies: update the percent and tap Request when a chemical needs a refill. The daily checklist and requests from the desk are on the same screen. On Home, tap Load done as each load is finished. The loads-left count drops.",
+            es: "Lavandería abre Estación. El título es Lavandería. Registro de cargas: elige el artículo, como Sábanas o Toallas, y toca Empezar lavado. Cuando termine el lavado, toca Empezar secado. Cuando seque, toca Terminar. Par y conteo de blancos limpios: actualiza el conteo. BAJO significa que está bajo el 70 por ciento del par. OK significa que está en ese nivel o arriba. Químicos e insumos: actualiza el porcentaje y toca Pedir cuando un químico necesita relleno. La lista del día y las solicitudes de recepción están en la misma pantalla. En Inicio, toca Carga hecha cuando terminas una carga. Bajan las cargas que faltan."
           }
         }
       ]
