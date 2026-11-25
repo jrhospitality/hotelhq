@@ -4,7 +4,7 @@
    The ack action opens /hotelhq/?ack=<alert_id> and does not call the API.
    Shell caching is network-first and versioned. Supabase and other personal API
    responses are never written to the cache. Bump CACHE_VERSION when cache rules change. */
-var CACHE_VERSION = "hotelhq-shell-v37";
+var CACHE_VERSION = "hotelhq-shell-v38";
 var SHELL = [
   "./",
   "./index.html",
@@ -45,6 +45,7 @@ var SHELL = [
   "./mspwe-checklists.js",
   "./expected-done.js",
   "./avatars.js",
+  "./guest-requests.js",
   "./home-focus.js",
   "./glance-home.js",
   "./fair-share.js",
