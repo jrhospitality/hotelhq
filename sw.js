@@ -1,22 +1,24 @@
-/* HotelHQ service worker. The root worker is registered with scope /hotelhq/.
-   The demo copy is registered with scope /hotelhq/demo/. The root worker does
-   not satisfy /hotelhq/demo/ from the live shell.
-   The ack action opens /hotelhq/?ack=<alert_id> and does not call the API.
-   Shell caching is network-first and versioned. Supabase and other personal API
-   responses are never written to the cache. Bump CACHE_VERSION when cache rules change. */
-var CACHE_VERSION = "hotelhq-shell-v42";
-var SHELL = [
-  "./",
-  "./index.html",
-  "./manifest.webmanifest",
-  "./install.html",
-  "./install-qr.svg",
-  "./pwa-install.js",
+/* HotelHQ live service worker. Registered from /hotelhq/ with that scope.
+   It does not answer /hotelhq/demo/; the demo worker owns that scope.
+   HTML, JSON, and config.js are fetched with cache "no-store" and never stored.
+   Supabase and other API calls are not intercepted. Icons, CSS, and JS are
+   network-first in a versioned cache so a new deploy shows up while online.
+   A failed navigation opens offline.html. Push still opens /hotelhq/, and it
+   will not navigate a demo window. Bump CACHE_VERSION when these rules change. */
+var CACHE_VERSION = "hotelhq-static-v1";
+var PRECACHE = [
+  "./offline.html",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-maskable-192.png",
   "./icon-maskable-512.png",
-  "./apple-touch-icon.png",
+  "./apple-touch-icon.png"
+];
+var STATIC = [
+  "./manifest.webmanifest",
+  "./install.html",
+  "./install-qr.svg",
+  "./pwa-install.js",
   "./hotelhq-icon.svg",
   "./hotelhq-wordmark.svg",
   "./fd-coverage.js",
@@ -69,17 +71,20 @@ var SHELL = [
   "./data/local-recs.js",
   "./data/restaurants.js",
   "./data/places.js",
-  "./data/qotd.json",
-  "./data/labor.json",
   "./vendor/dicebear/core.min.js"
 ];
+var OFFLINE_FALLBACK = "<!DOCTYPE html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>HotelHQ</title><body style=\"margin:0;font-family:sans-serif;background:#f2f4f7;color:#1d2433\"><header style=\"background:#14365d;color:#fff;padding:16px 20px\"><h1 style=\"margin:0;font-size:20px\">HotelHQ</h1></header><main style=\"padding:20px\"><p>You're offline. HotelHQ needs a connection. This screen has no staff or guest data.</p><p>Estás sin conexión. HotelHQ necesita una conexión. Esta pantalla no tiene datos del personal ni de huéspedes.</p><button type=\"button\" onclick=\"location.reload()\" style=\"min-height:44px;padding:8px 14px;border:0;border-radius:8px;background:#14365d;color:#fff;font-weight:700\">Try again · Reintentar</button></main></body></html>";
+
+function isDemoPath(pathname) {
+  return /\/demo(\/|$)/.test(pathname || "");
+}
 
 function isForeignDemo(url) {
   var path = (url && url.pathname) || "";
   var scope = "";
   try { scope = new URL(self.registration.scope).pathname; } catch (e) { scope = ""; }
   if (scope.indexOf("/demo/") !== -1) return false;
-  return /\/demo(\/|$)/.test(path);
+  return isDemoPath(path);
 }
 
 function isPersonalApi(url) {
@@ -90,6 +95,24 @@ function isPersonalApi(url) {
   if (/\/(auth|rest|realtime|storage|functions|graphql)\/v1(\/|$)/.test(path)) return true;
   if (/[?&](apikey|access_token)=/i.test(url.search || "")) return true;
   return false;
+}
+
+function inScope(url, scopeHref) {
+  var scope;
+  try { scope = new URL(scopeHref); }
+  catch (e) { return false; }
+  if (url.origin !== scope.origin) return false;
+  var base = scope.pathname;
+  if (base.slice(-1) !== "/") base += "/";
+  return url.pathname === base.slice(0, -1) || url.pathname.indexOf(base) === 0;
+}
+
+function isStaticAsset(pathname) {
+  if (/\/(?:config|sw)\.js$/i.test(pathname)) return false;
+  var name = "./" + String(pathname || "").split("/").pop();
+  if (STATIC.indexOf(name) !== -1) return true;
+  if (pathname.indexOf("/vendor/") !== -1 && /\.(?:js|css)$/i.test(pathname)) return true;
+  return /\.(?:js|css|png|svg|ico|webp|woff2?|webmanifest)$/i.test(pathname);
 }
 
 function cacheMode(url, opts) {
@@ -105,20 +128,44 @@ function cacheMode(url, opts) {
   }
   if (isForeignDemo(parsed)) return "bypass";
   if (isPersonalApi(parsed)) return "bypass";
-  var origin = opts.origin || (self.location && self.location.origin) || "";
-  if (!origin || parsed.origin !== origin) return "bypass";
+  var scopeHref = opts.scope;
+  if (!scopeHref) {
+    try { scopeHref = self.registration.scope; }
+    catch (e) { scopeHref = ""; }
+  }
+  if (!inScope(parsed, scopeHref)) return "bypass";
   if (/\/sw\.js$/i.test(parsed.pathname)) return "bypass";
-  if (opts.navigate) return "network-first";
-  if (/\.(?:html?|js|css|json|webmanifest|png|svg|ico|webp|woff2?|mp4|vtt)$/i.test(parsed.pathname)) return "network-first";
-  if (/\/$/.test(parsed.pathname)) return "network-first";
+  if (/\/offline\.html$/i.test(parsed.pathname)) return "static";
+  if (opts.navigate) return "navigate";
+  if (/\/config\.js$/i.test(parsed.pathname)) return "network-only";
+  if (/\.html?$/i.test(parsed.pathname) || /\/$/.test(parsed.pathname)) return "network-only";
+  if (/\.json$/i.test(parsed.pathname)) return "network-only";
+  if (isStaticAsset(parsed.pathname)) return "static";
   return "bypass";
+}
+
+function fromNetwork(req) {
+  var headers = new Headers();
+  var accept = "";
+  try { accept = req.headers.get("Accept") || ""; } catch (e) { accept = ""; }
+  if (accept) headers.set("Accept", accept);
+  return fetch(req.url, {
+    method: "GET",
+    headers: headers,
+    cache: "no-store",
+    credentials: "same-origin",
+    redirect: "follow"
+  });
 }
 
 function precache() {
   if (!self.caches) return Promise.resolve();
   return caches.open(CACHE_VERSION).then(function (cache) {
-    return Promise.all(SHELL.map(function (url) {
-      return cache.add(url).catch(function () { return null; });
+    return Promise.all(PRECACHE.map(function (url) {
+      return fetch(new Request(url, { cache: "no-store" })).then(function (res) {
+        if (res && res.ok) return cache.put(url, res);
+        return null;
+      }).catch(function () { return null; });
     }));
   });
 }
@@ -127,44 +174,46 @@ function clearOldCaches() {
   if (!self.caches) return Promise.resolve();
   return caches.keys().then(function (keys) {
     return Promise.all(keys.map(function (key) {
-      if (key.indexOf("hotelhq-shell-") === 0 && key !== CACHE_VERSION) return caches.delete(key);
+      if (key.indexOf("hotelhq-demo-static-") === 0) return null;
+      if (key.indexOf("hotelhq-shell-") === 0) return caches.delete(key);
+      if (key.indexOf("hotelhq-static-") === 0 && key !== CACHE_VERSION) return caches.delete(key);
       return null;
     }));
   });
 }
 
-function cachedShell(req) {
-  return caches.match(req, { ignoreSearch: true }).then(function (hit) {
-    if (hit) return hit;
-    if (req.mode !== "navigate") return null;
-    return caches.match("./index.html").then(function (home) {
-      return home || caches.match("./");
-    });
-  });
-}
-
-function networkFirst(req) {
-  return fetch(req).then(function (res) {
-    if (res && res.ok && res.type === "basic") {
+function networkFirstStatic(req) {
+  return fromNetwork(req).then(function (res) {
+    if (res && res.ok && res.type === "basic" && res.status === 200) {
       var copy = res.clone();
       caches.open(CACHE_VERSION).then(function (cache) {
-        var key = req;
-        if (req.mode === "navigate") {
-          var clean = new URL(req.url);
-          clean.search = "";
-          clean.hash = "";
-          key = clean.toString();
-        }
-        cache.put(key, copy).catch(function () {});
+        cache.put(req.url, copy).catch(function () {});
       }).catch(function () {});
     }
     return res;
   }).catch(function () {
-    return cachedShell(req).then(function (hit) {
+    return caches.match(req.url).then(function (hit) {
       return hit || new Response("", { status: 504, statusText: "Offline" });
     });
   });
 }
+
+function networkNavigate(req) {
+  return fromNetwork(req).catch(function () {
+    return caches.match("./offline.html").then(function (page) {
+      if (page) return page;
+      return new Response(OFFLINE_FALLBACK, {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }
+      });
+    });
+  });
+}
+
+function networkOnly(req) {
+  return fromNetwork(req);
+}
+
 function idbGet(key) {
   return new Promise(function (resolve) {
     var req = indexedDB.open("jr-staff-push", 1);
@@ -179,7 +228,7 @@ function idbGet(key) {
         var tx = db.transaction("kv", "readonly");
         var get = tx.objectStore("kv").get(key);
         get.onsuccess = function () { resolve(get.result == null ? null : get.result); };
-        get.onerror = function () { resolve(null); };
+        get.onerror = function () { resolve(null); }
       } catch (e) { resolve(null); }
     };
   });
@@ -241,17 +290,24 @@ async function showPush(event) {
 
 async function openClient(url) {
   var target = absUrl(url);
+  var targetUrl;
+  try { targetUrl = new URL(target); } catch (e) { targetUrl = null; }
   var all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-  var origin = new URL(target).origin;
-  for (var i = 0; i < all.length; i++) {
-    var c = all[i];
-    if (!c.url || new URL(c.url).origin !== origin) continue;
-    if (typeof c.navigate === "function") {
-      try {
-        await c.navigate(target);
-        if (typeof c.focus === "function") return c.focus();
-        return;
-      } catch (e) {}
+  if (targetUrl && !isDemoPath(targetUrl.pathname)) {
+    for (var i = 0; i < all.length; i++) {
+      var c = all[i];
+      if (!c.url) continue;
+      var clientUrl;
+      try { clientUrl = new URL(c.url); } catch (e) { continue; }
+      if (clientUrl.origin !== targetUrl.origin) continue;
+      if (isDemoPath(clientUrl.pathname)) continue;
+      if (typeof c.navigate === "function") {
+        try {
+          await c.navigate(target);
+          if (typeof c.focus === "function") return c.focus();
+          return;
+        } catch (e) {}
+      }
     }
   }
   if (self.clients.openWindow) return self.clients.openWindow(target);
@@ -273,10 +329,12 @@ self.addEventListener("fetch", function (event) {
     authorization: req.headers.get("Authorization") || "",
     range: req.headers.get("Range") || "",
     origin: self.location.origin,
-    navigate: req.mode === "navigate"
+    navigate: req.mode === "navigate",
+    scope: self.registration && self.registration.scope
   });
-  if (mode !== "network-first") return;
-  event.respondWith(networkFirst(req));
+  if (mode === "static") event.respondWith(networkFirstStatic(req));
+  else if (mode === "navigate") event.respondWith(networkNavigate(req));
+  else if (mode === "network-only") event.respondWith(networkOnly(req));
 });
 self.addEventListener("push", function (event) { event.waitUntil(showPush(event)); });
 self.addEventListener("notificationclick", function (event) {

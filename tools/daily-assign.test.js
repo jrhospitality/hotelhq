@@ -172,6 +172,6 @@ test("the migration is additive, cron is early morning Central, and the push eve
   const home = fs.readFileSync(path.join(__dirname, "../home-focus.js"), "utf8");
   assert.match(home, /DailyAssign\.homeHtml/);
   const sw = fs.readFileSync(path.join(__dirname, "../sw.js"), "utf8");
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v42"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-static-v1"/);
   assert.match(sw, /\.\/daily-assign\.js/);
 });

@@ -174,7 +174,7 @@ small,.wlnote,.hname{font-size:13px}
 :focus-visible{outline:3px solid #1f6feb;outline-offset:2px}
 #side,.pgbar-x{display:none}
 body.is-login{padding:0!important}
-body.is-login header#hdr,body.is-login nav,body.is-login #side,body.is-login #opsBtn,body.is-login #hhqFabs,body.is-login #pwaInstall,body.is-login #opsMount{display:none!important}
+body.is-login header#hdr,body.is-login nav,body.is-login #side,body.is-login #opsBtn,body.is-login #hhqFabs,body.is-login #opsMount{display:none!important}
 body.is-login main{max-width:480px;margin:28px auto;width:calc(100% - 32px);padding:0}
 @media (min-width:768px){
 body{--rw:88px;padding-left:var(--rw);padding-bottom:0!important}
@@ -1418,7 +1418,7 @@ function appScope(){
 function registerPushWorker(){
   if(!("serviceWorker" in navigator)) return;
   const scope=appScope()||"/";
-  navigator.serviceWorker.register("sw.js",{scope:scope}).catch(function(){});
+  navigator.serviceWorker.register("sw.js",{scope:scope,updateViaCache:"none"}).catch(function(){});
 }
 async function enableNotifications(){
   if(isIos()&&!isStandalone()){

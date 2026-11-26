@@ -144,8 +144,8 @@ test("the help page and Ask button are wired without a new secret", () => {
   assert.match(html, /src="ask-hotelhq\.js"/);
   assert.match(sw, /help-guides\.js/);
   assert.match(sw, /ask-hotelhq\.js/);
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v42"/);
-  assert.match(sw, /mp4\|vtt/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-static-v1"/);
+  assert.doesNotMatch(sw, /mp4\|vtt/);
   assert.match(ask, /askHqBtn/);
   assert.match(ask, /Replay tour/);
   assert.match(ask, /Repetir el recorrido/);
