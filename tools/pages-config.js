@@ -107,13 +107,13 @@ function patchDemoShell(demoDir) {
       "var HIDE_KEY = \"hhq_pwa_install_hide_until\";",
       "var HIDE_KEY = \"hhq_demo_pwa_install_hide_until\";"
     );
-    // The shared login screen hides #pwaInstall. On the demo, show that
-    // dismissible card so staff can install before they sign in.
-    prompt = replaceAll(
-      prompt,
-      "@media print{#pwaInstall,a.pwa-menu{display:none!important}}",
-      "@media print{#pwaInstall,a.pwa-menu{display:none!important}}body.is-login #pwaInstall{display:block!important}body.is-login:has(#pwaInstall) #askHqBtn{display:none!important}"
-    );
+    if (!prompt.includes("body.is-login #pwaInstall{display:block!important}")) {
+      prompt = replaceAll(
+        prompt,
+        "@media print{#pwaInstall,a.pwa-menu{display:none!important}}",
+        "@media print{#pwaInstall,a.pwa-menu{display:none!important}}body.is-login #pwaInstall{display:block!important}body.is-login:has(#pwaInstall) #askHqBtn{display:none!important}"
+      );
+    }
     fs.writeFileSync(promptPath, prompt);
   }
 }
@@ -161,8 +161,11 @@ function assertDemoPwa(site, demoDir, key) {
   if (key && sw.includes(key)) fail("Refusing to write the publishable key into the demo service worker.");
   if (!fs.existsSync(path.join(demoDir, "offline.html"))) fail("Demo offline page was not installed.");
   const rootSwPath = path.join(site, "sw.js");
-  if (fs.existsSync(rootSwPath) && fs.readFileSync(rootSwPath, "utf8").includes("hotelhq-demo-static-")) {
-    fail("Refusing to replace the live service worker.");
+  if (fs.existsSync(rootSwPath)) {
+    const rootSw = fs.readFileSync(rootSwPath, "utf8");
+    if (/var CACHE_VERSION = "hotelhq-demo-static-/.test(rootSw)) {
+      fail("Refusing to replace the live service worker.");
+    }
   }
   const rootManifestPath = path.join(site, "manifest.webmanifest");
   if (fs.existsSync(rootManifestPath)) {
@@ -182,8 +185,8 @@ function assertDemoPwa(site, demoDir, key) {
     if (demoIndex.includes("function appScope") && !demoIndex.includes("/demo$")) {
       fail("Demo scope does not cover /demo without a trailing slash.");
     }
-    if (rootIndex.includes("updateViaCache:\"none\"") || rootIndex.includes("/demo$")) {
-      fail("Refusing to change live service worker registration.");
+    if (rootIndex.includes("/demo$")) {
+      fail("Refusing to point the live app scope at the demo.");
     }
   }
   const demoPrompt = path.join(demoDir, "pwa-install.js");
@@ -202,8 +205,8 @@ function assertDemoPwa(site, demoDir, key) {
   const rootPrompt = path.join(site, "pwa-install.js");
   if (fs.existsSync(rootPrompt)) {
     const livePrompt = fs.readFileSync(rootPrompt, "utf8");
-    if (livePrompt.includes("hhq_demo_pwa_install_hide_until") || livePrompt.includes("body.is-login #pwaInstall{display:block!important}")) {
-      fail("Refusing to change the live install prompt.");
+    if (livePrompt.includes("hhq_demo_pwa_install_hide_until")) {
+      fail("Refusing to use the demo dismiss key on the live install prompt.");
     }
   }
   const guide = path.join(demoDir, "install.html");

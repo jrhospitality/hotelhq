@@ -143,7 +143,8 @@ test("the demo build is installable and the live shell stays put", () => {
   assert.match(demoIndex, /rel="manifest" href="manifest.webmanifest"/);
   assert.match(demoIndex, /updateViaCache:"none"/);
   assert.match(demoIndex, /\/demo\$/);
-  assert.doesNotMatch(before["index.html"].toString("utf8"), /updateViaCache:"none"/);
+  assert.match(before["index.html"].toString("utf8"), /updateViaCache:"none"/);
+  assert.doesNotMatch(before["index.html"].toString("utf8"), /\/demo\$/);
   const prompt = fs.readFileSync(path.join(dir, "demo", "pwa-install.js"), "utf8");
   assert.match(prompt, /hhq_demo_pwa_install_hide_until/);
   assert.match(prompt, /beforeinstallprompt/);
@@ -151,7 +152,9 @@ test("the demo build is installable and the live shell stays put", () => {
   assert.match(prompt, /Agregar a inicio/);
   assert.match(prompt, /body\.is-login #pwaInstall\{display:block!important\}/);
   assert.doesNotMatch(before["pwa-install.js"].toString("utf8"), /hhq_demo_pwa_install_hide_until/);
-  assert.doesNotMatch(before["pwa-install.js"].toString("utf8"), /body\.is-login #pwaInstall\{display:block!important\}/);
+  assert.match(before["pwa-install.js"].toString("utf8"), /body\.is-login #pwaInstall\{display:block!important\}/);
+  assert.equal(liveManifest.id, "/hotelhq/");
+  assert.notEqual(manifest.id, liveManifest.id);
   const guide = fs.readFileSync(path.join(dir, "demo", "install.html"), "utf8");
   assert.match(guide, /https:\/\/jrhospitality\.github\.io\/hotelhq\/demo\//);
   assert.doesNotMatch(guide, /https:\/\/jrhospitality\.github\.io\/hotelhq\/(?!demo\/)/);

@@ -40,7 +40,7 @@ test("home stays a today, urgent, and actions grid with English and Spanish labe
 
 test("service worker cache version moved so clients pick up the desktop build", () => {
   const sw = read("sw.js");
-  assert.match(sw, /var CACHE_VERSION = "hotelhq-shell-v42"/);
+  assert.match(sw, /var CACHE_VERSION = "hotelhq-static-v1"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v37"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v20"/);
   assert.doesNotMatch(sw, /hotelhq-shell-v19"/);
