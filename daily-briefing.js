@@ -38,7 +38,38 @@
     return out;
   }
 
-  var api = { sections: sections };
+  function demoMissed() {
+    return [{
+      assignmentId: "demo",
+      person: "Jordan Lee (EX)",
+      checklistEn: "Front Desk Shift Success List - PM",
+      checklistEs: "Lista de éxito del turno de recepción - PM",
+      dueLabel: "11:00 PM"
+    }];
+  }
+  function withoutAcknowledged(rows, acked) {
+    var done = acked || {};
+    return (rows || []).filter(function (row) { return row && !done[String(row.assignmentId)]; });
+  }
+  function missedHtml(rows, lang) {
+    if (!rows || !rows.length) return "";
+    var es = lang === "es";
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c];
+      });
+    }
+    var lines = rows.map(function (row) {
+      var title = es ? (row.checklistEs || row.checklistEn) : row.checklistEn;
+      return '<li class="db-miss"><span><b>' + esc(row.person) + "</b> · " + esc(title) +
+        "<small>" + esc((es ? "Vence " : "Due ") + (row.dueLabel || "")) + "</small></span>" +
+        '<button type="button" class="btn2" data-id="' + esc(row.assignmentId) + '" onclick="HHQBrief.ackMiss(this.getAttribute(\'data-id\'))">' +
+        esc(es ? "Enterado" : "Acknowledge") + "</button></li>";
+    }).join("");
+    return '<section class="card db-sec" id="dbMissed"><h3>' + esc(es ? "Listas no terminadas" : "Missed checklists") + "</h3><ul>" + lines + "</ul></section>";
+  }
+
+  var api = { sections: sections, demoMissed: demoMissed, withoutAcknowledged: withoutAcknowledged, missedHtml: missedHtml };
   root.HHQBrief = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof document === "undefined") return;
@@ -175,9 +206,10 @@
         return "<li>" + esc(line) + "</li>";
       }).join("") + "</ul></section>";
     }).join("");
-    if (!body) body = "<p class=\"db-missing\">" + esc(L("No feeds are connected for this hotel. This is not an all-clear.", "No hay datos conectados para este hotel. Esto no es un todo en orden.")) + "</p>";
+    var missed = hotel === "MSPWE" ? missedBlock(hotel) : "";
+    if (!body && !missed) body = "<p class=\"db-missing\">" + esc(L("No feeds are connected for this hotel. This is not an all-clear.", "No hay datos conectados para este hotel. Esto no es un todo en orden.")) + "</p>";
     var name = (typeof HOTELS !== "undefined" && HOTELS[hotel]) || hotel;
-    return "<div class=\"raw db\" id=\"dbRoot\"><h2>" + esc(L("Daily Briefing", "Resumen diario")) + "</h2><p class=\"db-hotel\">" + esc(name) + "</p>" + body + "</div>";
+    return "<div class=\"raw db\" id=\"dbRoot\"><h2>" + esc(L("Daily Briefing", "Resumen diario")) + "</h2><p class=\"db-hotel\">" + esc(name) + "</p>" + body + missed + "</div>";
   }
 
   if (typeof M !== "undefined") M.dbrief = ["📰", "Daily Briefing"];
@@ -223,6 +255,67 @@
     var first = (block.items || [])[0] || "";
     return "<div class=\"db-mini\"><b>" + esc(String(first).slice(0, 72)) + "</b><span>" + esc(L(block.en, block.es)) + "</span></div>";
   }
+  var demoAck = {};
+  var liveMiss = { hotel: "", rows: null, loading: false };
+  function dueLabel(stamp) {
+    if (!stamp) return "";
+    try {
+      return new Date(stamp).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" });
+    } catch (e) { return String(stamp); }
+  }
+  function ensureMissed(hotel) {
+    if (hotel !== "MSPWE") return;
+    try { if (!(typeof useRemote === "function" && useRemote() && root.sb && root.sb.rpc)) return; } catch (e) { return; }
+    if (liveMiss.hotel === hotel && (liveMiss.rows || liveMiss.loading)) return;
+    liveMiss = { hotel: hotel, rows: [], loading: true };
+    root.sb.rpc("list_mspwe_missed_checklists").then(function (res) {
+      if (liveMiss.hotel !== hotel) return;
+      liveMiss.loading = false;
+      liveMiss.rows = (!res || res.error ? [] : (res.data || [])).map(function (row) {
+        return {
+          assignmentId: row.assignment_id,
+          person: row.person_name || "",
+          checklistEn: row.checklist_en || "Checklist",
+          checklistEs: row.checklist_es || row.checklist_en || "Lista",
+          dueLabel: dueLabel(row.due_at)
+        };
+      });
+      if (typeof render === "function") render();
+    }, function () {
+      if (liveMiss.hotel !== hotel) return;
+      liveMiss.loading = false;
+      liveMiss.rows = [];
+    });
+  }
+  function missedRows(hotel) {
+    if (hotel !== "MSPWE") return [];
+    var remote = false;
+    try { remote = typeof useRemote === "function" && useRemote(); } catch (e) { remote = false; }
+    if (!remote) return withoutAcknowledged(demoMissed(), demoAck);
+    ensureMissed(hotel);
+    return liveMiss.rows || [];
+  }
+  function missedBlock(hotel) {
+    return missedHtml(missedRows(hotel), (typeof LANG !== "undefined" && LANG === "es") ? "es" : "en");
+  }
+  root.HHQBrief.ackMiss = function (id) {
+    var key = String(id || "");
+    if (!key) return;
+    var remote = false;
+    try { remote = typeof useRemote === "function" && useRemote() && root.sb && root.sb.rpc; } catch (e) { remote = false; }
+    if (!remote || key === "demo") {
+      var who = "";
+      try { who = (meUser() && meUser().name) || ""; } catch (e2) { who = ""; }
+      demoAck[key] = { by: who, at: new Date().toISOString() };
+      if (typeof render === "function") render();
+      return;
+    }
+    root.sb.rpc("acknowledge_mspwe_missed_checklist", { p_assignment_id: Number(key) }).then(function (res) {
+      if (res && res.error) return;
+      liveMiss = { hotel: "", rows: null, loading: false };
+      if (typeof render === "function") render();
+    }, function () {});
+  };
   function inlineHtml() {
     var role = "";
     try { role = authRole(); } catch (e) { role = ""; }
@@ -230,16 +323,20 @@
     var hotel = hotelOf();
     if (!hotel) return "";
     var blocks = sections(gather(hotel));
+    var missed = missedBlock(hotel);
     var title = L("Daily Briefing", "Resumen diario");
-    if (!blocks.length) return "";
-    if (collapsed()) {
+    if (!blocks.length && !missed) return "";
+    if (collapsed() && !missed) {
       return '<section class="hhq-brief" id="hhqBrief"><button type="button" class="hhq-brief-bar" onclick="HHQBriefToggle()"><b>' + esc(title) + '</b><span>' + esc(L("Show", "Mostrar")) + "</span></button></section>";
     }
-    return '<section class="hhq-brief" id="hhqBrief"><div class="hhq-brief-hd"><h3>' + esc(title) + '</h3><button type="button" onclick="HHQBriefToggle()">' + esc(L("Collapse", "Ocultar")) + '</button><button type="button" onclick="go(\'dbrief\')">' + esc(L("Full briefing", "Resumen completo")) + '</button></div><div class="hhq-brief-grid">' + blocks.map(compact).join("") + "</div></section>";
+    var grid = blocks.length ? '<div class="hhq-brief-grid">' + blocks.map(compact).join("") + "</div>" : "";
+    var bar = collapsed() ? "" : '<div class="hhq-brief-hd"><h3>' + esc(title) + '</h3><button type="button" onclick="HHQBriefToggle()">' + esc(L("Collapse", "Ocultar")) + '</button><button type="button" onclick="go(\'dbrief\')">' + esc(L("Full briefing", "Resumen completo")) + "</button></div>";
+    if (collapsed()) bar = '<button type="button" class="hhq-brief-bar" onclick="HHQBriefToggle()"><b>' + esc(title) + '</b><span>' + esc(L("Show", "Mostrar")) + "</span></button>";
+    return '<section class="hhq-brief" id="hhqBrief">' + bar + grid + missed + "</section>";
   }
   root.HHQBrief.inlineHtml = inlineHtml;
 
   var css = document.createElement("style");
-  css.textContent = ".db-hotel{font-weight:750;color:#5c6570;margin:0 0 8px}.db-sec h3{margin:0 0 6px}.db-big{font-size:28px;font-weight:800;margin:0}.db-sec ul{margin:0;padding-left:18px}.db-sec li{margin:0 0 6px}.hhq-brief{background:#fff;border:1px solid #e6e8ee;border-radius:12px;padding:12px;margin:0 0 12px}.hhq-brief-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.hhq-brief-hd h3{margin:0;flex:1}.hhq-brief-hd button,.hhq-brief-bar{background:#f7f8fa;border:1px solid #e6e8ee;border-radius:10px;min-height:36px;font-weight:750;padding:0 12px}.hhq-brief-bar{display:flex;width:100%;align-items:center;justify-content:space-between}.hhq-brief-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:10px}.db-mini{background:#f7f8fa;border:1px solid #e6e8ee;border-radius:12px;padding:10px}.db-mini b{display:block;font-size:18px;line-height:1.2}.db-mini span{display:block;color:#5c6570;font-size:12px;font-weight:700}@media(min-width:1024px){#dbRoot{display:grid;grid-template-columns:1fr 1fr;gap:12px}#dbRoot>h2,#dbRoot>.db-hotel{grid-column:1/-1}}";
+  css.textContent = ".db-hotel{font-weight:750;color:#5c6570;margin:0 0 8px}.db-sec h3{margin:0 0 6px}.db-big{font-size:28px;font-weight:800;margin:0}.db-sec ul{margin:0;padding-left:18px}.db-sec li{margin:0 0 6px}#dbMissed ul{list-style:none;margin:8px 0 0;padding:0}#dbMissed .db-miss{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid #e6e8ee}#dbMissed small{display:block;color:#9a3412;font-weight:750}.hhq-brief{background:#fff;border:1px solid #e6e8ee;border-radius:12px;padding:12px;margin:0 0 12px}.hhq-brief-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.hhq-brief-hd h3{margin:0;flex:1}.hhq-brief-hd button,.hhq-brief-bar{background:#f7f8fa;border:1px solid #e6e8ee;border-radius:10px;min-height:36px;font-weight:750;padding:0 12px}.hhq-brief-bar{display:flex;width:100%;align-items:center;justify-content:space-between}.hhq-brief-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:10px}.db-mini{background:#f7f8fa;border:1px solid #e6e8ee;border-radius:12px;padding:10px}.db-mini b{display:block;font-size:18px;line-height:1.2}.db-mini span{display:block;color:#5c6570;font-size:12px;font-weight:700}@media(min-width:1024px){#dbRoot{display:grid;grid-template-columns:1fr 1fr;gap:12px}#dbRoot>h2,#dbRoot>.db-hotel,#dbRoot>#dbMissed{grid-column:1/-1}}";
   document.head.appendChild(css);
 })(typeof window !== "undefined" ? window : globalThis);
