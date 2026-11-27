@@ -5,6 +5,9 @@
    A published shift says who is working. With no published shift that day,
    the first clock-in does. Golden Valley (MSPWE) can also assign the walk
    on weekdays to a GM or AGM who has no schedule data at all.
+   With no published shift and no clock-in, demo mode asks the person
+   "Which shift are you working?" and assigns that shift's list (source
+   "asked"). Live mode does not ask yet.
    Demo mode uses EXAMPLE names only. */
 (function (root) {
   "use strict";
@@ -86,6 +89,22 @@
     if (mins >= 14 * 60 && mins < 22 * 60) return "PM";
     return "Night Audit";
   }
+  /* Golden Valley front desk only (America/Chicago). Jay's shifts are
+     AM 7 AM-3 PM, PM 3-11 PM, and Night Audit 11 PM-7 AM.
+     A punch-in or start time lands in AM 5:00-12:59, PM 1:00-8:59,
+     or Night Audit 9:00 PM-4:59 AM. Other hotels and departments stay on
+     shiftBucket, which matches private.shift_bucket. Live assignment does too. */
+  function mspweFdBucket(start) {
+    var mins = minutes(start);
+    if (mins == null) return "";
+    if (mins >= 5 * 60 && mins < 13 * 60) return "AM";
+    if (mins >= 13 * 60 && mins < 21 * 60) return "PM";
+    return "Night Audit";
+  }
+  function bucketFor(hotel, department, start) {
+    if (hotel === "MSPWE" && department === "front_desk") return mspweFdBucket(start);
+    return shiftBucket(start);
+  }
   function shiftMatches(templateShift, bucket) {
     var want = normShift(templateShift);
     if (!want) return true;
@@ -111,11 +130,32 @@
     if (endMin <= startMin) day = addDays(day, 1);
     return day + "T" + hhmm(endMin);
   }
-  function bucketEnd(date, start) {
-    var bucket = shiftBucket(start);
+  function bucketEndFor(date, start, bucket) {
     if (bucket === "AM") return dueStamp(date, start, "15:00");
     if (bucket === "PM") return dueStamp(date, start, "23:00");
     return dueStamp(date, start, "07:00");
+  }
+  function bucketEnd(date, start) {
+    return bucketEndFor(date, start, shiftBucket(start));
+  }
+  var ASKED_START = { AM: "07:00", PM: "15:00", "Night Audit": "23:00" };
+  function askedStart(shift) {
+    return ASKED_START[normShift(shift)] || "";
+  }
+  function answerFor(answers, person, hotel, date) {
+    var hit = (answers || []).filter(function (a) {
+      return a && a.employee === person.id && a.hotel === hotel && String(a.date).slice(0, 10) === date && askedStart(a.shift);
+    });
+    return hit.length ? hit[hit.length - 1] : null;
+  }
+  function needsShiftAsk(input, personId) {
+    input = input || {};
+    var date = String(input.date || "").slice(0, 10);
+    var person = (input.people || []).filter(function (p) { return p && p.id === personId && p.active !== false; })[0];
+    if (!person || !person.hotel) return false;
+    if (publishedToday(input.shifts, person, person.hotel, date).length) return false;
+    if (firstPunch(input.punches, person, person.hotel, date)) return false;
+    return !answerFor(input.answers, person, person.hotel, date);
   }
   function fmtDue(stamp) {
     var hm = String(stamp || "").slice(11, 16);
@@ -170,6 +210,7 @@
     var people = (input.people || []).filter(function (person) { return person && person.active !== false && person.id && person.hotel; });
     var shifts = input.shifts || [];
     var punches = input.punches || [];
+    var answers = input.answers || [];
     var templates = (input.templates || []).filter(isDailyTemplate);
     var byKey = {};
 
@@ -178,24 +219,39 @@
       var scheduled = publishedToday(shifts, person, person.hotel, date);
       var punch = scheduled.length ? null : firstPunch(punches, person, person.hotel, date);
       var blocks = scheduled.map(function (shift) {
+        var department = deptOf(shift.department || person.role);
+        var start = shift.start;
+        var mspweFd = person.hotel === "MSPWE" && department === "front_desk";
         return {
-          department: deptOf(shift.department || person.role),
-          start: shift.start,
-          due: dueStamp(date, shift.start, shift.end),
+          department: department,
+          start: start,
+          due: mspweFd ? bucketEndFor(date, start, mspweFdBucket(start)) : dueStamp(date, start, shift.end),
           source: "schedule"
         };
       });
       if (punch) {
+        var punchDept = deptOf(punch.department || person.role);
         blocks.push({
-          department: deptOf(punch.department || person.role),
+          department: punchDept,
           start: punch.punchIn,
-          due: bucketEnd(date, punch.punchIn),
+          due: bucketEndFor(date, punch.punchIn, bucketFor(person.hotel, punchDept, punch.punchIn)),
           source: "punch"
+        });
+      }
+      var asked = scheduled.length || punch ? null : answerFor(answers, person, person.hotel, date);
+      if (asked) {
+        var askedDept = deptOf(person.role);
+        var askedAt = askedStart(asked.shift);
+        blocks.push({
+          department: askedDept,
+          start: askedAt,
+          due: bucketEndFor(date, askedAt, bucketFor(person.hotel, askedDept, askedAt)),
+          source: "asked"
         });
       }
       blocks.forEach(function (block) {
         if (!block.department) return;
-        var bucket = shiftBucket(block.start);
+        var bucket = bucketFor(person.hotel, block.department, block.start);
         templates.forEach(function (template) {
           if (template.hotel !== person.hotel) return;
           if (deptOf(template.department) !== block.department) return;
@@ -358,6 +414,7 @@
       templates: [
         { id: "fd-am", hotel: "MSPWE", department: "front_desk", shift: "AM", name_en: "1st Shift - AM Check list", name_es: "Lista del 1.er turno - AM", kind: "daily", cadence: "daily", active: true },
         { id: "fd-pm", hotel: "MSPWE", department: "front_desk", shift: "PM", name_en: "2nd Shift - PM checklist", name_es: "Lista del 2.º turno - PM", kind: "daily", cadence: "daily", active: true },
+        { id: "fd-na", hotel: "MSPWE", department: "front_desk", shift: "Night Audit", name_en: "Night Audit Success List", name_es: "Lista de éxito de la auditoría nocturna", kind: "daily", cadence: "per_shift", active: true },
         { id: "fd-pm-am", hotel: "MSPAM", department: "front_desk", shift: "PM", name_en: "2nd Shift - PM checklist", name_es: "Lista del 2.º turno - PM", kind: "daily", cadence: "daily", active: true },
         { id: "hk", hotel: "MSPWE", department: "housekeeping", shift: "", name_en: "Housekeeping daily", name_es: "Lista diaria de ama de llaves", kind: "daily", cadence: "daily", active: true },
         { id: "mt", hotel: "MSPWE", department: "maintenance", shift: "", name_en: "Daily Maintenance Checklist", name_es: "Lista diaria de mantenimiento", kind: "daily", cadence: "daily", active: true },
@@ -419,6 +476,9 @@
     deptOf: deptOf,
     normRole: normRole,
     shiftBucket: shiftBucket,
+    mspweFdBucket: mspweFdBucket,
+    askedStart: askedStart,
+    needsShiftAsk: needsShiftAsk,
     shiftMatches: shiftMatches,
     isWeekday: isWeekday,
     isDailyTemplate: isDailyTemplate,
@@ -582,7 +642,13 @@
       var rows = visible(cache.rows, viewer);
       return cardHtml(rows, lang, { now: nowStamp(), viewer: viewer, example: false });
     }
-    var planned = applyDone(plan(exampleInput(date)));
+    var input = exampleInput(date);
+    if (root.ShiftPick && root.ShiftPick.demoInput) {
+      input = root.ShiftPick.demoInput(input, viewer, date);
+      var ask = root.ShiftPick.askHtml(input, viewer, lang);
+      if (ask) return ask;
+    }
+    var planned = applyDone(plan(input));
     var rowsDemo = visible(planned, viewer);
     return cardHtml(rowsDemo, lang, { now: nowStamp(), viewer: viewer, example: true });
   }
