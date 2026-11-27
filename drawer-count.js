@@ -1,19 +1,19 @@
-/* Drawer count for the Golden Valley (MSPWE) front desk. Demo only for now.
+/* Drawer count for the Golden Valley (MSPWE) front desk.
    Replaces the Quore Cash Count Log. Checklist items with
    {"type":"amount","expected":300,"count":"start"|"end"} take a typed dollar
    amount; {"type":"amount","count":"drop"} takes the cash drop amount.
    variance = counted - expected. Any variance is flagged in-app to the
    hotel's GM and AGM (and Corporate) until one of them marks it reviewed.
    Nothing is emailed or pushed.
-   Live storage is public.cash_counts via public.log_cash_count and
-   public.review_cash_count (migration 20261127_cash_counts.sql). Live mode
-   shows nothing here until the release is approved. */
+   Demo keeps counts on this device. Live writes public.cash_counts through
+   public.log_cash_count and public.review_cash_count. */
 (function (root) {
   "use strict";
 
   var HOTELS = ["MSPWE"];
   var EXPECTED = 300;
   var STORE = "hhq.cashCounts";
+  var cashCache = { key: "", rows: null, loading: false };
   var ITEMS = {
     AM: [
       { n: 2, en: "Start-of-shift drawer count", es: "Cuenta de caja al inicio del turno", type: "amount", expected: EXPECTED, count: "start" },
@@ -104,6 +104,42 @@
       return row.user === viewer.id;
     });
   }
+  function cashPayload(viewer, shift, item, amount, templateId) {
+    var row = entry({
+      amount: amount,
+      item: item,
+      hotel: viewer && viewer.hotel,
+      date: "1970-01-01",
+      shift: shift,
+      user: viewer && viewer.id,
+      name: viewer && viewer.name
+    });
+    if (!row || !viewer) return null;
+    return {
+      p_hotel: viewer.hotel,
+      p_shift: shift,
+      p_kind: row.kind,
+      p_amount: row.kind === "drop" ? row.drop : row.counted,
+      p_expected: row.kind === "drop" ? null : row.expected,
+      p_template_id: templateId == null || templateId === "" ? null : templateId,
+      p_item_n: row.item_n,
+      p_note: null
+    };
+  }
+  function checklistRow(list, item, index) {
+    if (!item || item.type !== "amount") return "";
+    var es = langNow() === "es";
+    var label = es ? (item.es || item.en || "") : (item.en || item.es || "");
+    var hint = item.count === "drop"
+      ? (es ? "Monto del depósito" : "Drop amount")
+      : (es ? "Esperado " : "Expected ") + money(item.expected != null ? Number(item.expected) : EXPECTED);
+    var id = "dc-" + (list && list.id != null ? list.id : "x") + "-" + index;
+    var listId = list && list.id != null ? Number(list.id) : 0;
+    return '<label class="li dc-amount"><span>' + esc(label) + "<small>" + esc(hint) + "</small></span>" +
+      '<span class="dc-in"><input type="text" inputmode="decimal" placeholder="$0.00" aria-label="' + esc(label) + '" id="' + esc(id) + '">' +
+      '<button type="button" class="btn2" onclick="DrawerCount.saveItem(' + listId + "," + Number(index) + ')">' +
+      esc(es ? "Guardar" : "Save") + "</button></span></label>";
+  }
   function review(rows, id, by, at) {
     return (rows || []).map(function (row) {
       if (row.id !== id || row.reviewedAt || !flagged(row)) return row;
@@ -145,7 +181,11 @@
     return DA && DA.shiftBucket ? DA.shiftBucket(hm) : "AM";
   }
 
-  function staffCardHtml(viewer, shift, rows, lang) {
+  function exampleBadge(lang, opts) {
+    if (opts && opts.live) return "";
+    return '<span class="ex">' + esc(lang === "es" ? "EJEMPLO" : "EXAMPLE") + "</span> ";
+  }
+  function staffCardHtml(viewer, shift, rows, lang, opts) {
     var es = lang === "es";
     var items = ITEMS[shift] || [];
     var mine = (rows || []).filter(function (r) { return r.user === viewer.id && r.date === todayIso() && r.shift === shift; });
@@ -162,10 +202,10 @@
         '<span class="dc-in"><input type="text" inputmode="decimal" placeholder="$0.00" aria-label="' + esc(es ? it.es : it.en) + '" id="dc-' + it.n + '">' +
         '<button type="button" class="btn2" onclick="DrawerCount.submit(' + it.n + ')">' + esc(es ? "Guardar" : "Save") + "</button></span></li>";
     }).join("");
-    return '<section class="card" id="drawerCount"><span class="ex">' + esc(es ? "EJEMPLO" : "EXAMPLE") + "</span> <h3>" +
+    return '<section class="card" id="drawerCount">' + exampleBadge(lang, opts) + "<h3>" +
       esc(es ? "Cuenta de caja" : "Drawer count") + " · " + esc(shift) + "</h3><ul>" + lines + "</ul></section>";
   }
-  function logCardHtml(viewer, rows, lang) {
+  function logCardHtml(viewer, rows, lang, opts) {
     var es = lang === "es";
     var seen = visible(rows, viewer).slice().sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
     var open = openFlags(seen, viewer.hotel);
@@ -183,40 +223,141 @@
       return '<li class="' + (flagged(r) && !r.reviewedAt ? "dc-bad" : "") + '"><span><b>' + esc(r.name || "") + "</b> · " + esc(r.date + " " + r.shift) + "<small>" + esc(what) + "</small></span>" + btn + "</li>";
     }).join("");
     if (!lines) lines = "<li><small>" + esc(es ? "Sin cuentas todavía." : "No counts yet.") + "</small></li>";
-    return '<section class="card" id="cashLog"><span class="ex">' + esc(es ? "EJEMPLO" : "EXAMPLE") + "</span> <h3>" +
+    return '<section class="card" id="cashLog">' + exampleBadge(lang, opts) + "<h3>" +
       esc(es ? "Registro de cuentas de caja" : "Cash count log") + "</h3>" + head + "<ul>" + lines + "</ul></section>";
   }
+  function knownShift(viewer) {
+    var shift = "";
+    if (root.DailyAssign && root.DailyAssign.mineShift) shift = root.DailyAssign.mineShift(viewer) || "";
+    if (!shift && root.ShiftPick && root.ShiftPick.liveAnswer) shift = root.ShiftPick.liveAnswer(viewer, todayIso()) || "";
+    return shift;
+  }
+  function ensureCash(viewer) {
+    var key = viewer.hotel || "";
+    if (cashCache.key === key && (cashCache.rows || cashCache.loading)) return;
+    cashCache = { key: key, rows: [], loading: true };
+    var sb = root.sb;
+    if (!sb || !sb.from) { cashCache.loading = false; return; }
+    sb.from("cash_counts")
+      .select("id,hotel_id,work_date,shift,kind,user_id,counted_amount,expected_amount,variance,drop_amount,item_n,counted_at,reviewed_by,reviewed_at")
+      .eq("hotel_id", viewer.hotel)
+      .order("counted_at", { ascending: false })
+      .limit(50)
+      .then(function (res) {
+        if (cashCache.key !== key) return;
+        cashCache.loading = false;
+        var names = {};
+        try {
+          (typeof USERS !== "undefined" ? USERS : []).forEach(function (user) {
+            if (user) names[user.user_id || user.id] = user.name || "";
+          });
+        } catch (e) {}
+        cashCache.rows = (!res || res.error ? [] : (res.data || [])).map(function (row) {
+          return {
+            id: String(row.id),
+            hotel: row.hotel_id,
+            date: String(row.work_date || "").slice(0, 10),
+            shift: row.shift,
+            kind: row.kind,
+            user: row.user_id,
+            name: names[row.user_id] || "",
+            counted: row.counted_amount == null ? null : Number(row.counted_amount),
+            expected: row.expected_amount == null ? null : Number(row.expected_amount),
+            variance: row.variance == null ? null : Number(row.variance),
+            drop: row.drop_amount == null ? null : Number(row.drop_amount),
+            item_n: row.item_n,
+            at: row.counted_at || "",
+            reviewedBy: names[row.reviewed_by] || "",
+            reviewedAt: row.reviewed_at || ""
+          };
+        });
+        if (typeof render === "function") render();
+      }, function () {
+        if (cashCache.key !== key) return;
+        cashCache.loading = false;
+        cashCache.rows = [];
+      });
+  }
   function homeHtml() {
-    if (!isDemo()) return "";
     var viewer = viewerNow();
     if (!viewer || HOTELS.indexOf(viewer.hotel) < 0) return "";
-    var rows = readRows();
     var lang = langNow();
+    if (!isDemo()) {
+      ensureCash(viewer);
+      var liveRows = cashCache.rows || [];
+      if (isLeader(viewer.role)) return logCardHtml(viewer, liveRows, lang, { live: true });
+      if (normRole(viewer.role) !== "front_desk") return "";
+      var liveShift = knownShift(viewer);
+      if (!liveShift) return "";
+      return staffCardHtml(viewer, liveShift, liveRows, lang, { live: true });
+    }
+    var rows = readRows();
     if (isLeader(viewer.role)) return logCardHtml(viewer, rows, lang);
     if (normRole(viewer.role) !== "front_desk") return "";
     return staffCardHtml(viewer, shiftNow(viewer, todayIso()), rows, lang);
   }
-  function submit(n) {
-    if (!isDemo() || typeof document === "undefined") return;
-    var viewer = viewerNow();
-    if (!viewer) return;
-    var shift = shiftNow(viewer, todayIso());
-    var item = (ITEMS[shift] || []).filter(function (it) { return it.n === n; })[0];
-    var box = document.getElementById("dc-" + n);
-    var row = item && box ? entry({ amount: box.value, item: item, hotel: viewer.hotel, date: todayIso(), shift: shift, user: viewer.id, name: viewer.name }) : null;
-    if (!row) {
+  function record(viewer, shift, item, amount, templateId, box) {
+    var payload = cashPayload(viewer, shift, item, amount, templateId);
+    if (!payload) {
       if (box) box.setAttribute("aria-invalid", "true");
       return;
     }
+    if (!isDemo()) {
+      if (!root.sb || !root.sb.rpc) return;
+      root.sb.rpc("log_cash_count", payload).then(function (res) {
+        if (res && res.error) {
+          if (box) box.setAttribute("aria-invalid", "true");
+          return;
+        }
+        cashCache = { key: "", rows: null, loading: false };
+        if (typeof render === "function") render();
+      }, function () {
+        if (box) box.setAttribute("aria-invalid", "true");
+      });
+      return;
+    }
+    var row = entry({ amount: amount, item: item, hotel: viewer.hotel, date: todayIso(), shift: shift, user: viewer.id, name: viewer.name });
+    if (!row) return;
     var rows = readRows();
     rows.push(row);
     writeRows(rows);
     if (typeof render === "function") render();
   }
+  function submit(n) {
+    if (typeof document === "undefined") return;
+    var viewer = viewerNow();
+    if (!viewer) return;
+    var shift = isDemo() ? shiftNow(viewer, todayIso()) : knownShift(viewer);
+    if (!shift) return;
+    var item = (ITEMS[shift] || []).filter(function (it) { return it.n === n; })[0];
+    var box = document.getElementById("dc-" + n);
+    record(viewer, shift, item, box && box.value, null, box);
+  }
+  function saveItem(listId, index) {
+    if (typeof document === "undefined") return;
+    var viewer = viewerNow();
+    if (!viewer || viewer.hotel !== "MSPWE") return;
+    var lists = [];
+    try { lists = (typeof D === "function" && D().sbLists) || []; } catch (e) { lists = []; }
+    var list = lists.filter(function (row) { return row && Number(row.id) === Number(listId); })[0];
+    if (!list) return;
+    var item = (list.items || [])[index];
+    var box = document.getElementById("dc-" + listId + "-" + index);
+    var shift = list.shift || knownShift(viewer) || (isDemo() ? shiftNow(viewer, todayIso()) : "");
+    record(viewer, shift, item, box && box.value, list.id, box);
+  }
   function markReviewed(id) {
-    if (!isDemo()) return;
     var viewer = viewerNow();
     if (!viewer || !isLeader(viewer.role)) return;
+    if (!isDemo()) {
+      if (!root.sb || !root.sb.rpc) return;
+      root.sb.rpc("review_cash_count", { p_id: Number(id) }).then(function (res) {
+        if (res && res.error) return;
+        cashCache = { key: "", rows: null, loading: false };
+        if (typeof render === "function") render();
+      }, function () {});
+      return;
+    }
     writeRows(review(readRows(), id, viewer.name || viewer.id));
     if (typeof render === "function") render();
   }
@@ -233,10 +374,13 @@
     openFlags: openFlags,
     visible: visible,
     review: review,
+    cashPayload: cashPayload,
+    checklistRow: checklistRow,
     staffCardHtml: staffCardHtml,
     logCardHtml: logCardHtml,
     homeHtml: homeHtml,
     submit: submit,
+    saveItem: saveItem,
     markReviewed: markReviewed
   };
   root.DrawerCount = api;

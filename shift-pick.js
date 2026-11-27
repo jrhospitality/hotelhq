@@ -1,16 +1,17 @@
-/* Shift pick for the Golden Valley (MSPWE) front desk. Demo only.
+/* Shift pick for the Golden Valley (MSPWE) front desk.
    Which shift checklist a person gets comes from, in order:
      1. a published schedule_shifts row that day (start time),
      2. the first Hotel Effectiveness clock-in that day (time_punches.punch_in),
      3. the answer to "Which shift are you working?" asked on the home screen
-        after sign-in, saved on this device for that day.
+        after sign-in.
+   Demo saves that answer on this device. Live saves it in shift_selections
+   through public.select_my_shift, which then assigns the checklist.
    Golden Valley front desk only (America/Chicago). Jay's shifts are
    AM 7:00 AM-3:00 PM, PM 3:00-11:00 PM, and Night Audit 11:00 PM-7:00 AM.
    A punch-in or schedule start is AM 5:00 AM-12:59 PM, PM 1:00-8:59 PM,
    or Night Audit 9:00 PM-4:59 AM. A shift picked here starts at 7:00 AM,
    3:00 PM, or 11:00 PM and is due at 3:00 PM, 11:00 PM, or 7:00 AM.
-   Other departments keep DailyAssign.shiftBucket and private.shift_bucket.
-   Live mode never asks here; it keeps using schedule and punch only. */
+   Other departments keep DailyAssign.shiftBucket and private.shift_bucket. */
 (function (root) {
   "use strict";
 
@@ -21,6 +22,7 @@
     { key: "Night Audit", en: "Night Audit", es: "Auditoría nocturna", hint_en: "11 PM-7 AM", hint_es: "11 PM-7 AM" }
   ];
   var STORE = "hhq.shiftPick";
+  var selCache = { key: "", shift: "", loading: false, ready: false };
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -80,16 +82,70 @@
     return out;
   }
 
-  function askHtml(input, viewer, lang) {
-    if (!isDemo() || !applies(viewer)) return "";
+  function selKey(viewer, date) {
+    return viewer.hotel + "|" + viewer.id + "|" + String(date || "").slice(0, 10);
+  }
+  function liveAnswer(viewer, date) {
+    if (!applies(viewer)) return "";
+    if (selCache.key !== selKey(viewer, date) || !selCache.ready) return "";
+    return selCache.shift || "";
+  }
+  function selectionReady(viewer, date) {
+    if (!applies(viewer)) return true;
+    return selCache.key === selKey(viewer, date) && selCache.ready && !selCache.loading;
+  }
+  function ensureLive(viewer, date) {
+    if (isDemo() || !applies(viewer)) return;
+    var key = selKey(viewer, date);
+    if (selCache.key === key && (selCache.ready || selCache.loading)) return;
+    selCache = { key: key, shift: "", loading: true, ready: false };
+    var sb = root.sb;
+    if (!sb || !sb.from) {
+      selCache.loading = false;
+      selCache.ready = true;
+      return;
+    }
+    sb.from("shift_selections").select("shift").eq("user_id", viewer.id).eq("hotel_id", viewer.hotel).eq("work_date", String(date).slice(0, 10))
+      .then(function (res) {
+        if (selCache.key !== key) return;
+        selCache.loading = false;
+        selCache.ready = true;
+        var rows = res && !res.error && res.data ? res.data : [];
+        selCache.shift = (rows[0] && rows[0].shift) || "";
+        if (typeof render === "function") render();
+      }, function () {
+        if (selCache.key !== key) return;
+        selCache.loading = false;
+        selCache.ready = true;
+        if (typeof render === "function") render();
+      });
+  }
+  function saveLive(viewer, shift, client) {
+    if (!applies(viewer)) return Promise.resolve(false);
+    if (!SHIFTS.some(function (s) { return s.key === shift; })) return Promise.resolve(false);
+    var rpc = client && client.rpc ? client.rpc : (root.sb && root.sb.rpc);
+    if (!rpc) return Promise.resolve(false);
+    return Promise.resolve(rpc("select_my_shift", { p_shift: shift })).then(function (res) {
+      var ok = !(res && res.error);
+      if (ok) selCache = { key: selKey(viewer, todayIso()), shift: shift, loading: false, ready: true };
+      return ok;
+    }, function () { return false; });
+  }
+  function askHtml(input, viewer, lang, opts) {
+    opts = opts || {};
+    if (!applies(viewer)) return "";
+    var live = !!opts.live;
+    if (!live && !isDemo()) return "";
+    if (live && opts.answered) return "";
     var DA = root.DailyAssign;
-    if (!DA || !DA.needsShiftAsk || !DA.needsShiftAsk(input, viewer.id)) return "";
+    if (!live && (!DA || !DA.needsShiftAsk || !DA.needsShiftAsk(input, viewer.id))) return "";
     var es = lang === "es";
     var buttons = SHIFTS.map(function (s) {
       return '<button type="button" class="btn2" data-shift="' + esc(s.key) + '" onclick="ShiftPick.choose(this.getAttribute(\'data-shift\'))">' +
         esc(es ? s.es : s.en) + "<small>" + esc(es ? s.hint_es : s.hint_en) + "</small></button>";
     }).join("");
-    return '<section class="card" id="shiftPick"><span class="ex">' + esc(es ? "EJEMPLO" : "EXAMPLE") + "</span> " +
+    var badge = live ? "" : '<span class="ex">' + esc(es ? "EJEMPLO" : "EXAMPLE") + "</span> ";
+    return '<section class="card" id="shiftPick">' + badge +
       "<h3>" + esc(es ? "¿Qué turno trabajas?" : "Which shift are you working?") + "</h3>" +
       "<p><small>" + esc(es
         ? "No vemos tu horario ni tu entrada de hoy. Elige tu turno para recibir su lista."
@@ -112,7 +168,15 @@
   }
   function choose(shift) {
     var viewer = viewerNow();
-    if (!viewer || !isDemo()) return;
+    if (!viewer || !applies(viewer)) return;
+    if (!isDemo()) {
+      saveLive(viewer, shift).then(function (ok) {
+        if (!ok) return;
+        if (root.DailyAssign && root.DailyAssign.reload) root.DailyAssign.reload();
+        if (typeof render === "function") render();
+      });
+      return;
+    }
     if (save(viewer, todayIso(), shift) && typeof render === "function") render();
   }
 
@@ -125,7 +189,11 @@
     save: save,
     demoInput: demoInput,
     askHtml: askHtml,
-    choose: choose
+    choose: choose,
+    saveLive: saveLive,
+    ensureLive: ensureLive,
+    liveAnswer: liveAnswer,
+    selectionReady: selectionReady
   };
   root.ShiftPick = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

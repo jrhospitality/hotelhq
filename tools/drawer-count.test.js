@@ -85,9 +85,35 @@ test("the staff card shows typed-amount boxes for the shift, in both languages",
   assert.match(dc.staffCardHtml(fd, "AM", [], "es"), /Cuenta de caja/);
 });
 
-test("live mode shows nothing", () => {
+test("live mode shows nothing until someone is signed in, then amount items call log_cash_count", () => {
   globalThis.HOTELHQ_CONFIG = { mode: "live" };
-  try { assert.equal(dc.homeHtml(), ""); } finally { delete globalThis.HOTELHQ_CONFIG; }
+  try {
+    assert.equal(dc.homeHtml(), "");
+    const card = dc.staffCardHtml(fd, "AM", [], "en", { live: true });
+    assert.equal(card.includes("EXAMPLE"), false);
+    assert.match(card, /inputmode="decimal"/);
+    const item = { type: "amount", expected: 300, count: "start", en: "Start-of-shift drawer count", es: "Cuenta de caja al inicio del turno", n: 2 };
+    assert.deepEqual(dc.cashPayload(fd, "AM", item, "287.50", 8), {
+      p_hotel: "MSPWE",
+      p_shift: "AM",
+      p_kind: "start",
+      p_amount: 287.5,
+      p_expected: 300,
+      p_template_id: 8,
+      p_item_n: 2,
+      p_note: null
+    });
+    assert.equal(dc.cashPayload(fd, "PM", dc.ITEMS.PM[2], "40", 9).p_kind, "drop");
+    assert.equal(dc.cashPayload(fd, "PM", dc.ITEMS.PM[2], "40", 9).p_expected, null);
+    const row = dc.checklistRow({ id: 8, shift: "AM" }, item, 0);
+    assert.match(row, /inputmode="decimal"/);
+    assert.match(row, /Expected \$300\.00/);
+    assert.equal(row.includes("EXAMPLE"), false);
+    assert.equal(dc.checklistRow({ id: 1 }, { en: "Count the drawer" }, 0), "");
+    assert.equal(dc.flagged(dc.entry({ amount: "287.50", item: item, hotel: "MSPWE", date: "2026-11-27", shift: "AM", user: fd.id, name: fd.name })), true);
+  } finally {
+    delete globalThis.HOTELHQ_CONFIG;
+  }
 });
 
 test("the migration is additive with RLS for GM, AGM, and Corporate, and the page loads the script", () => {

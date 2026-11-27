@@ -892,8 +892,8 @@ async function hydrate(){
     if(tpls.length){
       d.sbLists=tpls.filter(t=>t.active!==false).map(t=>{
         const run=runs.find(r=>r.template_id===t.id&&String(r.run_date).slice(0,10)===today);
-        const items=(Array.isArray(t.items)?t.items:[]).map(item=>{if(typeof item==="string") return {en:item,es:item};if(item&&typeof item==="object"){const en=item.en||item.label||item.name||"";const es=item.es||item.label_es||item.name_es||en;return {en,es}}return {en:String(item||""),es:String(item||"")}});
-        return {id:t.id,run_id:run?run.id:null,name:t.name,name_es:t.name_es||"",department:t.department,items,results:(run&&run.results)||{}};
+        const items=(Array.isArray(t.items)?t.items:[]).map(item=>{if(typeof item==="string") return {en:item,es:item};if(item&&typeof item==="object"){const en=item.en||item.label||item.name||"";const es=item.es||item.label_es||item.name_es||en;const row={en,es};if(item.type)row.type=item.type;if(item.expected!=null)row.expected=item.expected;if(item.count)row.count=item.count;if(item.n!=null)row.n=item.n;return row}return {en:String(item||""),es:String(item||"")}});
+        return {id:t.id,run_id:run?run.id:null,name:t.name,name_es:t.name_es||"",department:t.department,shift:t.shift||"",items,results:(run&&run.results)||{}};
       });
     }
     const walks=await dbSelect("property_walks",{eq:{hotel_id:h}});
@@ -975,7 +975,7 @@ function sbCheckCard(){
   const lists=(D().sbLists)||[];if(!lists.length)return "";
   return lists.map(l=>{
     const title=(LANG==="es"&&l.name_es)?l.name_es:l.name;
-    const rows=(l.items||[]).map(item=>{const key=enOf(item);const on=!!(l.results||{})[key];return `<label class="li"><input type="checkbox" ${on?"checked":""} onchange="sbToggle(${Number(l.id)},'${E(key)}',this.checked)">${escH(bi(item))}</label>`}).join("");
+    const rows=(l.items||[]).map((item,i)=>{if(item&&item.type==="amount"&&S.hotel==="MSPWE"&&window.DrawerCount&&DrawerCount.checklistRow)return DrawerCount.checklistRow(l,item,i);const key=enOf(item);const on=!!(l.results||{})[key];return `<label class="li"><input type="checkbox" ${on?"checked":""} onchange="sbToggle(${Number(l.id)},'${E(key)}',this.checked)">${escH(bi(item))}</label>`}).join("");
     return `<div class="card"><h3>${escH(title)} <span class="pill VC">Supabase</span></h3>${rows||("<small>"+t("No items on this template.")+"</small>")}</div>`;
   }).join("");
 }
