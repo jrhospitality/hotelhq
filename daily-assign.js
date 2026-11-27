@@ -359,6 +359,13 @@
     return String(nowStamp) >= String(row.due);
   }
 
+  function homeScope(rows, viewer) {
+    var seen = visible(rows, viewer);
+    if (viewer && viewer.hotel === "MSPWE") {
+      return seen.filter(function (row) { return row.employee === viewer.id; });
+    }
+    return seen;
+  }
   function visible(rows, viewer) {
     viewer = viewer || {};
     var role = normRole(viewer.role);
@@ -421,8 +428,8 @@
         { employee: "mspam-fd", hotel: "MSPAM", department: "front_desk", date: date, punchIn: "15:10" }
       ],
       templates: [
-        { id: "fd-am", hotel: "MSPWE", department: "front_desk", shift: "AM", name_en: "1st Shift - AM Check list", name_es: "Lista del 1.er turno - AM", kind: "daily", cadence: "daily", active: true },
-        { id: "fd-pm", hotel: "MSPWE", department: "front_desk", shift: "PM", name_en: "2nd Shift - PM checklist", name_es: "Lista del 2.º turno - PM", kind: "daily", cadence: "daily", active: true },
+        { id: "fd-am", hotel: "MSPWE", department: "front_desk", shift: "AM", name_en: "Front Desk Shift Success List - AM", name_es: "Lista de éxito del turno de recepción - AM", kind: "daily", cadence: "per_shift", active: true },
+        { id: "fd-pm", hotel: "MSPWE", department: "front_desk", shift: "PM", name_en: "Front Desk Shift Success List - PM", name_es: "Lista de éxito del turno de recepción - PM", kind: "daily", cadence: "per_shift", active: true },
         { id: "fd-na", hotel: "MSPWE", department: "front_desk", shift: "Night Audit", name_en: "Night Audit Success List", name_es: "Lista de éxito de la auditoría nocturna", kind: "daily", cadence: "per_shift", active: true },
         { id: "fd-pm-am", hotel: "MSPAM", department: "front_desk", shift: "PM", name_en: "2nd Shift - PM checklist", name_es: "Lista del 2.º turno - PM", kind: "daily", cadence: "daily", active: true },
         { id: "hk", hotel: "MSPWE", department: "housekeeping", shift: "", name_en: "Housekeeping daily", name_es: "Lista diaria de ama de llaves", kind: "daily", cadence: "daily", active: true },
@@ -500,6 +507,7 @@
     complete: complete,
     isOverdue: isOverdue,
     visible: visible,
+    homeScope: homeScope,
     notices: notices,
     exampleInput: exampleInput,
     cardHtml: cardHtml,
@@ -659,7 +667,7 @@
         }
       }
       if (!cache.rows || !cache.rows.length) return "";
-      var rows = visible(cache.rows, viewer);
+      var rows = homeScope(cache.rows, viewer);
       return cardHtml(rows, lang, { now: nowStamp(), viewer: viewer, example: false });
     }
     var input = exampleInput(date);
@@ -669,7 +677,7 @@
       if (ask) return ask;
     }
     var planned = applyDone(plan(input));
-    var rowsDemo = visible(planned, viewer);
+    var rowsDemo = homeScope(planned, viewer);
     return cardHtml(rowsDemo, lang, { now: nowStamp(), viewer: viewer, example: true });
   }
   api.homeHtml = homeHtml;
