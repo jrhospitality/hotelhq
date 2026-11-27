@@ -1,16 +1,34 @@
--- Tell the Golden Valley GM once when an assigned MSPWE checklist passes
--- its due time unfinished. Additive only. No email. Push uses the existing
--- queue_notification path when that function is installed. In-app alerts
--- read notifications.title and notifications.body.
+-- Record each unfinished Golden Valley checklist once, after its due time.
+-- The GM, AGM, or JR Corporate sees those rows in the Daily Briefing and
+-- acknowledges them there. No push, no email, and no notifications row.
+-- Additive only. Safe to run again after the table already exists.
 
 create table if not exists public.checklist_overdue_notices (
   assignment_id bigint primary key references public.daily_assignments (id),
   hotel_id text not null,
-  created_at timestamptz not null default pg_catalog.now()
+  created_at timestamptz not null default pg_catalog.now(),
+  acknowledged_at timestamptz,
+  acknowledged_by uuid references public.profiles (user_id)
 );
 
+alter table public.checklist_overdue_notices
+  add column if not exists acknowledged_at timestamptz;
+
+alter table public.checklist_overdue_notices
+  add column if not exists acknowledged_by uuid references public.profiles (user_id);
+
 comment on table public.checklist_overdue_notices is
-  'One row per daily assignment after the Golden Valley GM has been told it is overdue. The primary key stops a repeat.';
+  'One row per Golden Valley checklist that passed its due time unfinished. It stays until a GM, AGM, or JR Corporate acknowledges it.';
+
+comment on column public.checklist_overdue_notices.acknowledged_at is
+  'When the missed checklist was acknowledged. Null while it is still on the Daily Briefing.';
+
+comment on column public.checklist_overdue_notices.acknowledged_by is
+  'The GM, AGM, or JR Corporate user who acknowledged the missed checklist.';
+
+create index if not exists checklist_overdue_open_idx
+  on public.checklist_overdue_notices (hotel_id)
+  where acknowledged_at is null;
 
 alter table public.checklist_overdue_notices enable row level security;
 
@@ -24,66 +42,93 @@ set search_path = ''
 as $overdue$
 declare
   v_count integer := 0;
-  r record;
-  v_name text;
-  v_list text;
-  v_due text;
-  v_title text;
-  v_body text;
-  nid bigint;
 begin
-  for r in
-    select d.id, d.hotel_id, d.employee, d.template_id, d.due_at
-    from public.daily_assignments d
-    where d.hotel_id = 'MSPWE'
-      and d.kind = 'checklist'
-      and d.completed_at is null
-      and d.due_at is not null
-      and d.due_at <= pg_catalog.now()
-      and not exists (
-        select 1 from public.checklist_overdue_notices n
-        where n.assignment_id = d.id
-      )
-  loop
-    insert into public.checklist_overdue_notices (assignment_id, hotel_id)
-    values (r.id, r.hotel_id)
-    on conflict (assignment_id) do nothing;
-    if not found then
-      continue;
-    end if;
-    select pr.name into v_name
-    from public.profiles pr
-    where pr.user_id = r.employee;
-    select t.name into v_list
-    from public.checklist_templates t
-    where t.id = r.template_id;
-    v_due := pg_catalog.to_char(r.due_at at time zone 'America/Chicago', 'FMHH12:MI AM');
-    v_title := 'Checklist not finished';
-    v_body := pg_catalog.concat_ws(' · ',
-      nullif(btrim(coalesce(v_name, '')), ''),
-      coalesce(nullif(btrim(coalesce(v_list, '')), ''), 'Checklist'),
-      'Due ' || v_due
-    );
-    nid := null;
-    if pg_catalog.to_regprocedure('private.queue_notification(text,text,bigint)') is not null then
-      nid := private.queue_notification('checklist_overdue', r.hotel_id, r.id);
-    end if;
-    if nid is not null then
-      update public.notifications
-        set title = v_title,
-            body = v_body
-        where id = nid;
-    end if;
-    v_count := v_count + 1;
-  end loop;
+  insert into public.checklist_overdue_notices (assignment_id, hotel_id)
+  select d.id, d.hotel_id
+  from public.daily_assignments d
+  where d.hotel_id = 'MSPWE'
+    and d.kind = 'checklist'
+    and d.completed_at is null
+    and d.due_at is not null
+    and d.due_at <= pg_catalog.now()
+  on conflict (assignment_id) do nothing;
+  get diagnostics v_count = row_count;
   return v_count;
 end
 $overdue$;
 
 comment on function private.notify_mspwe_overdue_checklists() is
-  'Once per unfinished Golden Valley checklist, after due_at, alerts the MSPWE GM in the app and by push. No email.';
+  'Inserts one checklist_overdue_notices row per unfinished Golden Valley checklist after due_at. Does not notify or push.';
 
 revoke all on function private.notify_mspwe_overdue_checklists() from public, anon, authenticated;
+
+create or replace function public.list_mspwe_missed_checklists()
+returns table (
+  assignment_id bigint,
+  person_name text,
+  checklist_en text,
+  checklist_es text,
+  due_at timestamptz
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $list$
+begin
+  if (select auth.uid()) is null or not (select private.is_mgr_of('MSPWE')) then
+    raise exception 'not allowed';
+  end if;
+  return query
+  select
+    n.assignment_id,
+    pr.name,
+    coalesce(t.name, 'Checklist'),
+    coalesce(t.name_es, t.name, 'Lista'),
+    d.due_at
+  from public.checklist_overdue_notices n
+  join public.daily_assignments d on d.id = n.assignment_id
+  left join public.profiles pr on pr.user_id = d.employee
+  left join public.checklist_templates t on t.id = d.template_id
+  where n.hotel_id = 'MSPWE'
+    and n.acknowledged_at is null
+  order by d.due_at, n.assignment_id;
+end
+$list$;
+
+comment on function public.list_mspwe_missed_checklists() is
+  'Unacknowledged missed Golden Valley checklists for the MSPWE GM, AGM, or JR Corporate.';
+
+revoke all on function public.list_mspwe_missed_checklists() from public, anon;
+grant execute on function public.list_mspwe_missed_checklists() to authenticated;
+
+create or replace function public.acknowledge_mspwe_missed_checklist(p_assignment_id bigint)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $ack$
+begin
+  if (select auth.uid()) is null or not (select private.is_mgr_of('MSPWE')) then
+    raise exception 'not allowed';
+  end if;
+  update public.checklist_overdue_notices
+    set acknowledged_at = pg_catalog.now(),
+        acknowledged_by = (select auth.uid())
+    where assignment_id = p_assignment_id
+      and hotel_id = 'MSPWE'
+      and acknowledged_at is null;
+  if not found then
+    raise exception 'not allowed';
+  end if;
+end
+$ack$;
+
+comment on function public.acknowledge_mspwe_missed_checklist(bigint) is
+  'MSPWE GM, AGM, or JR Corporate acknowledges one missed checklist. Records who and when.';
+
+revoke all on function public.acknowledge_mspwe_missed_checklist(bigint) from public, anon;
+grant execute on function public.acknowledge_mspwe_missed_checklist(bigint) to authenticated;
 
 do $cron$
 begin
