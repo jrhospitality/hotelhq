@@ -4,18 +4,21 @@
      2. the first Hotel Effectiveness clock-in that day (time_punches.punch_in),
      3. the answer to "Which shift are you working?" asked on the home screen
         after sign-in, saved on this device for that day.
-   Start-time windows (America/Chicago): AM 5:00 AM-1:59 PM, PM 2:00-9:59 PM,
-   Night Audit 10:00 PM-4:59 AM. These match DailyAssign.shiftBucket and
-   private.shift_bucket.
+   Golden Valley front desk only (America/Chicago). Jay's shifts are
+   AM 7:00 AM-3:00 PM, PM 3:00-11:00 PM, and Night Audit 11:00 PM-7:00 AM.
+   A punch-in or schedule start is AM 5:00 AM-12:59 PM, PM 1:00-8:59 PM,
+   or Night Audit 9:00 PM-4:59 AM. A shift picked here starts at 7:00 AM,
+   3:00 PM, or 11:00 PM and is due at 3:00 PM, 11:00 PM, or 7:00 AM.
+   Other departments keep DailyAssign.shiftBucket and private.shift_bucket.
    Live mode never asks here; it keeps using schedule and punch only. */
 (function (root) {
   "use strict";
 
   var HOTELS = ["MSPWE"];
   var SHIFTS = [
-    { key: "AM", en: "AM", es: "AM", hint_en: "Starts 5 AM-2 PM", hint_es: "Empieza 5 AM-2 PM" },
-    { key: "PM", en: "PM", es: "PM", hint_en: "Starts 2 PM-10 PM", hint_es: "Empieza 2 PM-10 PM" },
-    { key: "Night Audit", en: "Night Audit", es: "Auditoría nocturna", hint_en: "Starts 10 PM-5 AM", hint_es: "Empieza 10 PM-5 AM" }
+    { key: "AM", en: "AM", es: "AM", hint_en: "7 AM-3 PM", hint_es: "7 AM-3 PM" },
+    { key: "PM", en: "PM", es: "PM", hint_en: "3-11 PM", hint_es: "3-11 PM" },
+    { key: "Night Audit", en: "Night Audit", es: "Auditoría nocturna", hint_en: "11 PM-7 AM", hint_es: "11 PM-7 AM" }
   ];
   var STORE = "hhq.shiftPick";
 

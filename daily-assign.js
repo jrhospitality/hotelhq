@@ -89,6 +89,22 @@
     if (mins >= 14 * 60 && mins < 22 * 60) return "PM";
     return "Night Audit";
   }
+  /* Golden Valley front desk only (America/Chicago). Jay's shifts are
+     AM 7 AM-3 PM, PM 3-11 PM, and Night Audit 11 PM-7 AM.
+     A punch-in or start time lands in AM 5:00-12:59, PM 1:00-8:59,
+     or Night Audit 9:00 PM-4:59 AM. Other hotels and departments stay on
+     shiftBucket, which matches private.shift_bucket. Live assignment does too. */
+  function mspweFdBucket(start) {
+    var mins = minutes(start);
+    if (mins == null) return "";
+    if (mins >= 5 * 60 && mins < 13 * 60) return "AM";
+    if (mins >= 13 * 60 && mins < 21 * 60) return "PM";
+    return "Night Audit";
+  }
+  function bucketFor(hotel, department, start) {
+    if (hotel === "MSPWE" && department === "front_desk") return mspweFdBucket(start);
+    return shiftBucket(start);
+  }
   function shiftMatches(templateShift, bucket) {
     var want = normShift(templateShift);
     if (!want) return true;
@@ -114,11 +130,13 @@
     if (endMin <= startMin) day = addDays(day, 1);
     return day + "T" + hhmm(endMin);
   }
-  function bucketEnd(date, start) {
-    var bucket = shiftBucket(start);
+  function bucketEndFor(date, start, bucket) {
     if (bucket === "AM") return dueStamp(date, start, "15:00");
     if (bucket === "PM") return dueStamp(date, start, "23:00");
     return dueStamp(date, start, "07:00");
+  }
+  function bucketEnd(date, start) {
+    return bucketEndFor(date, start, shiftBucket(start));
   }
   var ASKED_START = { AM: "07:00", PM: "15:00", "Night Audit": "23:00" };
   function askedStart(shift) {
@@ -201,34 +219,39 @@
       var scheduled = publishedToday(shifts, person, person.hotel, date);
       var punch = scheduled.length ? null : firstPunch(punches, person, person.hotel, date);
       var blocks = scheduled.map(function (shift) {
+        var department = deptOf(shift.department || person.role);
+        var start = shift.start;
+        var mspweFd = person.hotel === "MSPWE" && department === "front_desk";
         return {
-          department: deptOf(shift.department || person.role),
-          start: shift.start,
-          due: dueStamp(date, shift.start, shift.end),
+          department: department,
+          start: start,
+          due: mspweFd ? bucketEndFor(date, start, mspweFdBucket(start)) : dueStamp(date, start, shift.end),
           source: "schedule"
         };
       });
       if (punch) {
+        var punchDept = deptOf(punch.department || person.role);
         blocks.push({
-          department: deptOf(punch.department || person.role),
+          department: punchDept,
           start: punch.punchIn,
-          due: bucketEnd(date, punch.punchIn),
+          due: bucketEndFor(date, punch.punchIn, bucketFor(person.hotel, punchDept, punch.punchIn)),
           source: "punch"
         });
       }
       var asked = scheduled.length || punch ? null : answerFor(answers, person, person.hotel, date);
       if (asked) {
+        var askedDept = deptOf(person.role);
         var askedAt = askedStart(asked.shift);
         blocks.push({
-          department: deptOf(person.role),
+          department: askedDept,
           start: askedAt,
-          due: bucketEnd(date, askedAt),
+          due: bucketEndFor(date, askedAt, bucketFor(person.hotel, askedDept, askedAt)),
           source: "asked"
         });
       }
       blocks.forEach(function (block) {
         if (!block.department) return;
-        var bucket = shiftBucket(block.start);
+        var bucket = bucketFor(person.hotel, block.department, block.start);
         templates.forEach(function (template) {
           if (template.hotel !== person.hotel) return;
           if (deptOf(template.department) !== block.department) return;
@@ -453,6 +476,7 @@
     deptOf: deptOf,
     normRole: normRole,
     shiftBucket: shiftBucket,
+    mspweFdBucket: mspweFdBucket,
     askedStart: askedStart,
     needsShiftAsk: needsShiftAsk,
     shiftMatches: shiftMatches,
