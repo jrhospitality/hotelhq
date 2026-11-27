@@ -115,13 +115,34 @@ test("only Golden Valley front desk is asked, and bad answers are ignored", () =
   assert.equal(pick.askHtml(input, hk, "en"), "");
 });
 
-test("live mode never asks", () => {
+test("live mode asks Golden Valley front desk and stores the answer on the server", async () => {
   globalThis.HOTELHQ_CONFIG = { mode: "live" };
   try {
     const store = mem();
     const input = daily.exampleInput(WED);
     assert.equal(pick.demoInput(input, viewer, WED, store), input);
     assert.equal(pick.askHtml(input, viewer, "en"), "");
+    const ask = pick.askHtml(input, viewer, "en", { live: true });
+    assert.match(ask, /Which shift are you working\?/);
+    assert.equal(ask.includes("EXAMPLE"), false);
+    assert.match(ask, /7 AM-3 PM/);
+    assert.match(pick.askHtml(input, viewer, "es", { live: true }), /¿Qué turno trabajas\?/);
+    assert.equal(pick.askHtml(input, viewer, "en", { live: true, answered: true }), "");
+    assert.equal(daily.liveAskNeeded([], viewer, ""), true);
+    assert.equal(daily.liveAskNeeded([{ employee: viewer.id, kind: "checklist", department: "front_desk" }], viewer, ""), false);
+    assert.equal(daily.liveAskNeeded([], viewer, "PM"), false);
+    assert.equal(daily.liveAskNeeded([], { id: "hk", role: "Housekeeping", hotel: "MSPWE" }, ""), false);
+    assert.equal(daily.liveAskNeeded([], { id: "x", role: "Front Desk", hotel: "MSPAM" }, ""), false);
+    const calls = [];
+    const ok = await pick.saveLive(viewer, "PM", {
+      rpc: (name, args) => { calls.push([name, args]); return Promise.resolve({ data: { ok: true } }); }
+    });
+    assert.equal(ok, true);
+    assert.deepEqual(calls, [["select_my_shift", { p_shift: "PM" }]]);
+    assert.equal(await pick.saveLive(Object.assign({}, viewer, { hotel: "MSPAM" }), "AM", {
+      rpc: () => { throw new Error("should not run"); }
+    }), false);
+    assert.equal(await pick.saveLive(viewer, "Swing", { rpc: () => Promise.resolve({}) }), false);
   } finally {
     delete globalThis.HOTELHQ_CONFIG;
   }

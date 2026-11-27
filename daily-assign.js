@@ -5,9 +5,10 @@
    A published shift says who is working. With no published shift that day,
    the first clock-in does. Golden Valley (MSPWE) can also assign the walk
    on weekdays to a GM or AGM who has no schedule data at all.
-   With no published shift and no clock-in, demo mode asks the person
-   "Which shift are you working?" and assigns that shift's list (source
-   "asked"). Live mode does not ask yet.
+   With no published shift and no clock-in, the person is asked
+   "Which shift are you working?" and that shift's list is assigned
+   (source "asked"). Demo keeps the answer on this device. Live Golden
+   Valley front desk keeps it in shift_selections.
    Demo mode uses EXAMPLE names only. */
 (function (root) {
   "use strict";
@@ -93,7 +94,8 @@
      AM 7 AM-3 PM, PM 3-11 PM, and Night Audit 11 PM-7 AM.
      A punch-in or start time lands in AM 5:00-12:59, PM 1:00-8:59,
      or Night Audit 9:00 PM-4:59 AM. Other hotels and departments stay on
-     shiftBucket, which matches private.shift_bucket. Live assignment does too. */
+     shiftBucket, which matches private.shift_bucket. Live Golden Valley
+     front desk uses private.mspwe_fd_bucket with these same windows. */
   function mspweFdBucket(start) {
     var mins = minutes(start);
     if (mins == null) return "";
@@ -156,6 +158,13 @@
     if (publishedToday(input.shifts, person, person.hotel, date).length) return false;
     if (firstPunch(input.punches, person, person.hotel, date)) return false;
     return !answerFor(input.answers, person, person.hotel, date);
+  }
+  function liveAskNeeded(rows, viewer, selection) {
+    if (!viewer || viewer.hotel !== "MSPWE" || normRole(viewer.role) !== "front_desk") return false;
+    if (selection) return false;
+    return !(rows || []).some(function (row) {
+      return row && row.employee === viewer.id && row.kind === "checklist" && deptOf(row.department) === "front_desk";
+    });
   }
   function fmtDue(stamp) {
     var hm = String(stamp || "").slice(11, 16);
@@ -479,6 +488,7 @@
     mspweFdBucket: mspweFdBucket,
     askedStart: askedStart,
     needsShiftAsk: needsShiftAsk,
+    liveAskNeeded: liveAskNeeded,
     shiftMatches: shiftMatches,
     isWeekday: isWeekday,
     isDailyTemplate: isDailyTemplate,
@@ -638,6 +648,16 @@
     var lang = langNow();
     if (remoteOn()) {
       ensureLive(viewer.hotel, date);
+      var SP = root.ShiftPick;
+      if (SP && SP.applies && SP.applies(viewer)) {
+        if (SP.ensureLive) SP.ensureLive(viewer, date);
+        if (!cache.rows || cache.loading || cache.error) return "";
+        if (SP.selectionReady && !SP.selectionReady(viewer, date)) return "";
+        if (liveAskNeeded(cache.rows, viewer, SP.liveAnswer ? SP.liveAnswer(viewer, date) : "")) {
+          var liveAsk = SP.askHtml(null, viewer, lang, { live: true });
+          if (liveAsk) return liveAsk;
+        }
+      }
       if (!cache.rows || !cache.rows.length) return "";
       var rows = visible(cache.rows, viewer);
       return cardHtml(rows, lang, { now: nowStamp(), viewer: viewer, example: false });
@@ -653,6 +673,16 @@
     return cardHtml(rowsDemo, lang, { now: nowStamp(), viewer: viewer, example: true });
   }
   api.homeHtml = homeHtml;
+  api.reload = function () {
+    cache = { key: "", rows: null, loading: false, error: false };
+  };
+  api.mineShift = function (viewer) {
+    if (!viewer) return "";
+    var hit = (cache.rows || []).filter(function (row) {
+      return row.employee === viewer.id && row.kind === "checklist" && deptOf(row.department) === "front_desk" && row.shift;
+    })[0];
+    return hit ? hit.shift : "";
+  };
   root.DailyAssign.finish = function (key) {
     if (!key) return;
     var viewer = viewerNow();
