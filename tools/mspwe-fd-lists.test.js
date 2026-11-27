@@ -68,6 +68,9 @@ test("the overdue alert migration is additive, once per assignment, and does not
   assert.match(sql, /d\.kind = 'checklist'/);
   assert.match(sql, /d\.due_at <= pg_catalog\.now\(\)/);
   assert.match(sql, /on conflict \(assignment_id\) do nothing/);
+  assert.match(sql, /set detail = v_title \|\| ': ' \|\| v_body/);
+  assert.match(sql, /pr\.role = 'gm' and pr\.active/);
+  assert.doesNotMatch(sql, /set title = v_title/);
   assert.match(sql, /mspwe-checklist-overdue/);
   assert.match(sql, /\*\/15 \* \* \* \*/);
   assert.doesNotMatch(sql, /delete from/i);
@@ -75,8 +78,10 @@ test("the overdue alert migration is additive, once per assignment, and does not
   assert.doesNotMatch(sql, /call_send_push|smtp\.|mailto/i);
   const push = fs.readFileSync(path.join(root, "supabase/functions/send-push/index.ts"), "utf8");
   assert.match(push, /"checklist_overdue"/);
-  assert.match(push, /roles: \["gm"\]/);
-  assert.match(push, /profiles/);
+  assert.match(push, /n\.event === "checklist_overdue"/);
+  assert.match(push, /n\.recipients/);
+  assert.match(push, /action === "initial"/);
+  assert.match(push, /people\(n\.hotel_id, ev\.roles, c\.extra\)/);
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   assert.ok(html.indexOf('src="data/mspwe-fd-lists.js"') > 0);
   assert.ok(html.indexOf('src="mspwe-fd-lists.js"') > html.indexOf('src="daily-assign.js"'));

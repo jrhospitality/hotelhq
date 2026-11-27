@@ -1,7 +1,7 @@
 -- Tell the Golden Valley GM once when an assigned MSPWE checklist passes
 -- its due time unfinished. Additive only. No email. Push uses the existing
 -- queue_notification path when that function is installed. In-app alerts
--- read notifications.title and notifications.body.
+-- read notifications.detail. The table has no title or body columns.
 
 create table if not exists public.checklist_overdue_notices (
   assignment_id bigint primary key references public.daily_assignments (id),
@@ -70,8 +70,12 @@ begin
     end if;
     if nid is not null then
       update public.notifications
-        set title = v_title,
-            body = v_body
+        set detail = v_title || ': ' || v_body,
+            recipients = (
+              select pg_catalog.array_agg(pr.user_id)
+              from public.profiles pr
+              where pr.hotel_id = r.hotel_id and pr.role = 'gm' and pr.active
+            )
         where id = nid;
     end if;
     v_count := v_count + 1;

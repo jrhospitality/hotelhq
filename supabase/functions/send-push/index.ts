@@ -313,7 +313,13 @@ Deno.serve(async (req) => {
     const c = await ev.build(n.record_id);
 
     let targets: any[];
-    if (action === "initial") {
+    if (n.event === "checklist_overdue") {
+      const ids = Array.isArray(n.recipients) ? n.recipients : [];
+      const { data } = ids.length
+        ? await db.from("profiles").select("user_id,language,role").in("user_id", ids).eq("active", true)
+        : { data: [] };
+      targets = data ?? [];
+    } else if (action === "initial") {
       targets = await people(n.hotel_id, ev.roles, c.extra);
       await log({ recipients: targets.map((p) => p.user_id) });
     } else {
@@ -351,8 +357,13 @@ Deno.serve(async (req) => {
         else failed++;
       }
     }));
-    await log({ status: subs?.length ? (failed ? "partial" : "sent") : "no_subscriptions", payload: payloads,
-      sent_at: new Date().toISOString(), detail: `${action}: sent=${sent} removed=${removed} failed=${failed}` });
+    const sentLog: Record<string, unknown> = {
+      status: subs?.length ? (failed ? "partial" : "sent") : "no_subscriptions",
+      payload: payloads,
+      sent_at: new Date().toISOString(),
+    };
+    if (n.event !== "checklist_overdue") sentLog.detail = `${action}: sent=${sent} removed=${removed} failed=${failed}`;
+    await log(sentLog);
     return new Response(JSON.stringify({ action, sent, removed, failed }));
   } catch (e) { return new Response(String(e), { status: 500 }); }
 });
