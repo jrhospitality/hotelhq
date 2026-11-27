@@ -51,6 +51,8 @@ var STATIC = [
   "./daily-assign.js",
   "./shift-pick.js",
   "./drawer-count.js",
+  "./data/mspwe-fd-lists.js",
+  "./mspwe-fd-lists.js",
   "./home-focus.js",
   "./glance-home.js",
   "./fair-share.js",

@@ -102,7 +102,7 @@ test("overdue starts at the end of the shift, and leaders see completion in both
   const fd = daily.cardHtml(mine, "en", { now: "2026-11-25T15:00", viewer: { id: "mspwe-fd", role: "Front Desk", hotel: "MSPWE" }, example: true });
   assert.match(fd, /id="dailyAssign"/);
   assert.match(fd, /EXAMPLE/);
-  assert.match(fd, /1st Shift - AM Check list/);
+  assert.match(fd, /Front Desk Shift Success List - AM/);
   assert.match(fd, /Overdue/);
   assert.equal(fd.includes("Luis Ortega"), false);
   assert.equal(fd.includes("Team today"), false);
