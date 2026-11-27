@@ -49,6 +49,7 @@ var STATIC = [
   "./avatars.js",
   "./guest-requests.js",
   "./daily-assign.js",
+  "./shift-pick.js",
   "./home-focus.js",
   "./glance-home.js",
   "./fair-share.js",

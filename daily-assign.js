@@ -5,6 +5,9 @@
    A published shift says who is working. With no published shift that day,
    the first clock-in does. Golden Valley (MSPWE) can also assign the walk
    on weekdays to a GM or AGM who has no schedule data at all.
+   With no published shift and no clock-in, demo mode asks the person
+   "Which shift are you working?" and assigns that shift's list (source
+   "asked"). Live mode does not ask yet.
    Demo mode uses EXAMPLE names only. */
 (function (root) {
   "use strict";
@@ -117,6 +120,25 @@
     if (bucket === "PM") return dueStamp(date, start, "23:00");
     return dueStamp(date, start, "07:00");
   }
+  var ASKED_START = { AM: "07:00", PM: "15:00", "Night Audit": "23:00" };
+  function askedStart(shift) {
+    return ASKED_START[normShift(shift)] || "";
+  }
+  function answerFor(answers, person, hotel, date) {
+    var hit = (answers || []).filter(function (a) {
+      return a && a.employee === person.id && a.hotel === hotel && String(a.date).slice(0, 10) === date && askedStart(a.shift);
+    });
+    return hit.length ? hit[hit.length - 1] : null;
+  }
+  function needsShiftAsk(input, personId) {
+    input = input || {};
+    var date = String(input.date || "").slice(0, 10);
+    var person = (input.people || []).filter(function (p) { return p && p.id === personId && p.active !== false; })[0];
+    if (!person || !person.hotel) return false;
+    if (publishedToday(input.shifts, person, person.hotel, date).length) return false;
+    if (firstPunch(input.punches, person, person.hotel, date)) return false;
+    return !answerFor(input.answers, person, person.hotel, date);
+  }
   function fmtDue(stamp) {
     var hm = String(stamp || "").slice(11, 16);
     var mins = minutes(hm);
@@ -170,6 +192,7 @@
     var people = (input.people || []).filter(function (person) { return person && person.active !== false && person.id && person.hotel; });
     var shifts = input.shifts || [];
     var punches = input.punches || [];
+    var answers = input.answers || [];
     var templates = (input.templates || []).filter(isDailyTemplate);
     var byKey = {};
 
@@ -191,6 +214,16 @@
           start: punch.punchIn,
           due: bucketEnd(date, punch.punchIn),
           source: "punch"
+        });
+      }
+      var asked = scheduled.length || punch ? null : answerFor(answers, person, person.hotel, date);
+      if (asked) {
+        var askedAt = askedStart(asked.shift);
+        blocks.push({
+          department: deptOf(person.role),
+          start: askedAt,
+          due: bucketEnd(date, askedAt),
+          source: "asked"
         });
       }
       blocks.forEach(function (block) {
@@ -358,6 +391,7 @@
       templates: [
         { id: "fd-am", hotel: "MSPWE", department: "front_desk", shift: "AM", name_en: "1st Shift - AM Check list", name_es: "Lista del 1.er turno - AM", kind: "daily", cadence: "daily", active: true },
         { id: "fd-pm", hotel: "MSPWE", department: "front_desk", shift: "PM", name_en: "2nd Shift - PM checklist", name_es: "Lista del 2.º turno - PM", kind: "daily", cadence: "daily", active: true },
+        { id: "fd-na", hotel: "MSPWE", department: "front_desk", shift: "Night Audit", name_en: "Night Audit Success List", name_es: "Lista de éxito de la auditoría nocturna", kind: "daily", cadence: "per_shift", active: true },
         { id: "fd-pm-am", hotel: "MSPAM", department: "front_desk", shift: "PM", name_en: "2nd Shift - PM checklist", name_es: "Lista del 2.º turno - PM", kind: "daily", cadence: "daily", active: true },
         { id: "hk", hotel: "MSPWE", department: "housekeeping", shift: "", name_en: "Housekeeping daily", name_es: "Lista diaria de ama de llaves", kind: "daily", cadence: "daily", active: true },
         { id: "mt", hotel: "MSPWE", department: "maintenance", shift: "", name_en: "Daily Maintenance Checklist", name_es: "Lista diaria de mantenimiento", kind: "daily", cadence: "daily", active: true },
@@ -419,6 +453,8 @@
     deptOf: deptOf,
     normRole: normRole,
     shiftBucket: shiftBucket,
+    askedStart: askedStart,
+    needsShiftAsk: needsShiftAsk,
     shiftMatches: shiftMatches,
     isWeekday: isWeekday,
     isDailyTemplate: isDailyTemplate,
@@ -582,7 +618,13 @@
       var rows = visible(cache.rows, viewer);
       return cardHtml(rows, lang, { now: nowStamp(), viewer: viewer, example: false });
     }
-    var planned = applyDone(plan(exampleInput(date)));
+    var input = exampleInput(date);
+    if (root.ShiftPick && root.ShiftPick.demoInput) {
+      input = root.ShiftPick.demoInput(input, viewer, date);
+      var ask = root.ShiftPick.askHtml(input, viewer, lang);
+      if (ask) return ask;
+    }
+    var planned = applyDone(plan(input));
     var rowsDemo = visible(planned, viewer);
     return cardHtml(rowsDemo, lang, { now: nowStamp(), viewer: viewer, example: true });
   }
